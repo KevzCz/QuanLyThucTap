@@ -1,8 +1,19 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* App scaffolding */
+/* Remove Vite template styles that were centering the page and forcing dark bg */
 html, body, #root {
   height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #f3f4f6; /* same as Tailwind bg-gray-100 for the page */
+  color: #111827;      /* gray-900 */
+  display: block;      /* undo display:flex from the template */
+}
+
+/* Optional: make the app always use the full viewport width */
+#root {
+  width: 100%;
+  min-height: 100vh;
 }
