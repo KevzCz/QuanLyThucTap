@@ -1,4 +1,3 @@
-
 export * from "./internship_subject/ParticipantsTypes";
 export { default as AddChooserDialog } from "./internship_subject/AddChooserDialog";
 export { default as AddStudentsToSubjectDialog } from "./internship_subject/AddStudentsToSubjectDialog";
@@ -17,3 +16,4 @@ export { default as KhoaSubRegular } from "./khoa_page/KhoaSubRegular";
 export { default as KhoaSubUpload } from "./khoa_page/KhoaSubUpload";
 export { default as KhoaPageRoutes } from "./khoa_page/KhoaPageRoutes";
 export { default as ConfirmDeleteDialog } from "./khoa_page/ConfirmDeleteDialog";
+export { default as ChatManagement } from "./chat/ChatManagement";

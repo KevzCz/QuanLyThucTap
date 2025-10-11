@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { HeaderBlock, SubHeader } from "./KhoaPageTypes";
-import CreateHeaderDialog from "./CreateHeaderDialog";
-import EditHeaderDialog from "./EditHeaderDialog";
-import CreateSubDialog from "./CreateSubDialog";
-import EditSubDialog from "./EditSubDialog";
-import ConfirmDeleteDialog from "./ConfirmDeleteDialog";
+import type { HeaderBlock, SubHeader } from "./TeacherPageTypes";
+import CreateHeaderDialog from "../teacher_page/CreateHeaderDialog";
+import EditHeaderDialog from "../teacher_page/EditHeaderDialog";
+import CreateSubDialog from "../teacher_page/CreateSubDialog";
+import EditSubDialog from "../teacher_page/EditSubDialog";
+import ConfirmDeleteDialog from "../teacher_page/ConfirmDeleteDialog";
 import dayjs from "dayjs";
+
 const htmlToTextWithBreaks = (html: string) => {
   let s = html || "";
   s = s.replace(/<(br|BR)\s*\/?>/g, "\n")
@@ -18,48 +19,30 @@ const htmlToTextWithBreaks = (html: string) => {
   s = s.replace(/[ \t]+\n/g, "\n");   // trim trailing spaces before \n
   return s.trim();
 };
-/* ---------- Mock data (UI only) ---------- */
+
+/* ---------- Mock data ---------- */
 const MOCK: HeaderBlock[] = [
   {
     id: "h1",
-    title: "Thông báo",
+    title: "Thông báo từ giảng viên",
     order: 1,
-    audience: "tat-ca",
     subs: [
-      { id: "s1", title: "Thông báo 1", order: 1, kind: "thuong", audience: "tat-ca" },
-      { id: "s2", title: "Thông báo 2", order: 2, kind: "thuong", audience: "tat-ca" },
+      { id: "s1", title: "Thông báo lịch học", order: 1, kind: "thong-bao" },
+      { id: "s2", title: "Hướng dẫn thực tập", order: 2, kind: "thuong" },
     ],
   },
   {
     id: "h2",
-    title: "Quản lý CV",
+    title: "Tài liệu học tập",
     order: 2,
-    audience: "sinh-vien",
-    subs: [{ id: "s3", title: "Nộp CV tại đây", order: 1, kind: "thuong", audience: "sinh-vien" }],
-  },
-  {
-    id: "h3",
-    title: "Tài liệu",
-    order: 3,
-    audience: "tat-ca",
     subs: [
-      { id: "s4", title: "Hướng dẫn thực tập", order: 1, kind: "thuong", audience: "tat-ca" },
-      { id: "s5", title: "Tài liệu thực tập", order: 2, kind: "nop-file", audience: "tat-ca", startAt: "2025-09-22T00:00", endAt: "2025-09-29T00:00" },
+      { id: "s3", title: "Tài liệu chính", order: 1, kind: "thuong" },
+      { id: "s4", title: "Nộp báo cáo", order: 2, kind: "nop-file", startAt: "2025-09-22T00:00", endAt: "2025-09-29T00:00" },
     ],
   },
 ];
 
-/* ---------- Small UI helpers ---------- */
-const Tag: React.FC<React.PropsWithChildren<{ color?: string }>> = ({ children, color = "bg-gray-100 text-gray-700" }) => (
-  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${color}`}>{children}</span>
-);
-
-const AudienceText = {
-  "tat-ca": "Tất cả",
-  "sinh-vien": "Sinh viên",
-  "giang-vien": "Giảng viên",
-} as const;
-
+/* ---------- UI helpers ---------- */
 const ChevronBtn: React.FC<{ open: boolean; onClick: () => void }> = ({ open, onClick }) => (
   <button onClick={onClick} className="h-7 w-7 grid place-items-center rounded-md hover:bg-gray-100">
     <svg viewBox="0 0 24 24" className={`h-4 w-4 transition ${open ? "rotate-90" : ""}`}>
@@ -68,16 +51,12 @@ const ChevronBtn: React.FC<{ open: boolean; onClick: () => void }> = ({ open, on
   </button>
 );
 
-/* ---------- Page ---------- */
-const KhoaPageManagement: React.FC = () => {
+const TeacherPageManagement: React.FC = () => {
   const navigate = useNavigate();
-
-  // pill: current subject this BCN manages
   const [subjectId] = useState("CNTT - TT2025");
-
   const [query, setQuery] = useState("");
   const [data, setData] = useState<HeaderBlock[]>(MOCK);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ h1: true, h2: true, h3: true });
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({ h1: true, h2: true });
 
   // dialogs
   const [openCreateHeader, setOpenCreateHeader] = useState(false);
@@ -110,14 +89,14 @@ const KhoaPageManagement: React.FC = () => {
     setData((prev) => prev.map((h) => (h.id === headerId ? { ...h, subs: h.subs.filter((s) => s.id !== subId) } : h)));
 
   const gotoSub = (h: HeaderBlock, s: SubHeader) => {
-    const base = `/bcn-page/sub/${encodeURIComponent(s.id)}`;
+    const base = `/teacher-page/sub/${encodeURIComponent(s.id)}`;
     const path = s.kind === "nop-file" ? `${base}/upload` : base;
     navigate(path, { state: { header: h, sub: s, subjectId } });
   };
 
   return (
     <div className="space-y-4">
-      {/* Toolbar (sticky) */}
+      {/* Toolbar */}
       <div className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-200">
         <div className="mx-0 sm:mx-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-2 py-3">
           <div className="flex items-center gap-3">
@@ -147,7 +126,7 @@ const KhoaPageManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Content (cards) */}
+      {/* Content */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         {filtered.sort((a, b) => a.order - b.order).map((h) => {
           const open = !!expanded[h.id];
@@ -156,7 +135,6 @@ const KhoaPageManagement: React.FC = () => {
               <div className="flex items-center gap-2 px-4 py-4 bg-gray-50">
                 <ChevronBtn open={open} onClick={() => setExpanded((m) => ({ ...m, [h.id]: !open }))} />
                 <h3 className="text-lg font-bold flex-1">{h.title}</h3>
-                <Tag>{AudienceText[h.audience]}</Tag>
                 <button className="ml-2 h-8 w-8 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700" title="Sửa header" onClick={() => setEditHeader(h)}>
                   <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
                 </button>
@@ -166,7 +144,7 @@ const KhoaPageManagement: React.FC = () => {
                 <button
                   className="h-8 w-8 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700"
                   title="Xóa header"
-                  onClick={()=>setConfirmDelHeader(h)}
+                  onClick={() => setConfirmDelHeader(h)}
                 >
                   <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
                 </button>
@@ -174,75 +152,72 @@ const KhoaPageManagement: React.FC = () => {
 
               {open && (
                 <div className="px-6 pb-4">
-                {h.subs.sort((a,b)=>a.order-b.order).map((s)=>(
-                <div key={s.id} className="flex items-center py-2.5">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    {/* icon by kind */}
-                    {s.kind === "thong-bao" ? (
-                      <span className="shrink-0 text-blue-600" title="Thông báo">🔔</span>
-                    ) : s.kind === "nop-file" ? (
-                      <span className="shrink-0 text-gray-700" title="Nộp file">🗂️</span>
-                    ) : s.kind === "file" ? (
-                      <span className="shrink-0 text-green-600" title="File tải xuống">📎</span>
-                    ) : (
-                      <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục"> • </span>
-                    )}
+                  {h.subs.sort((a, b) => a.order - b.order).map((s) => (
+                    <div key={s.id} className="flex items-center py-2.5">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {/* icon by kind */}
+                        {s.kind === "thong-bao" ? (
+                          <span className="shrink-0 text-blue-600" title="Thông báo">🔔</span>
+                        ) : s.kind === "nop-file" ? (
+                          <span className="shrink-0 text-gray-700" title="Nộp file">🗂️</span>
+                        ) : (
+                          <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục"> • </span>
+                        )}
 
-                    {/* label */}
-                    {s.kind === "van-ban" ? (
-                      <span className="text-gray-900 whitespace-pre-line">
-                        {htmlToTextWithBreaks(s.title) || "(Văn bản trống)"}
-                      </span>
-                    ) : (
-                      <button
-                        className="truncate text-left text-gray-900 hover:underline"
-                        onClick={() => gotoSub(h, s)}
-                      >
-                        {s.title}
-                      </button>
-                    )}
-                  </div>
+                        {/* label */}
+                        {s.kind === "van-ban" ? (
+                          <span className="text-gray-900 whitespace-pre-line">
+                            {htmlToTextWithBreaks(s.title) || "(Văn bản trống)"}
+                          </span>
+                        ) : (
+                          <button
+                            className="truncate text-left text-gray-900 hover:underline"
+                            onClick={() => gotoSub(h, s)}
+                          >
+                            {s.title}
+                          </button>
+                        )}
+                      </div>
 
-                  {/* right meta & actions */}
-                  <div className="ml-4 flex items-center gap-3">
-                    <span className="inline-flex rounded-full bg-gray-100 text-gray-700 px-2.5 py-0.5 text-xs font-medium">
-                      {{
-                        "thuong": "Thường",
-                        "thong-bao": "Thông báo",
-                        "nop-file": "Nộp file",
-                        "van-ban": "Văn bản",
-                        "file": "File tải xuống",
-                      }[s.kind]}
-                    </span>
+                      {/* right meta & actions */}
+                      <div className="ml-4 flex items-center gap-3">
+                        <span className="inline-flex rounded-full bg-gray-100 text-gray-700 px-2.5 py-0.5 text-xs font-medium">
+                          {{
+                            "thuong": "Thường",
+                            "thong-bao": "Thông báo",
+                            "nop-file": "Nộp file",
+                            "van-ban": "Văn bản",
+                          }[s.kind]}
+                        </span>
 
-                    {s.kind === "nop-file" && (
-                      <span className="text-xs text-gray-500 whitespace-nowrap">
-                        {s.startAt ? `Start: ${dayjs(s.startAt).format("DD/MM/YYYY")}` : "Start: X"} ·{" "}
-                        {s.endAt ? `End: ${dayjs(s.endAt).format("DD/MM/YYYY")}` : "End: X"}
-                      </span>
-                    )}
+                        {s.kind === "nop-file" && (
+                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                            {s.startAt ? `Start: ${dayjs(s.startAt).format("DD/MM/YYYY")}` : "Start: X"} ·{" "}
+                            {s.endAt ? `End: ${dayjs(s.endAt).format("DD/MM/YYYY")}` : "End: X"}
+                          </span>
+                        )}
 
-                    <button
-                      className="h-7 w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-                      title="Sửa sub-header"
-                      onClick={()=>setEditSub({ headerId: h.id, sub: s })}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
-                    </button>
-                    <button
-                      className="h-7 w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700"
-                      title="Xóa"
-                      onClick={()=>setConfirmDelSub({ header: h, sub: s })}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
-                    </button>
-                  </div>
+                        <button
+                          className="h-7 w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+                          title="Sửa sub-header"
+                          onClick={() => setEditSub({ headerId: h.id, sub: s })}
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
+                        </button>
+                        <button
+                          className="h-7 w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700"
+                          title="Xóa"
+                          onClick={() => setConfirmDelSub({ header: h, sub: s })}
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-            )}
-          </div>
-        );
+          );
         })}
       </div>
 
@@ -255,25 +230,24 @@ const KhoaPageManagement: React.FC = () => {
         open={!!confirmDelHeader}
         title="Xóa header"
         message={`Xóa header "${confirmDelHeader?.title}" và tất cả sub-header bên trong?`}
-        onCancel={()=>setConfirmDelHeader(null)}
-        onConfirm={()=>{
+        onCancel={() => setConfirmDelHeader(null)}
+        onConfirm={() => {
           if (confirmDelHeader) removeHeader(confirmDelHeader.id);
           setConfirmDelHeader(null);
         }}
       />
-
       <ConfirmDeleteDialog
         open={!!confirmDelSub}
         title="Xóa sub-header"
         message={`Xóa sub-header "${confirmDelSub?.sub.title}"?`}
-        onCancel={()=>setConfirmDelSub(null)}
-        onConfirm={()=>{
+        onCancel={() => setConfirmDelSub(null)}
+        onConfirm={() => {
           if (confirmDelSub) removeSub(confirmDelSub.header.id, confirmDelSub.sub.id);
           setConfirmDelSub(null);
         }}
       />
-      </div>
+    </div>
   );
 };
 
-export default KhoaPageManagement;
+export default TeacherPageManagement;

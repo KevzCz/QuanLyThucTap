@@ -1,4 +1,5 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import type { Role } from "../../App";
 
 interface HeaderProps {
@@ -19,19 +20,71 @@ const SearchIcon = () => (
 function roleName(role: Role) {
   switch (role) {
     case "phong-dao-tao": return "Phòng Đào Tạo";
-    case "ban-chu-nhiem": return "Ban Chủ Nhiệm (Khoa)";
+    case "ban-chu-nhiem": return "Ban Chủ Nhiệm";
     case "giang-vien": return "Giảng viên";
     case "sinh-vien": return "Sinh viên";
   }
 }
 
+function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
+  // Map paths to page names
+  const pageMap: Record<string, { breadcrumb: string; title: string }> = {
+    "/dashboard": { breadcrumb: "Trang chủ", title: "Trang chủ" },
+    "/chat": { breadcrumb: "Chat hỗ trợ", title: "Chat hỗ trợ" },
+    
+    // PDT pages
+    "/accounts": { breadcrumb: "Quản lý tài khoản", title: "Quản lý tài khoản" },
+    "/menu-list": { breadcrumb: "Quản lý môn thực tập", title: "Quản lý môn thực tập" },
+    "/summary": { breadcrumb: "Quản lý tổng kết", title: "Quản lý tổng kết" },
+    "/stats": { breadcrumb: "Thống kê điểm thực tập", title: "Thống kê điểm thực tập" },
+    
+    // BCN pages
+    "/bcn-internship": { breadcrumb: "Quản lý môn thực tập", title: "Quản lý môn thực tập" },
+    "/bcn-page": { breadcrumb: "Quản lý trang khoa", title: "Quản lý trang khoa" },
+    "/request": { breadcrumb: "Quản lý yêu cầu", title: "Quản lý yêu cầu" },
+    "/bcn-reports": { breadcrumb: "Quản lý báo cáo", title: "Quản lý báo cáo" },
+    
+    // GV pages
+    "/teacher-students": { breadcrumb: "Quản lý sinh viên", title: "Quản lý sinh viên" },
+    "/teacher-page": { breadcrumb: "Quản lý trang giảng viên", title: "Quản lý trang giảng viên" },
+    "/teacher-reports": { breadcrumb: "Quản lý báo cáo", title: "Quản lý báo cáo" },
+    
+    // SV pages
+    "/docs-dept": { breadcrumb: "Xem tài liệu khoa", title: "Xem tài liệu khoa" },
+    "/docs-teacher": { breadcrumb: "Xem tài liệu giảng viên", title: "Xem tài liệu giảng viên" },
+    "/internship-registration": { breadcrumb: "Đăng ký môn thực tập", title: "Đăng ký môn thực tập" },
+    "/my-internship": { breadcrumb: "Thực tập của tôi", title: "Thực tập của tôi" },
+    "/profile": { breadcrumb: "Hồ sơ cá nhân", title: "Hồ sơ cá nhân" },
+  };
+
+  // Handle sub-routes
+  if (pathname.startsWith("/bcn-page/sub/")) {
+    return { breadcrumb: "Quản lý trang khoa / Trang con", title: "Trang con khoa" };
+  }
+  if (pathname.startsWith("/teacher-page/sub/")) {
+    return { breadcrumb: "Quản lý trang giảng viên / Trang con", title: "Trang con giảng viên" };
+  }
+
+  // Find exact match or return default
+  const pageInfo = pageMap[pathname];
+  if (pageInfo) {
+    return pageInfo;
+  }
+
+  // Default fallback
+  return { breadcrumb: "Trang chủ", title: "Trang chủ" };
+}
+
 const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
+  const location = useLocation();
+  const { breadcrumb, title } = getPageInfo(location.pathname);
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
       <div className="px-6 py-4 flex items-center justify-between">
         <div>
-          <div className="text-sm text-gray-500">{roleName(user.role)} / Trang chủ</div>
-          <h1 className="text-[15px] font-semibold text-gray-800 mt-1">Trang chủ</h1>
+          <div className="text-sm text-gray-500">{roleName(user.role)} / {breadcrumb}</div>
+          <h1 className="text-[15px] font-semibold text-gray-800 mt-1">{title}</h1>
         </div>
 
         <div className="flex items-center gap-3">

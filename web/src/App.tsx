@@ -4,11 +4,19 @@ import DashboardLayout from "./components/Layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import AccountManagement from "./pages/PDT/account/AccountManagement";
-import InternshipSubjectManagement from "./pages/PDT/internship_subject/InternshipSubjectManagement";
+import InternshipSubjectManagement from "./pages/PDT/internship_subject_management/InternshipSubjectManagement";
 import BCNInternshipSubjectManagement from "./pages/BCN/internship_subject/InternshipSubjectManagement";
 import KhoaPageManagement  from "./pages/BCN/khoa_page/KhoaPageManagement";
 export type Role = "phong-dao-tao" | "ban-chu-nhiem" | "giang-vien" | "sinh-vien";
 import KhoaPageRoutes  from "./pages/BCN/khoa_page/KhoaPageRoutes";
+import RequestManagement from "./pages/BCN/request/RequestManagement";
+import StudentManagement from "./pages/GV/student_management/StudentManagement";
+import { TeacherPageRoutes } from "./pages/GV";
+import { KhoaPageViewRoutes, TeacherPageViewRoutes, InternshipSubjectRegister } from "./pages/SV";
+import { ChatManagement as PDTChatManagement } from "./pages/PDT";
+import { ChatManagement as BCNChatManagement } from "./pages/BCN";
+import { ChatManagement as GVChatManagement } from "./pages/GV";
+import { ChatManagement as SVChatManagement } from "./pages/SV";
 
 <Route path="/BCN/khoa_page/*" element={<KhoaPageRoutes />} />
 export default function App() {
@@ -47,11 +55,18 @@ export default function App() {
 
           {/* Common */}
           <Route path="dashboard" element={<Dashboard userRole={user.role} />} />
-          <Route path="chat" element={Stub("Chat hỗ trợ")} />
+          <Route path="chat" element={
+            user.role === "phong-dao-tao" ? <PDTChatManagement /> :
+            user.role === "ban-chu-nhiem" ? <BCNChatManagement /> :
+            user.role === "giang-vien" ? <GVChatManagement /> :
+            user.role === "sinh-vien" ? <SVChatManagement /> :
+            Stub("Chat hỗ trợ")
+          } />
 
           {/* ---- PĐT ---- */}
           <Route path="accounts" element={<AccountManagement />} />
           <Route path="menu-list" element={<InternshipSubjectManagement />} />
+          <Route path="request" element={<RequestManagement />} />
           <Route path="summary" element={Stub("Quản lý tổng kết")} />
           <Route path="stats" element={Stub("Thống kê điểm thực tập")} />
 
@@ -62,14 +77,14 @@ export default function App() {
           <Route path="bcn-reports" element={Stub("Quản lý báo cáo (Khoa)")} />
 
           {/* ---- GV ---- */}
-          <Route path="teacher-students" element={Stub("Quản lý sinh viên")} />
-          <Route path="teacher-page" element={Stub("Quản lý trang giảng viên")} />
+          <Route path="teacher-students" element={<StudentManagement />} />
+          <Route path="teacher-page/*" element={<TeacherPageRoutes />} />
           <Route path="teacher-reports" element={Stub("Quản lý báo cáo (GV)")} />
 
           {/* ---- SV ---- */}
-          <Route path="docs-dept" element={Stub("Xem tài liệu khoa")} />
-          <Route path="docs-teacher" element={Stub("Xem tài liệu giảng viên")} />
-          <Route path="internship-registration" element={Stub("Đăng ký môn thực tập")} />
+          <Route path="docs-dept/*" element={<KhoaPageViewRoutes />} />
+          <Route path="docs-teacher/*" element={<TeacherPageViewRoutes />} />
+          <Route path="internship-registration" element={<InternshipSubjectRegister />} />
           <Route path="my-internship" element={Stub("Thực tập của tôi")} />
           <Route path="profile" element={Stub("Hồ sơ cá nhân")} />
         </Route>

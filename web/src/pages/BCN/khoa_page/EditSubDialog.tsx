@@ -1,5 +1,5 @@
 // pages/BCN/khoa_page/EditSubDialog.tsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Modal from "../../../util/Modal";
 import type { Audience, SubHeader } from "./KhoaPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
@@ -19,6 +19,10 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
   const [audience, setAudience] = useState<Audience>("tat-ca");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
+  const [fileUrl, setFileUrl] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!sub) return;
@@ -27,7 +31,35 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
     setAudience(sub.audience);
     setStartAt(sub.startAt || "");
     setEndAt(sub.endAt || "");
+    setFileUrl(sub.fileUrl || "");
+    setFileName(sub.fileName || "");
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   }, [sub, open]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setFileName(file.name);
+      if (!title || title === fileName) {
+        setTitle(file.name);
+      }
+      // In a real app, you'd upload the file and get a URL
+      setFileUrl(`/files/${file.name}`);
+    }
+  };
+
+  const removeFile = () => {
+    setSelectedFile(null);
+    setFileName("");
+    setFileUrl("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const save = () => {
     if (!headerId || !sub) return;
@@ -37,7 +69,9 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
       order,
       audience,
       startAt: sub.kind === "nop-file" ? startAt : undefined,
-      endAt:   sub.kind === "nop-file" ? endAt   : undefined,
+      endAt: sub.kind === "nop-file" ? endAt : undefined,
+      fileUrl: sub.kind === "file" ? fileUrl : undefined,
+      fileName: sub.kind === "file" ? fileName : undefined,
     });
   };
 
@@ -68,7 +102,7 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className={sub.kind === "van-ban" ? "sm:col-span-2" : ""}>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {sub.kind === "van-ban" ? "Nội dung (văn bản)" : "Tên sub-header"}
+              {sub.kind === "van-ban" ? "Nội dung (văn bản)" : sub.kind === "file" ? "Tên hiển thị" : "Tên sub-header"}
             </label>
 
             {sub.kind === "van-ban" ? (
@@ -78,6 +112,7 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
                 className="w-full h-11 rounded-lg border border-gray-300 px-3"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                placeholder={sub.kind === "file" ? "Ví dụ: Hướng dẫn thực tập.pdf" : "Tên sub-header"}
               />
             )}
           </div>
@@ -92,7 +127,10 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Loại</label>
             <div className="inline-flex rounded-full bg-gray-100 text-gray-700 px-3 py-1 text-xs font-medium">
-              {sub.kind === "thuong" ? "Thường" : sub.kind === "thong-bao" ? "Thông báo" : sub.kind === "nop-file" ? "Nộp file" : "Văn bản"}
+              {sub.kind === "thuong" ? "Thường" : 
+               sub.kind === "thong-bao" ? "Thông báo" : 
+               sub.kind === "nop-file" ? "Nộp file" : 
+               sub.kind === "file" ? "File tải xuống" : "Văn bản"}
             </div>
           </div>
 
@@ -105,6 +143,68 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
               <option value="giang-vien">Giảng viên</option>
             </select>
           </div>
+
+          {/* File management for "file" type */}
+          {sub.kind === "file" && (
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">File</label>
+              
+              {/* Current file (if exists) */}
+              {fileName && !selectedFile && (
+                <div className="border border-gray-300 rounded-lg p-3 bg-blue-50 mb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-sm text-blue-800">📎 {fileName}</div>
+                      <div className="text-xs text-blue-600">File hiện tại</div>
+                    </div>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
+                    >
+                      Thay đổi
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* New file selected */}
+              {selectedFile && (
+                <div className="border border-gray-300 rounded-lg p-3 bg-green-50 mb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-sm text-green-800">📎 {selectedFile.name}</div>
+                      <div className="text-xs text-green-600">File mới • {(selectedFile.size / 1024).toFixed(1)} KB</div>
+                    </div>
+                    <button
+                      onClick={removeFile}
+                      className="h-6 w-6 rounded-md bg-red-100 text-red-600 hover:bg-red-200 text-sm"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Upload area (only show if no current file or replacing) */}
+              {(!fileName || selectedFile) && !selectedFile && (
+                <div
+                  className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-gray-400"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="text-2xl mb-1">📎</div>
+                  <div className="text-sm text-gray-600">Chọn file để tải lên</div>
+                  <div className="text-xs text-gray-500">PDF, DOC, DOCX, XLS, XLSX, JPG, PNG...</div>
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
+            </div>
+          )}
 
           {sub.kind === "nop-file" && (
             <>
