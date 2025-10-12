@@ -1,32 +1,46 @@
 import React, { useState, useMemo } from "react";
 import Modal from "../../../util/Modal";
-import type { ChatUser, ChatConversation } from "../../PDT/chat/ChatTypes";
+import type { ChatUser, ChatConversation, ChatRequest } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onCreateConversation: (conversation: ChatConversation) => void;
+  onCreateConversation?: (conversation: ChatConversation) => void;
+  onSendRequest?: (request: ChatRequest) => void;
 }
 
-// Mock users that GV can chat with (only SV)
+// Mock users that GV can send requests to (their students, BCN, and PDT)
 const MOCK_USERS: ChatUser[] = [
-  { id: "SV001", name: "Nguyễn Thị A", role: "sinh-vien", isOnline: true },
-  { id: "SV002", name: "Trần Văn B", role: "sinh-vien", isOnline: false },
-  { id: "SV003", name: "Lê Thị C", role: "sinh-vien", isOnline: true },
-  { id: "SV004", name: "Phạm Văn D", role: "sinh-vien", isOnline: true },
-  { id: "SV005", name: "Hoàng Thị E", role: "sinh-vien", isOnline: false },
-  { id: "SV006", name: "Võ Văn F", role: "sinh-vien", isOnline: true },
-  { id: "SV007", name: "Đặng Thị G", role: "sinh-vien", isOnline: true },
-  { id: "SV008", name: "Bùi Văn H", role: "sinh-vien", isOnline: false },
+  // PDT - can send requests to
+  { id: "PDT_ROLE", name: "Phòng Đào Tạo", role: "phong-dao-tao", isOnline: true },
+  
+  // BCN of their internship subject
+  { id: "BCN001", name: "PGS. Nguyễn Văn A", role: "ban-chu-nhiem", isOnline: true },
+  
+  // Their students
+  { id: "SV001", name: "Nguyễn Thị B", role: "sinh-vien", isOnline: true },
+  { id: "SV002", name: "Trần Văn C", role: "sinh-vien", isOnline: false },
+  { id: "SV003", name: "Lê Thị D", role: "sinh-vien", isOnline: true },
+  { id: "SV004", name: "Phạm Văn E", role: "sinh-vien", isOnline: true },
+  { id: "SV005", name: "Hoàng Thị F", role: "sinh-vien", isOnline: false },
+  { id: "SV006", name: "Võ Văn G", role: "sinh-vien", isOnline: true },
+  { id: "SV007", name: "Đặng Thị H", role: "sinh-vien", isOnline: true },
+  { id: "SV008", name: "Bùi Văn I", role: "sinh-vien", isOnline: false },
 ];
 
-const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation }) => {
+const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation, onSendRequest }) => {
   const [query, setQuery] = useState("");
+  const [selectedRole, setSelectedRole] = useState<"all" | "phong-dao-tao" | "ban-chu-nhiem" | "sinh-vien">("all");
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
+  const [message, setMessage] = useState("");
 
   const filteredUsers = useMemo(() => {
     let users = MOCK_USERS;
+    
+    if (selectedRole !== "all") {
+      users = users.filter(user => user.role === selectedRole);
+    }
     
     if (query.trim()) {
       const q = query.trim().toLowerCase();
@@ -37,33 +51,54 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
     }
     
     return users;
-  }, [query]);
+  }, [query, selectedRole]);
 
-  const handleCreateChat = () => {
+  const handleAction = () => {
     if (!selectedUser) return;
 
-    const newConversation: ChatConversation = {
-      id: `conv_${Date.now()}`,
-      participants: [
-        { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
-        selectedUser
-      ],
-      updatedAt: new Date().toISOString(),
-      unreadCount: 0,
-      isActive: true,
-    };
+    if (selectedUser.role === "sinh-vien") {
+      // Direct conversation with student
+      const newConversation: ChatConversation = {
+        id: `conv_${Date.now()}`,
+        participants: [
+          { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
+          selectedUser
+        ],
+        updatedAt: new Date().toISOString(),
+        unreadCount: 0,
+        isActive: true,
+      };
 
-    onCreateConversation(newConversation);
+      onCreateConversation?.(newConversation);
+    } else {
+      // Send request to BCN or PDT
+      const chatRequest: ChatRequest = {
+        id: `req_${Date.now()}`,
+        fromUser: { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
+        toUser: selectedUser,
+        message: message.trim() || "Xin chào, tôi cần hỗ trợ về môn thực tập.",
+        timestamp: new Date().toISOString(),
+        status: "pending",
+        isAssigned: selectedUser.role === "phong-dao-tao" ? false : undefined,
+      };
+
+      onSendRequest?.(chatRequest);
+    }
+
     onClose();
     setSelectedUser(null);
     setQuery("");
+    setSelectedRole("all");
+    setMessage("");
   };
+
+  const isRequestMode = selectedUser?.role === "ban-chu-nhiem" || selectedUser?.role === "phong-dao-tao";
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Tạo cuộc trò chuyện với sinh viên"
+      title={isRequestMode ? "Gửi yêu cầu chat" : "Tạo cuộc trò chuyện"}
       widthClass="max-w-2xl"
       actions={
         <div className="flex gap-3">
@@ -74,17 +109,17 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
             Hủy
           </button>
           <button
-            onClick={handleCreateChat}
-            disabled={!selectedUser}
+            onClick={handleAction}
+            disabled={!selectedUser || (isRequestMode && !message.trim())}
             className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            Tạo cuộc trò chuyện
+            {isRequestMode ? "Gửi yêu cầu" : "Tạo cuộc trò chuyện"}
           </button>
         </div>
       }
     >
       <div className="space-y-4">
-        {/* Search */}
+        {/* Search and filters */}
         <div className="space-y-3">
           <div className="relative">
             <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
@@ -95,17 +130,33 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Tìm kiếm sinh viên theo tên hoặc ID..."
+              placeholder="Tìm kiếm theo tên hoặc ID..."
               className="w-full h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
+          <div className="flex gap-2">
+            {(["all", "phong-dao-tao", "ban-chu-nhiem", "sinh-vien"] as const).map((role) => (
+              <button
+                key={role}
+                onClick={() => setSelectedRole(role)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                  selectedRole === role
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {role === "all" ? "Tất cả" : roleLabel[role]}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Student list */}
-        <div className="border border-gray-200 rounded-lg max-h-80 overflow-y-auto">
+        {/* User list */}
+        <div className="border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
           {filteredUsers.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
-              Không tìm thấy sinh viên phù hợp
+              Không tìm thấy người dùng phù hợp
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
@@ -149,11 +200,39 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
           )}
         </div>
 
+        {/* Selected user and message input */}
         {selectedUser && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="text-sm text-blue-800">
-              <strong>Đã chọn:</strong> {selectedUser.name} ({roleLabel[selectedUser.role]})
+          <div className="space-y-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="text-sm text-blue-800">
+                <strong>Đã chọn:</strong> {selectedUser.name} ({roleLabel[selectedUser.role]})
+              </div>
+              {isRequestMode && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Bạn sẽ gửi yêu cầu chat đến ban chủ nhiệm
+                </div>
+              )}
+              {selectedUser.role === "sinh-vien" && (
+                <div className="text-xs text-blue-600 mt-1">
+                  Bạn có thể chat trực tiếp với sinh viên này
+                </div>
+              )}
             </div>
+            
+            {isRequestMode && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Nội dung yêu cầu</label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Mô tả vấn đề cần hỗ trợ..."
+                  className="w-full h-24 rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="text-xs text-gray-500 mt-1">
+                  {message.length}/500 ký tự
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

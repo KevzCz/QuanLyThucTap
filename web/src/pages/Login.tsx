@@ -1,15 +1,36 @@
 import React, { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Role } from "../App";
+import { useAuth } from "../contexts/UseAuth";
 
-interface LoginProps { onSelectRole: (role: Role) => void; }
-
-const Login: React.FC<LoginProps> = ({ onSelectRole }) => {
+const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: FormEvent) => e.preventDefault();
-  const pickRole = (role: Role) => { onSelectRole(role); navigate("/dashboard"); };
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    
+    if (!email || !password) {
+      setError("Vui lòng nhập email và mật khẩu");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      await login(email, password);
+      navigate("/dashboard");
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Đăng nhập thất bại");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-gradient-to-b from-indigo-50 via-white to-indigo-50 overflow-hidden">
@@ -43,6 +64,12 @@ const Login: React.FC<LoginProps> = ({ onSelectRole }) => {
             <p className="mt-1 text-sm text-gray-600">Đăng nhập tài khoản HUFLIT</p>
           </div>
 
+          {error && (
+            <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             {/* Email */}
             <div>
@@ -60,8 +87,11 @@ const Login: React.FC<LoginProps> = ({ onSelectRole }) => {
                 </span>
                 <input
                   type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="w-full h-12 rounded-xl border border-gray-300 pl-10 pr-3 text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
                   placeholder="you@huflit.edu.vn"
+                  required
                 />
               </div>
             </div>
@@ -89,8 +119,11 @@ const Login: React.FC<LoginProps> = ({ onSelectRole }) => {
                 </span>
                 <input
                   type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   className="w-full h-12 rounded-xl border border-gray-300 pl-10 pr-3 text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
                   placeholder="••••••••"
+                  required
                 />
               </div>
             </div>
@@ -113,37 +146,25 @@ const Login: React.FC<LoginProps> = ({ onSelectRole }) => {
             <div className="mt-4 flex justify-center">
               <button
                 type="submit"
+                disabled={isLoading}
                 className="inline-flex items-center justify-center px-10 h-12 rounded-full
                           bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold
                           tracking-wide shadow-lg shadow-indigo-500/20
                           hover:from-indigo-700 hover:to-violet-700
-                          focus:outline-none focus:ring-4 focus:ring-indigo-200 transition"
+                          focus:outline-none focus:ring-4 focus:ring-indigo-200 transition
+                          disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Đăng nhập
+                {isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Đang đăng nhập...
+                  </>
+                ) : (
+                  'Đăng nhập'
+                )}
               </button>
             </div>
-
           </form>
-
-          {/* Divider */}
-          <div className="my-6 relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-white/80 backdrop-blur px-3 text-xs text-gray-500">
-                Hoặc chọn vai trò nhanh
-              </span>
-            </div>
-          </div>
-
-          {/* Quick role picker */}
-                <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => pickRole("phong-dao-tao")} className="h-11 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-200 transition">Phòng Đào Tạo</button>
-        <button onClick={() => pickRole("ban-chu-nhiem")} className="h-11 rounded-lg bg-cyan-600 text-white text-sm font-medium hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-200 transition">Ban Chủ Nhiệm</button>
-        <button onClick={() => pickRole("giang-vien")} className="h-11 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 focus:outline-none focus:ring-4 focus:ring-orange-200 transition">Giảng Viên</button>
-        <button onClick={() => pickRole("sinh-vien")} className="h-11 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-200 transition">Sinh Viên</button>
-      </div>
 
           <p className="mt-6 text-center text-xs text-gray-500">
             © {new Date().getFullYear()} HUFLIT • All rights reserved

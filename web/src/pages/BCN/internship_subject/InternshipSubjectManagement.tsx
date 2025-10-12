@@ -1,10 +1,13 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   type Participant,
   type ParticipantRole,
   type ParticipantStatus,
+  type InternshipSubjectDetail,
   roleLabel,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   subjectDisplayName,
+  convertToParticipants,
 } from "./ParticipantsTypes";
 import AddChooserDialog from "../internship_subject/AddChooserDialog";
 import AddStudentsToSubjectDialog from "../internship_subject/AddStudentsToSubjectDialog";
@@ -12,15 +15,17 @@ import AddStudentsToAdvisorDialog from "../internship_subject/AddStudentsToAdvis
 import ConfirmImportedListDialog from "../internship_subject/ConfirmImportedListDialog";
 import ViewParticipantDialog from "../internship_subject/ViewParticipantDialog";
 import EditStudentAdvisorDialog from "../internship_subject/EditStudentAdvisorDialog";
+import { apiClient } from "../../../utils/api";
 
 /* ---------- UI helpers ---------- */
 const StatusChip: React.FC<{ v: ParticipantStatus }> = ({ v }) => {
   const map: Record<ParticipantStatus, { text: string; cls: string }> = {
     "dang-huong-dan": { text: "Đang hướng dẫn", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
     "chua-co-sinh-vien": { text: "Chưa có sinh viên", cls: "bg-gray-50 text-gray-700 ring-gray-200" },
-    "dang-thuc-tap": { text: "Đang thực tập", cls: "bg-blue-50 text-blue-700 ring-blue-200" },
+    "duoc-huong-dan": { text: "Được hướng dẫn", cls: "bg-blue-50 text-blue-700 ring-blue-200" },
+    "chua-duoc-huong-dan": { text: "Chưa được hướng dẫn", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
     "dang-lam-do-an": { text: "Đang làm đồ án", cls: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
-    "chua-co-giang-vien": { text: "Chưa có giảng viên", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
+    "dang-thuc-tap": { text: "Đang thực tập", cls: "bg-purple-50 text-purple-700 ring-purple-200" },
   };
   const m = map[v];
   return (
@@ -43,47 +48,18 @@ const IconBtn: React.FC<
   </button>
 );
 
-/* ---------- MOCK participants of THIS subject ---------- */
-const MOCK: Participant[] = [
-  { id: "GVXXX", name: "Trần Văn C", role: "giang-vien", status: "dang-huong-dan" },
-  { id: "GVXXY", name: "Trần Văn C", role: "giang-vien", status: "chua-co-sinh-vien" },
-  { id: "SVXXX", name: "Võ Văn D", role: "sinh-vien", status: "dang-thuc-tap", advisorId: "GVXXX", advisorName: "Trần Văn C" },
-  { id: "SVXXY", name: "Võ Văn D", role: "sinh-vien", status: "dang-lam-do-an", advisorId: "GVXXX", advisorName: "Trần Văn C" },
-  { id: "SVXXZ", name: "Võ Văn D", role: "sinh-vien", status: "chua-co-giang-vien" },
-  // add more for pagination feel
-  ...Array.from({ length: 12 }).map((_, i) => ({
-    id: `SV${900 + i}`,
-    name: `Nguyễn Văn ${String.fromCharCode(65 + (i % 26))}`,
-    role: "sinh-vien" as const,
-    status: (i % 3 === 0 ? "chua-co-giang-vien" : i % 3 === 1 ? "dang-thuc-tap" : "dang-lam-do-an") as ParticipantStatus,
-    advisorId: i % 3 === 0 ? undefined : "GVXXX",
-    advisorName: i % 3 === 0 ? undefined : "Trần Văn C",
-  })),
-];
-
 /* ---------- MAIN ---------- */
 const InternshipSubjectManagement: React.FC = () => {
-  // fixed current subject displayed as a pill
-  const [subjectId] = useState("CNTT - TT2025");
+  // backend data
+  const [subjectData, setSubjectData] = useState<InternshipSubjectDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // filters & paging
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | ParticipantRole>("all");
-  const [rows, setRows] = useState<Participant[]>(MOCK);
   const [page, setPage] = useState(1);
   const pageSize = 10;
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      const byRole = roleFilter === "all" ? true : r.role === roleFilter;
-      const byQuery = !q || r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q);
-      return byRole && byQuery;
-    });
-  }, [rows, roleFilter, query]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const current = filtered.slice((page - 1) * pageSize, page * pageSize);
 
   // dialogs
   const [openAddChooser, setOpenAddChooser] = useState(false);
@@ -96,46 +72,167 @@ const InternshipSubjectManagement: React.FC = () => {
   const [editingSv, setEditingSv] = useState<Participant | undefined>();
   const [openEditAdvisor, setOpenEditAdvisor] = useState(false);
 
+  // Load BCN's managed subject on mount
+  useEffect(() => {
+    loadManagedSubject();
+  }, []);
+
+  const loadManagedSubject = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      
+      const response = await apiClient.getBCNManagedSubject();
+      setSubjectData(response.subject);
+    } catch (err: unknown) {
+      console.error("Error loading managed subject:", err);
+      setError("Không thể tải thông tin môn thực tập");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Convert backend data to participants
+  const participants = useMemo(() => {
+    return subjectData ? convertToParticipants(subjectData) : [];
+  }, [subjectData]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return participants.filter((r) => {
+      const byRole = roleFilter === "all" ? true : r.role === roleFilter;
+      const byQuery = !q || r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q);
+      return byRole && byQuery;
+    });
+  }, [participants, roleFilter, query]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const current = filtered.slice((page - 1) * pageSize, page * pageSize);
+
   // add single student (from small form)
-  const addStudent = (sv: Participant) => {
-    setRows((prev) => [sv, ...prev]);
-    setPage(1);
+  const addStudent = async (sv: Participant) => {
+    if (!subjectData) return;
+
+    try {
+      setError("");
+      const response = await apiClient.addStudentToSubject(
+        subjectData.id, 
+        sv.id, 
+        sv.advisorId
+      );
+      setSubjectData(response.subject);
+      setPage(1);
+    }  catch (err: unknown) {
+      console.error("Error adding student:", err);
+      setError(err instanceof Error ? err.message : "Không thể thêm sinh viên");
+    }
   };
 
   // bulk confirm from import (both flows)
-  const confirmImport = (rowsToAdd: typeof importRows) => {
-    const normalized: Participant[] = rowsToAdd.map((r) => ({
-      id: r.id,
-      name: r.name,
-      role: "sinh-vien",
-      status: r.advisorId ? "dang-thuc-tap" : "chua-co-giang-vien",
-      advisorId: r.advisorId,
-      advisorName: r.advisorName,
-    }));
-    setRows((prev) => [...normalized, ...prev]);
-    setOpenConfirmImported(false);
-    setPage(1);
+  const confirmImport = async (rowsToAdd: typeof importRows) => {
+    if (!subjectData) return;
+
+    try {
+      setError("");
+      
+      // Add students one by one (could be optimized with bulk API)
+      for (const row of rowsToAdd) {
+        await apiClient.addStudentToSubject(
+          subjectData.id,
+          row.id,
+          row.advisorId
+        );
+      }
+      
+      // Reload subject data
+      await loadManagedSubject();
+      setOpenConfirmImported(false);
+      setPage(1);
+    } catch (err: unknown) {
+      console.error("Error importing students:", err);
+      setError(err instanceof Error ? err.message : "Không thể nhập danh sách sinh viên");
+    }
   };
 
   // update student's advisor
-  const saveStudentAdvisor = (svId: string, advisorId?: string, advisorName?: string) => {
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === svId
-          ? {
-              ...r,
-              advisorId,
-              advisorName,
-              status: advisorId ? (r.status === "dang-lam-do-an" ? "dang-lam-do-an" : "dang-thuc-tap") : "chua-co-giang-vien",
-            }
-          : r
-      )
-    );
-    setOpenEditAdvisor(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const saveStudentAdvisor = async (svId: string, advisorId?: string, advisorName?: string) => {
+    if (!subjectData) return;
+
+    try {
+      setError("");
+      const response = await apiClient.updateStudentSupervisor(
+        subjectData.id,
+        svId,
+        advisorId
+      );
+      setSubjectData(response.subject);
+      setOpenEditAdvisor(false);
+    } catch (err: unknown) {
+      console.error("Error updating student supervisor:", err);
+      setError(err instanceof Error ? err.message : "Không thể cập nhật giảng viên hướng dẫn");
+    }
   };
+
+  // remove participant
+  const removeParticipant = async (participant: Participant) => {
+    if (!subjectData) return;
+
+    try {
+      setError("");
+      
+      if (participant.role === "sinh-vien") {
+        await apiClient.removeStudentFromSubject(subjectData.id, participant.id);
+      } else {
+        await apiClient.removeLecturerFromSubject(subjectData.id, participant.id);
+      }
+      
+      await loadManagedSubject();
+    } catch (err: unknown) {
+      console.error("Error removing participant:", err);
+      setError(err instanceof Error ? err.message : "Không thể xóa thành viên");
+    }
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-gray-500">Đang tải thông tin môn thực tập...</div>
+      </div>
+    );
+  }
+
+  // Show no subject message
+  if (!subjectData) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-gray-500 mb-4">Bạn chưa được phân công quản lý môn thực tập nào.</div>
+        <button
+          onClick={loadManagedSubject}
+          className="text-blue-600 hover:text-blue-700 text-sm"
+        >
+          Tải lại
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
+      {/* Error Alert */}
+      {error && (
+        <div className="rounded-md bg-red-50 border border-red-200 p-3">
+          <p className="text-sm text-red-700">{error}</p>
+          <button
+            onClick={() => setError("")}
+            className="mt-2 text-xs text-red-600 hover:text-red-800"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -185,8 +282,8 @@ const InternshipSubjectManagement: React.FC = () => {
         <div className="flex-1 flex justify-center px-4">
           <input
             disabled
-            value={subjectDisplayName(subjectId)}
-            className="h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center min-w-[200px] max-w-[300px] w-full"
+            value={`${subjectData.title} (${subjectData.id})`}
+            className="h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center min-w-[200px] max-w-[400px] w-full"
           />
         </div>
 
@@ -204,6 +301,7 @@ const InternshipSubjectManagement: React.FC = () => {
         </button>
       </div>
 
+
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-gray-200">
@@ -216,7 +314,7 @@ const InternshipSubjectManagement: React.FC = () => {
               <th className="px-4 py-3 w-[160px]">Thao tác</th>
             </tr>
           </thead>
-        <tbody className="divide-y divide-gray-100 text-sm">
+          <tbody className="divide-y divide-gray-100 text-sm">
             {current.map((p, idx) => (
               <tr key={`${p.id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
                 <td className="px-4 py-3 font-mono text-gray-700">{p.id}</td>
@@ -254,7 +352,7 @@ const InternshipSubjectManagement: React.FC = () => {
                     <IconBtn
                       className="bg-rose-500 hover:bg-rose-600"
                       title="Xóa khỏi danh sách"
-                      onClick={() => setRows((prev) => prev.filter((r) => r.id !== p.id))}
+                      onClick={() => removeParticipant(p)}
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
                     </IconBtn>
@@ -269,27 +367,29 @@ const InternshipSubjectManagement: React.FC = () => {
         </table>
 
         {/* Pagination */}
-        <div className="flex items-center justify-center gap-2 border-t border-gray-200 bg-white px-4 py-3">
-          <button
-            className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-            disabled={page === 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            title="Trang trước"
-          >
-            ‹
-          </button>
-          <span className="text-sm text-gray-700">
-            <span className="font-semibold">{page}</span> / {pageCount}
-          </span>
-          <button
-            className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-            disabled={page === pageCount}
-            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-            title="Trang sau"
-          >
-            ›
-          </button>
-        </div>
+        {pageCount > 1 && (
+          <div className="flex items-center justify-center gap-2 border-t border-gray-200 bg-white px-4 py-3">
+            <button
+              className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              disabled={page === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              title="Trang trước"
+            >
+              ‹
+            </button>
+            <span className="text-sm text-gray-700">
+              <span className="font-semibold">{page}</span> / {pageCount}
+            </span>
+            <button
+              className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
+              disabled={page === pageCount}
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              title="Trang sau"
+            >
+              ›
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Dialogs */}
@@ -315,18 +415,21 @@ const InternshipSubjectManagement: React.FC = () => {
           setOpenAddSvToSubject(false);
           setOpenConfirmImported(true);
         }}
+        subjectId={subjectData?.id || ""}
+        subjectLecturers={subjectData?.lecturers.map(l => ({ id: l.id, name: l.name, email: l.email })) || []}
       />
 
       <AddStudentsToAdvisorDialog
         open={openAddSvToAdvisor}
         onClose={() => setOpenAddSvToAdvisor(false)}
-        advisors={rows.filter((r) => r.role === "giang-vien")}
+        advisors={participants.filter((r) => r.role === "giang-vien")}
         onAddSingle={(sv) => addStudent(sv)}
         onParsed={(rows) => {
           setImportRows(rows);
           setOpenAddSvToAdvisor(false);
           setOpenConfirmImported(true);
         }}
+        subjectId={subjectData?.id || ""}
       />
 
       <ConfirmImportedListDialog
@@ -340,14 +443,14 @@ const InternshipSubjectManagement: React.FC = () => {
         open={openView}
         onClose={() => setOpenView(false)}
         participant={viewing}
-        subjectId={subjectId}
+        subjectId={subjectData?.id || ""}
       />
 
       <EditStudentAdvisorDialog
         open={openEditAdvisor}
         onClose={() => setOpenEditAdvisor(false)}
         student={editingSv}
-        advisors={rows.filter((r) => r.role === "giang-vien")}
+        advisors={participants.filter((r) => r.role === "giang-vien")}
         onSave={saveStudentAdvisor}
       />
     </div>

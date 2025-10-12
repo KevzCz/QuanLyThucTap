@@ -1,11 +1,6 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
-import type { Role } from "../../App";
-
-interface HeaderProps {
-  user: { name: string; role: Role };
-  onLogout: () => void;
-}
+import { useAuth } from "../../contexts/UseAuth";
 
 const BellIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12 2a6 6 0 0 0-6 6v3.28l-1.62 3.24A1 1 0 0 0 5.28 16h13.44a1 1 0 0 0 .9-1.48L18 11.28V8a6 6 0 0 0-6-6zm0 20a3 3 0 0 0 2.995-2.824L15 19h-6a3 3 0 0 0 2.824 2.995L12 22z"/></svg>
@@ -17,12 +12,13 @@ const SearchIcon = () => (
   <svg viewBox="0 0 24 24" className="h-4 w-4 text-gray-400"><path fill="currentColor" d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"/></svg>
 );
 
-function roleName(role: Role) {
+function roleName(role: string) {
   switch (role) {
     case "phong-dao-tao": return "Phòng Đào Tạo";
     case "ban-chu-nhiem": return "Ban Chủ Nhiệm";
     case "giang-vien": return "Giảng viên";
     case "sinh-vien": return "Sinh viên";
+    default: return role;
   }
 }
 
@@ -75,9 +71,20 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
   return { breadcrumb: "Trang chủ", title: "Trang chủ" };
 }
 
-const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
+const Header: React.FC = () => {
   const location = useLocation();
+  const { user, logout } = useAuth();
   const { breadcrumb, title } = getPageInfo(location.pathname);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+
+  if (!user) return null;
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
@@ -101,10 +108,16 @@ const Header: React.FC<HeaderProps> = ({ user, onLogout }) => {
             />
           </div>
 
-          <button onClick={onLogout} className="inline-flex items-center gap-2 px-3 h-9 rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-50">
-            <UserIcon />
-            <span className="text-sm font-medium">Đăng xuất</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Xin chào, <span className="font-medium">{user.name}</span></span>
+            <button 
+              onClick={handleLogout}
+              className="inline-flex items-center gap-2 px-3 h-9 rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+            >
+              <UserIcon />
+              <span className="text-sm font-medium">Đăng xuất</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

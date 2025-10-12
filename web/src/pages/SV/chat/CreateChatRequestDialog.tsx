@@ -9,14 +9,16 @@ interface Props {
   onSendRequest: (request: ChatRequest) => void;
 }
 
-// Mock users that SV can send requests to (only BCN and GV)
+// Mock users that SV can send requests to (their teacher, BCN, and PDT)
 const MOCK_USERS: ChatUser[] = [
-  { id: "BCN001", name: "PGS. Nguyễn Văn A", role: "ban-chu-nhiem", isOnline: true },
-  { id: "BCN002", name: "TS. Trần Thị B", role: "ban-chu-nhiem", isOnline: false },
-  { id: "GV001", name: "ThS. Lê Văn C", role: "giang-vien", isOnline: true },
-  { id: "GV002", name: "TS. Phạm Thị D", role: "giang-vien", isOnline: true },
-  { id: "GV003", name: "PGS. Hoàng Văn E", role: "giang-vien", isOnline: false },
-  { id: "GV004", name: "ThS. Võ Thị F", role: "giang-vien", isOnline: true },
+  // PDT - can send requests to
+  { id: "PDT_ROLE", name: "Phòng Đào Tạo", role: "phong-dao-tao", isOnline: true },
+  
+  // Their teacher
+  { id: "GV001", name: "ThS. Lê Văn A", role: "giang-vien", isOnline: true },
+  
+  // BCN of their internship subject
+  { id: "BCN001", name: "PGS. Nguyễn Văn B", role: "ban-chu-nhiem", isOnline: true },
 ];
 
 const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onSendRequest }) => {
@@ -48,11 +50,12 @@ const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onSendRequest
 
     const chatRequest: ChatRequest = {
       id: `req_${Date.now()}`,
-      fromUser: { id: "SV001", name: "Nguyễn Văn B", role: "sinh-vien", isOnline: true },
+      fromUser: { id: "SV001", name: "Nguyễn Văn C", role: "sinh-vien", isOnline: true },
       toUser: selectedUser,
       message: message.trim(),
       timestamp: new Date().toISOString(),
       status: "pending",
+      isAssigned: selectedUser.role === "phong-dao-tao" ? false : undefined,
     };
 
     onSendRequest(chatRequest);
@@ -106,7 +109,7 @@ const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onSendRequest
           </div>
 
           <div className="flex gap-2">
-            {(["all", "ban-chu-nhiem", "giang-vien"] as const).map((role) => (
+            {(["all", "phong-dao-tao", "ban-chu-nhiem", "giang-vien"] as const).map((role) => (
               <button
                 key={role}
                 onClick={() => setSelectedRole(role)}
@@ -154,7 +157,11 @@ const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onSendRequest
                           <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500">ID: {user.id}</div>
+                      <div className="text-sm text-gray-500">
+                        ID: {user.id}
+                        {user.role === "giang-vien" && <span className="ml-2 text-blue-600">• Giảng viên hướng dẫn</span>}
+                        {user.role === "ban-chu-nhiem" && <span className="ml-2 text-cyan-600">• Ban chủ nhiệm khoa</span>}
+                      </div>
                     </div>
                     {selectedUser?.id === user.id && (
                       <div className="text-blue-600">

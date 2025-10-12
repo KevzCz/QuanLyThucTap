@@ -143,25 +143,6 @@ const ChatManagement: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Chat hỗ trợ</h1>
-            <p className="text-gray-600 mt-1">Quản lý yêu cầu chat và cuộc trò chuyện với PDT, GV, SV</p>
-          </div>
-          <button
-            onClick={() => setOpenCreateChat(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4">
-              <path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
-            </svg>
-            Tạo chat mới
-          </button>
-        </div>
-      </div>
-
       {/* Tabs and Search */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
@@ -187,18 +168,30 @@ const ChatManagement: React.FC = () => {
           </button>
         </div>
 
-        <div className="relative">
-          <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
+              <svg viewBox="0 0 24 24" className="h-4 w-4">
+                <path fill="currentColor" d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"/>
+              </svg>
+            </span>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Tìm kiếm..."
+              className="w-[300px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <button
+            onClick={() => setOpenCreateChat(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
             <svg viewBox="0 0 24 24" className="h-4 w-4">
-              <path fill="currentColor" d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"/>
+              <path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
             </svg>
-          </span>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Tìm kiếm..."
-            className="w-[300px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+            Tạo chat mới
+          </button>
         </div>
       </div>
 
@@ -352,3 +345,4 @@ const ChatManagement: React.FC = () => {
 };
 
 export default ChatManagement;
+

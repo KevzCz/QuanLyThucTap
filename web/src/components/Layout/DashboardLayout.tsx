@@ -1,16 +1,13 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Outlet } from "react-router-dom";
+import { useAuth } from "../../contexts/UseAuth";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
 import reactLogo from "../../assets/react.svg";
-import type { Role } from "../../App";
 
-interface DashboardLayoutProps {
-  user: { name: string; role: Role };
-  onLogout: () => void;
-}
-
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({ user, onLogout }) => {
+const DashboardLayout: React.FC = () => {
+  const { user } = useAuth();
+  
   // Measure the header's actual height and sync the logo height to it
   const headerWrapRef = useRef<HTMLDivElement | null>(null);
   const [logoHeight, setLogoHeight] = useState<number>(96);
@@ -30,6 +27,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ user, onLogout }) => 
 
     return () => ro.disconnect();
   }, []);
+
+  if (!user) {
+    return null; // Should not happen due to route protection
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -53,7 +54,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ user, onLogout }) => 
           <div className="flex flex-col gap-4">
             {/* Wrap header so we can measure it */}
             <div ref={headerWrapRef}>
-              <Header user={user} onLogout={onLogout} />
+              <Header />
             </div>
 
             <main className="bg-transparent">

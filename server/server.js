@@ -3,36 +3,65 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import path from "path";
-import multer from "multer";
+import cookieParser from "cookie-parser";
+
+// Import route modules
+import authRoutes from "./routes/auth.js";
+import accountRoutes from "./routes/accounts.js";
+import uploadRoutes from "./routes/uploads.js";
+import internshipSubjectRoutes from "./routes/internshipSubjects.js";
+import lecturerRoutes from "./routes/lecturers.js";
 
 const app = express();
 
 /* Basic middlewares */
-app.use(cors());
-app.use(express.json({ limit: "2mb" }));
+app.use(cors({
+  origin: process.env.CLIENT_URL || "http://localhost:5173",
+  credentials: true
+}));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 /* Static uploads */
 const uploadsDir = path.resolve("./uploads");
 app.use("/uploads", express.static(uploadsDir));
 
-/* Multer storage (simple disk storage under /uploads) */
-const storage = multer.diskStorage({
-  destination: function (_req, _file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (_req, file, cb) {
-    const safe = Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
-    cb(null, safe);
-  }
-});
-const upload = multer({ storage });
-
 /* MongoDB connection */
-const uri = process.env.MONGODB_URI || "";
-await mongoose.connect(uri);
+const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/QLTT";
 
-/* Example models */
+console.log('Connecting to MongoDB...');
+
+try {
+  await mongoose.connect(uri, {
+    dbName: 'QLTT'
+  });
+  console.log('✅ Connected to MongoDB - Database: QLTT');
+  
+  const collections = await mongoose.connection.db.listCollections().toArray();
+  console.log('📋 Available collections:', collections.map(c => c.name));
+} catch (error) {
+  console.error('❌ MongoDB connection error:', error);
+  process.exit(1);
+}
+
+/* Health check route */
+app.get("/api/health", (_req, res) => {
+  res.json({ 
+    ok: true, 
+    time: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
+
+/* Route modules */
+app.use("/api/auth", authRoutes);
+app.use("/api/accounts", accountRoutes);
+app.use("/api/uploads", uploadRoutes);
+app.use("/api/internship-subjects", internshipSubjectRoutes);
+app.use("/api/lecturers", lecturerRoutes);
+
+/* Legacy routes for backward compatibility */
 const UserSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
@@ -55,28 +84,37 @@ const InternshipCourseSchema = new mongoose.Schema(
 );
 const InternshipCourse = mongoose.model("InternshipCourse", InternshipCourseSchema);
 
-/* Routes: apis for your web app */
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, time: new Date().toISOString() });
-});
-
-app.post("/api/uploads", upload.single("file"), (req, res) => {
-  res.json({ path: `/uploads/${req.file?.filename}` });
-});
-
 app.post("/api/users", async (req, res) => {
-  const created = await User.create(req.body);
-  res.status(201).json(created);
+  try {
+    const created = await User.create(req.body);
+    res.status(201).json(created);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
 });
 
 app.get("/api/courses", async (_req, res) => {
-  const data = await InternshipCourse.find().populate("lecturers").populate("students").lean();
-  res.json(data);
+  try {
+    const data = await InternshipCourse.find().populate("lecturers").populate("students").lean();
+    res.json(data);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+/* Error handling middleware */
+app.use((error, req, res, next) => {
+  console.error('Server error:', error);
+  res.status(500).json({ 
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Đã xảy ra lỗi máy chủ' 
+      : error.message 
+  });
 });
 
 /* Start server */
 const port = Number(process.env.PORT || 3001);
 app.listen(port, () => {
-  /* eslint-disable no-console */
-  console.log(`API listening on http://localhost:${port}`);
+  console.log(`🚀 API server listening on http://localhost:${port}`);
+  console.log(`📖 API documentation: http://localhost:${port}/api/health`);
 });

@@ -1,6 +1,6 @@
 import React from "react";
 import Modal from "../../../util/Modal";
-import type { ChatRequest } from "./ChatTypes";
+import type { ChatRequest, ChatUser } from "./ChatTypes";
 import { roleLabel, roleColor } from "./ChatTypes";
 import dayjs from "dayjs";
 
@@ -10,10 +10,24 @@ interface Props {
   request: ChatRequest | null;
   onAccept: (request: ChatRequest) => void;
   onDecline: (request: ChatRequest) => void;
+  onBind: (request: ChatRequest) => void;
+  currentUser: ChatUser;
 }
 
-const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, onDecline }) => {
+const ChatRequestDialog: React.FC<Props> = ({ 
+  open, 
+  onClose, 
+  request, 
+  onAccept, 
+  onDecline, 
+  onBind, 
+  currentUser 
+}) => {
   if (!request) return null;
+
+  const isAssignedToMe = request.assignedTo?.id === currentUser.id;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const isAssignedToOther = request.isAssigned && !isAssignedToMe;
 
   return (
     <Modal
@@ -29,12 +43,22 @@ const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, 
           >
             Từ chối
           </button>
-          <button
-            onClick={() => onAccept(request)}
-            className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-          >
-            Chấp nhận
-          </button>
+          {!request.isAssigned && (
+            <button
+              onClick={() => onBind(request)}
+              className="h-10 px-4 rounded-md bg-orange-600 text-white hover:bg-orange-700"
+            >
+              Nhận xử lý
+            </button>
+          )}
+          {(isAssignedToMe || !request.isAssigned) && (
+            <button
+              onClick={() => onAccept(request)}
+              className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Chấp nhận & Chat
+            </button>
+          )}
         </div>
       }
     >
@@ -59,6 +83,25 @@ const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, 
           </div>
         </div>
 
+        {/* Assignment status */}
+        {request.isAssigned && (
+          <div className={`rounded-lg p-3 ${
+            isAssignedToMe 
+              ? "bg-blue-50 border border-blue-200"
+              : "bg-yellow-50 border border-yellow-200"
+          }`}>
+            <div className={`text-sm ${
+              isAssignedToMe ? "text-blue-800" : "text-yellow-800"
+            }`}>
+              <strong>Trạng thái:</strong> {
+                isAssignedToMe 
+                  ? "Đã được phân cho bạn" 
+                  : `Đang được xử lý bởi ${request.assignedTo?.name}`
+              }
+            </div>
+          </div>
+        )}
+
         <div className="bg-gray-50 rounded-lg p-4">
           <div className="text-sm font-medium text-gray-700 mb-2">Nội dung yêu cầu:</div>
           <p className="text-gray-800">{request.message}</p>
@@ -70,7 +113,14 @@ const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, 
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
           <div className="text-sm text-blue-800">
-            <strong>Lưu ý:</strong> Chấp nhận yêu cầu sẽ tạo cuộc trò chuyện mới và bạn có thể bắt đầu nhắn tin ngay lập tức.
+            <strong>Hướng dẫn:</strong> 
+            {!request.isAssigned ? (
+              " Nhấn 'Nhận xử lý' để phân công cho bạn, sau đó 'Chấp nhận & Chat' để bắt đầu trò chuyện."
+            ) : isAssignedToMe ? (
+              " Yêu cầu đã được phân cho bạn. Nhấn 'Chấp nhận & Chat' để bắt đầu trò chuyện."
+            ) : (
+              " Yêu cầu này đang được xử lý bởi đồng nghiệp khác."
+            )}
           </div>
         </div>
       </div>

@@ -1,6 +1,5 @@
 import React from "react";
-
-interface DashboardProps { userRole: string; }
+import { useAuth } from "../contexts/UseAuth";
 
 const ChatIcon = () => (
   <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M4 4h16v12H7l-3 3V4z"/></svg>
@@ -12,9 +11,14 @@ const InfoIcon = () => (
 const lightBtn =
   "inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white text-gray-800 text-sm px-3 py-1.5 hover:bg-gray-100 active:bg-gray-200 shadow-sm";
 
-const Dashboard: React.FC<DashboardProps> = ({ userRole }) => {
+const Dashboard: React.FC = () => {
+  const { user } = useAuth();
+
+  if (!user) return null;
+
   return (
     <div className="space-y-4">
+
       {/* Thông báo */}
       <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
         <h3 className="text-base font-semibold text-gray-800 mb-3">Thông báo:</h3>
@@ -28,7 +32,7 @@ const Dashboard: React.FC<DashboardProps> = ({ userRole }) => {
       </div>
 
       {/* Chat hỗ trợ */}
-      {userRole === "phong-dao-tao" && (
+      {user.role === "phong-dao-tao" && (
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-200">
           <h3 className="text-base font-semibold text-gray-800 mb-3">Chat hỗ trợ:</h3>
 

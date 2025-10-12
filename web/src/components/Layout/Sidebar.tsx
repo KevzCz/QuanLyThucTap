@@ -1,6 +1,7 @@
 import React, { type JSX } from "react";
 import { Link, useLocation } from "react-router-dom";
-import type { Role } from "../../App";
+
+type Role = "phong-dao-tao" | "ban-chu-nhiem" | "giang-vien" | "sinh-vien";
 
 interface SidebarProps { userRole: Role; }
 

@@ -1,16 +1,21 @@
 import React, { useState, useMemo } from "react";
 import Modal from "../../../util/Modal";
-import type { ChatUser, ChatConversation, UserRole } from "../../PDT/chat/ChatTypes";
+import type { ChatUser, ChatConversation, ChatRequest, UserRole } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onCreateConversation: (conversation: ChatConversation) => void;
+  onCreateConversation?: (conversation: ChatConversation) => void;
+  onSendRequest?: (request: ChatRequest) => void;
 }
 
-// Mock users that BCN can chat with (only GV and SV)
+// Mock users that BCN can interact with (GV, SV, and PDT)
 const MOCK_USERS: ChatUser[] = [
+  // PDT - can send requests to
+  { id: "PDT_ROLE", name: "Phòng Đào Tạo", role: "phong-dao-tao", isOnline: true },
+  
+  // GV and SV - can chat directly with
   { id: "GV001", name: "ThS. Lê Văn C", role: "giang-vien", isOnline: true },
   { id: "GV002", name: "TS. Phạm Thị D", role: "giang-vien", isOnline: true },
   { id: "GV003", name: "PGS. Hoàng Văn E", role: "giang-vien", isOnline: false },
@@ -21,10 +26,11 @@ const MOCK_USERS: ChatUser[] = [
   { id: "SV004", name: "Phạm Văn J", role: "sinh-vien", isOnline: true },
 ];
 
-const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation }) => {
+const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation, onSendRequest }) => {
   const [query, setQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<"all" | UserRole>("all");
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
+  const [message, setMessage] = useState("");
 
   const filteredUsers = useMemo(() => {
     let users = MOCK_USERS;
@@ -44,32 +50,52 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
     return users;
   }, [query, selectedRole]);
 
-  const handleCreateChat = () => {
+  const handleAction = () => {
     if (!selectedUser) return;
 
-    const newConversation: ChatConversation = {
-      id: `conv_${Date.now()}`,
-      participants: [
-        { id: "BCN001", name: "PGS. Nguyễn Văn B", role: "ban-chu-nhiem", isOnline: true },
-        selectedUser
-      ],
-      updatedAt: new Date().toISOString(),
-      unreadCount: 0,
-      isActive: true,
-    };
+    if (selectedUser.role === "phong-dao-tao") {
+      // Send request to PDT
+      const chatRequest: ChatRequest = {
+        id: `req_${Date.now()}`,
+        fromUser: { id: "BCN001", name: "PGS. Nguyễn Văn B", role: "ban-chu-nhiem", isOnline: true },
+        toUser: selectedUser,
+        message: message.trim() || "Xin chào, tôi cần hỗ trợ từ Phòng Đào Tạo.",
+        timestamp: new Date().toISOString(),
+        status: "pending",
+        isAssigned: false,
+      };
 
-    onCreateConversation(newConversation);
+      onSendRequest?.(chatRequest);
+    } else {
+      // Direct conversation with GV/SV
+      const newConversation: ChatConversation = {
+        id: `conv_${Date.now()}`,
+        participants: [
+          { id: "BCN001", name: "PGS. Nguyễn Văn B", role: "ban-chu-nhiem", isOnline: true },
+          selectedUser
+        ],
+        updatedAt: new Date().toISOString(),
+        unreadCount: 0,
+        isActive: true,
+      };
+
+      onCreateConversation?.(newConversation);
+    }
+
     onClose();
     setSelectedUser(null);
     setQuery("");
     setSelectedRole("all");
+    setMessage("");
   };
+
+  const isRequestMode = selectedUser?.role === "phong-dao-tao";
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Tạo cuộc trò chuyện mới"
+      title={isRequestMode ? "Gửi yêu cầu hỗ trợ đến PDT" : "Tạo cuộc trò chuyện"}
       widthClass="max-w-2xl"
       actions={
         <div className="flex gap-3">
@@ -80,11 +106,11 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
             Hủy
           </button>
           <button
-            onClick={handleCreateChat}
-            disabled={!selectedUser}
+            onClick={handleAction}
+            disabled={!selectedUser || (isRequestMode && !message.trim())}
             className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            Tạo cuộc trò chuyện
+            {isRequestMode ? "Gửi yêu cầu" : "Tạo cuộc trò chuyện"}
           </button>
         </div>
       }
@@ -107,7 +133,7 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
           </div>
 
           <div className="flex gap-2">
-            {(["all", "giang-vien", "sinh-vien"] as const).map((role) => (
+            {(["all", "phong-dao-tao", "giang-vien", "sinh-vien"] as const).map((role) => (
               <button
                 key={role}
                 onClick={() => setSelectedRole(role)}
@@ -124,7 +150,7 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
         </div>
 
         {/* User list */}
-        <div className="border border-gray-200 rounded-lg max-h-80 overflow-y-auto">
+        <div className="border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
           {filteredUsers.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
               Không tìm thấy người dùng phù hợp
@@ -155,7 +181,13 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
                           <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-500">ID: {user.id}</div>
+                      <div className="text-sm text-gray-500">
+                        {user.role === "phong-dao-tao" ? (
+                          <span className="text-blue-600">• Gửi yêu cầu hỗ trợ</span>
+                        ) : (
+                          `ID: ${user.id}`
+                        )}
+                      </div>
                     </div>
                     {selectedUser?.id === user.id && (
                       <div className="text-blue-600">
@@ -171,10 +203,41 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
           )}
         </div>
 
-        {selectedUser && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="text-sm text-blue-800">
-              <strong>Đã chọn:</strong> {selectedUser.name} ({roleLabel[selectedUser.role]})
+        {/* Message input for PDT requests */}
+        {selectedUser && isRequestMode && (
+          <div className="space-y-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <div className="text-sm text-blue-800">
+                <strong>Gửi yêu cầu đến:</strong> {selectedUser.name}
+              </div>
+              <div className="text-xs text-blue-600 mt-1">
+                Yêu cầu sẽ được gửi đến tất cả thành viên PDT và ai đó sẽ nhận xử lý
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Nội dung yêu cầu hỗ trợ</label>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Mô tả vấn đề cần hỗ trợ từ Phòng Đào Tạo..."
+                className="w-full h-24 rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="text-xs text-gray-500 mt-1">
+                {message.length}/500 ký tự
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Direct chat confirmation */}
+        {selectedUser && !isRequestMode && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+            <div className="text-sm text-green-800">
+              <strong>Tạo cuộc trò chuyện với:</strong> {selectedUser.name} ({roleLabel[selectedUser.role]})
+            </div>
+            <div className="text-xs text-green-600 mt-1">
+              Bạn có thể chat trực tiếp với người này
             </div>
           </div>
         )}

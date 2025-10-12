@@ -25,6 +25,9 @@ export interface ChatRequest {
   message: string;
   timestamp: string;
   status: "pending" | "accepted" | "declined";
+  // New fields for PDT binding system
+  assignedTo?: ChatUser; // Which PDT member is handling this
+  isAssigned?: boolean;   // Quick check if someone is handling it
 }
 
 export interface ChatConversation {
