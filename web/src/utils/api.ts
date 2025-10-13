@@ -57,6 +57,7 @@ import type {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   InternshipStatus,
 } from "../pages/PDT/internship_subject_management/InternshipSubjectTypes";
+import type { PageStructure } from "../services/pageApi";
 
 // Define StudentRegistration locally since it's not exported from the module
 export interface StudentRegistration {
@@ -75,9 +76,10 @@ export interface PaginatedInternshipSubjectsResponse {
 
 export type GVStudentStatus =
   | "duoc-huong-dan"
-  | "chua-duoc-huong-dan"
+  | "chua-duoc-huong-dan" 
   | "dang-lam-do-an"
-  | "dang-thuc-tap";
+  | "dang-thuc-tap"
+  | "hoan-thanh";
 
 export interface LecturerSummary {
   id: string;
@@ -95,12 +97,14 @@ export interface GVManagedStudentRaw {
   internshipSubject?: { id: string; title: string };
   studentClass?: string;
   year?: number;
+  content?: string; // Add content property for compatibility
 }
 
 export interface LecturerManagedStudentsResponse {
   success: boolean;
   lecturer?: LecturerSummary; // optional for backward compatibility
   students: GVManagedStudentRaw[];
+  error?: string;
 }
 class ApiClient {
   private baseURL: string;
@@ -109,7 +113,7 @@ class ApiClient {
     this.baseURL = baseURL;
   }
 
-  private async request<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  public async request<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const hasBody = options.body !== undefined;
 
@@ -316,7 +320,189 @@ class ApiClient {
     );
   }
 
+  // Teacher registration methods
+  async getTeacherAvailableSubjects() {
+    return this.request('/internship-subjects/teacher/available');
+  }
 
+  async registerTeacherToSubject(subjectId: string) {
+    return this.request('/internship-subjects/teacher/register', {
+      method: 'POST',
+      body: JSON.stringify({ subjectId })
+    });
+  }
+
+  // Get subjects for page viewing
+  getSubjectsForPageViewing() {
+    return this.request<{ success: boolean; subjects: Array<{ id: string; title: string }> }>('/internship-subjects/for-pages');
+  }
+
+  // Teacher page management methods
+  getTeacherPageStructure() {
+    return this.request<{
+      success: boolean;
+      instructor: { id: string; name: string; email: string };
+      subject: { id: string; title: string; canManage: boolean } | null;
+      headers: Array<{
+        _id: string;
+        id: string;
+        title: string;
+        order: number;
+        audience: string;
+        subs: Array<{
+          _id: string;
+          id: string;
+          title: string;
+          content?: string;
+          order: number;
+          kind: string;
+          audience: string;
+          startAt?: string;
+          endAt?: string;
+          fileUrl?: string;
+          fileName?: string;
+        }>;
+      }>;
+    }>('/pages/teacher/managed');
+  }
+
+  // Get teacher-specific page structure for viewing (used by students)
+  getTeacherPageStructureForViewing = async (instructorId: string, subjectId?: string): Promise<PageStructure> => {
+    if (!instructorId) {
+      throw new Error('Instructor ID is required');
+    }
+    
+    const params = new URLSearchParams();
+    if (subjectId) params.append('subjectId', subjectId);
+    
+    const response = await apiClient.request<PageStructure>(`/pages/teacher/${instructorId}/view?${params.toString()}`);
+    return response;
+  };
+
+  createTeacherPageHeader(subjectId: string, data: {
+    title: string;
+    order: number;
+    audience: string;
+  }) {
+    return this.request<{
+      success: boolean;
+      header: {
+        _id: string;
+        id: string;
+        title: string;
+        order: number;
+        audience: string;
+      };
+    }>(`/pages/teacher/subjects/${subjectId}/headers`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  updateTeacherPageHeader(headerId: string, data: {
+    title: string;
+    order: number;
+    audience: string;
+  }) {
+    return this.request(`/pages/teacher/headers/${headerId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  deleteTeacherPageHeader(headerId: string) {
+    return this.request(`/pages/teacher/headers/${headerId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  createTeacherSubHeader(headerId: string, data: {
+    title: string;
+    content?: string;
+    order: number;
+    kind: string;
+    audience: string;
+    startAt?: string;
+    endAt?: string;
+    fileUrl?: string;
+    fileName?: string;
+  }) {
+    return this.request<{
+      success: boolean;
+      subHeader: {
+        _id: string;
+        id: string;
+        title: string;
+        content?: string;
+        order: number;
+        kind: string;
+        audience: string;
+        startAt?: string;
+        endAt?: string;
+        fileUrl?: string;
+        fileName?: string;
+      };
+    }>(`/pages/teacher/headers/${headerId}/subs`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  // Add reordering methods for teacher pages
+  reorderTeacherHeaders(subjectId: string, headerIds: string[]) {
+    return this.request(`/pages/teacher/subjects/${subjectId}/headers/reorder`, {
+      method: 'PUT',
+      body: JSON.stringify({ headerIds })
+    });
+  }
+
+  reorderTeacherSubHeaders(headerId: string, subHeaderIds: string[]) {
+    return this.request(`/pages/teacher/headers/${headerId}/subs/reorder`, {
+      method: 'PUT', 
+      body: JSON.stringify({ subHeaderIds })
+    });
+  }
+
+  // Update existing teacher sub-header method
+  updateTeacherSubHeader(subId: string, data: {
+    title: string;
+    content?: string;
+    order: number;
+    audience: string;
+    startAt?: string;
+    endAt?: string;
+    fileUrl?: string;
+    fileName?: string;
+  }) {
+    return this.request(`/pages/teacher/subs/${subId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  deleteTeacherSubHeader(subId: string) {
+    return this.request(`/pages/teacher/subs/${subId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  // ===== New Methods =====
+  // Get student's assigned instructor
+  getStudentAssignedInstructor() {
+    // Try the students route first, fall back to auth route
+    return this.request<{
+      success: boolean;
+      instructor?: { id: string; name: string; email: string };
+      subject?: { id: string; title: string };
+    }>("/students/my-instructor").catch(() => {
+      // Fallback to auth endpoint
+      return this.request<{
+        success: boolean;
+        instructor?: { id: string; name: string; email: string };
+        subject?: { id: string; title: string };
+      }>("/auth/student-instructor");
+    });
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);

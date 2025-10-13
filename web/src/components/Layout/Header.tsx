@@ -42,11 +42,12 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
     
     // GV pages
     "/teacher-students": { breadcrumb: "Quản lý sinh viên", title: "Quản lý sinh viên" },
+    "/docs-dept": { breadcrumb: "Xem tài liệu khoa", title: "Xem tài liệu khoa" },
     "/teacher-page": { breadcrumb: "Quản lý trang giảng viên", title: "Quản lý trang giảng viên" },
+    "/teacher-internship-registration": { breadcrumb: "Đăng ký môn thực tập", title: "Đăng ký môn thực tập" },
     "/teacher-reports": { breadcrumb: "Quản lý báo cáo", title: "Quản lý báo cáo" },
     
     // SV pages
-    "/docs-dept": { breadcrumb: "Xem tài liệu khoa", title: "Xem tài liệu khoa" },
     "/docs-teacher": { breadcrumb: "Xem tài liệu giảng viên", title: "Xem tài liệu giảng viên" },
     "/internship-registration": { breadcrumb: "Đăng ký môn thực tập", title: "Đăng ký môn thực tập" },
     "/my-internship": { breadcrumb: "Thực tập của tôi", title: "Thực tập của tôi" },
@@ -59,6 +60,9 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
   }
   if (pathname.startsWith("/teacher-page/sub/")) {
     return { breadcrumb: "Quản lý trang giảng viên / Trang con", title: "Trang con giảng viên" };
+  }
+  if (pathname.startsWith("/docs-dept/sub/")) {
+    return { breadcrumb: "Xem tài liệu khoa / Trang con", title: "Trang con khoa" };
   }
 
   // Find exact match or return default

@@ -7,27 +7,46 @@ interface Props {
   open: boolean;
   header?: HeaderBlock;
   onClose: () => void;
-  onCreate: (headerId: string, sub: SubHeader) => void;
+  onCreate: (headerId: string, sub: Omit<SubHeader, 'id' | 'order'>) => void;
 }
 
 const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) => {
   const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
   const [order, setOrder] = useState(1);
   const [kind, setKind] = useState<SubKind>("thuong");
+  const [audience, setAudience] = useState<"tat-ca" | "sinh-vien" | "giang-vien">("sinh-vien");
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
 
+  // Calculate next available order when header changes
+  React.useEffect(() => {
+    if (header && header.subs && header.subs.length > 0) {
+      const maxOrder = Math.max(...header.subs.map(sub => sub.order || 0));
+      setOrder(maxOrder + 1);
+    } else {
+      setOrder(1);
+    }
+  }, [header]);
+
   const submit = () => {
     if (!header) return;
-    const id = `s_${Date.now()}`;
     onCreate(header.id, {
-      id,
       title: title || "Sub-header mới",
-      order,
+      content: kind === "van-ban" ? title : content,
       kind,
+      audience,
       startAt: kind === "nop-file" ? startAt : undefined,
       endAt: kind === "nop-file" ? endAt : undefined,
     });
+    
+    // Reset form
+    setTitle("");
+    setContent("");
+    setKind("thuong");
+    setAudience("sinh-vien");
+    setStartAt("");
+    setEndAt("");
   };
 
   return (
@@ -64,11 +83,24 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
             )}
           </div>
 
+          {/* Content for non-van-ban types */}
+          {kind !== "van-ban" && (
+            <div className="sm:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nội dung</label>
+              <RichTextEditor html={content} onChange={setContent} />
+            </div>
+          )}
+
           {/* Position */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
-            <input type="number" min={1} className="w-full h-11 rounded-lg border border-gray-300 px-3"
-                   value={order} onChange={(e) => setOrder(parseInt(e.target.value || "1", 10))} />
+            <input 
+              type="number" 
+              min={1} 
+              className="w-full h-11 rounded-lg border border-gray-300 px-3"
+              value={order || 1} 
+              onChange={(e) => setOrder(parseInt(e.target.value, 10) || 1)} 
+            />
           </div>
 
           {/* Kind */}
@@ -80,6 +112,20 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
               <option value="thong-bao">Thông báo</option>
               <option value="nop-file">Nộp file</option>
               <option value="van-ban">Văn bản</option>
+            </select>
+          </div>
+
+          {/* Audience */}
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ai có thể thấy</label>
+            <select 
+              className="w-full h-11 rounded-lg border border-gray-300 px-3"
+              value={audience} 
+              onChange={(e) => setAudience(e.target.value as "tat-ca" | "sinh-vien" | "giang-vien")}
+            >
+              <option value="tat-ca">Sinh viên / Giảng viên / Tất cả</option>
+              <option value="sinh-vien">Chỉ sinh viên</option>
+              <option value="giang-vien">Chỉ giảng viên</option>
             </select>
           </div>
 

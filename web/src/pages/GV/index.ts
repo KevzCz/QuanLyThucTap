@@ -2,3 +2,5 @@ export { default as StudentManagement } from "./student_management/StudentManage
 export { default as TeacherPageManagement } from "./teacher_page/TeacherPageManagement";
 export { default as TeacherPageRoutes } from "./teacher_page/TeacherPageRoutes";
 export { default as ChatManagement } from "./chat/ChatManagement";
+export { default as InternshipSubjectRegister } from "./internship_subject/InternshipSubjectRegister";
+export { default as KhoaPageViewRoutes } from "../SV/khoa_page_view/KhoaPageViewRoutes";

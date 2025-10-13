@@ -1,26 +1,28 @@
 export type Audience = "tat-ca" | "sinh-vien" | "giang-vien";
-export type SubKind = "thuong" | "nop-file" | "van-ban" | "thong-bao" | "file";
+export type SubKind = "thuong" | "thong-bao" | "nop-file" | "van-ban" | "file";
 
 export interface SubHeader {
+  _id?: string;
   id: string;
-  _id?: string; // Backend ID field
   title: string;
-  content?: string; // Content field for rich text
+  content?: string;
   order: number;
   kind: SubKind;
   audience: Audience;
   startAt?: string;
   endAt?: string;
-  fileUrl?: string; // for file downloads
-  fileName?: string; // display name for files
+  fileUrl?: string;
+  fileName?: string;
+  isActive?: boolean;
 }
 
 export interface HeaderBlock {
+  _id?: string;
   id: string;
-  _id?: string; // Backend ID field
   title: string;
   order: number;
   audience: Audience;
+  isActive?: boolean;
   subs: SubHeader[];
 }
 

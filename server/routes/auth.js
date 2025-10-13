@@ -195,5 +195,49 @@ router.delete("/accounts/:id", ...authPDT, async (req, res) => {
   }
 });
 
+// Temporary mock endpoint for student instructor (for development)
+router.get("/student-instructor", authenticate, async (req, res) => {
+  try {
+    if (req.account.role === "sinh-vien") {
+      // Try to find real instructor first
+      const SinhVien = (await import("../models/SinhVien.js")).default;
+      const studentProfile = await SinhVien.findOne({ account: req.account._id })
+        .populate('supervisor', 'id name email')
+        .populate('internshipSubject', 'id title');
+
+      if (studentProfile?.supervisor && studentProfile?.internshipSubject) {
+        res.json({
+          success: true,
+          instructor: {
+            id: studentProfile.supervisor.id,
+            name: studentProfile.supervisor.name,
+            email: studentProfile.supervisor.email
+          },
+          subject: {
+            id: studentProfile.internshipSubject.id,
+            title: studentProfile.internshipSubject.title
+          }
+        });
+      } else {
+        // No instructor assigned
+        res.json({
+          success: true,
+          instructor: null,
+          subject: null
+        });
+      }
+    } else {
+      res.json({
+        success: true,
+        instructor: null,
+        subject: null
+      });
+    }
+  } catch (error) {
+    console.error('Student instructor lookup error:', error);
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
 export default router;
 

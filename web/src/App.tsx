@@ -13,11 +13,12 @@ import KhoaPageRoutes from "./pages/BCN/khoa_page/KhoaPageRoutes";
 import RequestManagement from "./pages/BCN/request/RequestManagement";
 import StudentManagement from "./pages/GV/student_management/StudentManagement";
 import { TeacherPageRoutes } from "./pages/GV";
-import { KhoaPageViewRoutes, TeacherPageViewRoutes, InternshipSubjectRegister } from "./pages/SV";
+import { KhoaPageViewRoutes, TeacherPageViewRoutes, InternshipSubjectRegister as SVInternshipSubjectRegister } from "./pages/SV";
 import { ChatManagement as PDTChatManagement } from "./pages/PDT";
 import { ChatManagement as BCNChatManagement } from "./pages/BCN";
 import { ChatManagement as GVChatManagement } from "./pages/GV";
 import { ChatManagement as SVChatManagement } from "./pages/SV";
+import { InternshipSubjectRegister as GVInternshipSubjectRegister, KhoaPageViewRoutes as GVKhoaPageViewRoutes } from "./pages/GV";
 
 const AppRoutes: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -91,7 +92,9 @@ const AppRoutes: React.FC = () => {
         {user?.role === "giang-vien" && (
           <>
             <Route path="teacher-students" element={<StudentManagement />} />
+            <Route path="docs-dept/*" element={<GVKhoaPageViewRoutes />} />
             <Route path="teacher-page/*" element={<TeacherPageRoutes />} />
+            <Route path="teacher-internship-registration" element={<GVInternshipSubjectRegister />} />
             <Route path="teacher-reports" element={Stub("Quản lý báo cáo (GV)")} />
           </>
         )}
@@ -101,7 +104,7 @@ const AppRoutes: React.FC = () => {
           <>
             <Route path="docs-dept/*" element={<KhoaPageViewRoutes />} />
             <Route path="docs-teacher/*" element={<TeacherPageViewRoutes />} />
-            <Route path="internship-registration" element={<InternshipSubjectRegister />} />
+            <Route path="internship-registration" element={<SVInternshipSubjectRegister />} />
             <Route path="my-internship" element={Stub("Thực tập của tôi")} />
             <Route path="profile" element={Stub("Hồ sơ cá nhân")} />
           </>

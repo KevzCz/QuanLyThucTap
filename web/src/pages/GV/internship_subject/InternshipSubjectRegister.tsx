@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
-import type { InternshipSubject, StudentRegistration } from "./InternshipSubjectTypes";
+import type { InternshipSubject, TeacherRegistration } from "./InternshipSubjectTypes";
 import ViewSubjectDialog from "./ViewSubjectDialog";
 import RegisterSubjectDialog from "./RegisterSubjectDialog";
 import AlreadyRegisteredDialog from "./AlreadyRegisteredDialog";
@@ -23,7 +23,7 @@ const StatusChip: React.FC<{ status: 'open' | 'full' | 'closed' | 'locked' }> = 
 
 const InternshipSubjectRegister: React.FC = () => {
   const [subjects, setSubjects] = useState<InternshipSubject[]>([]);
-  const [studentRegistration, setStudentRegistration] = useState<StudentRegistration | null>(null);
+  const [teacherRegistration, setTeacherRegistration] = useState<TeacherRegistration | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -36,64 +36,66 @@ const InternshipSubjectRegister: React.FC = () => {
   const [openRegister, setOpenRegister] = useState(false);
   const [openAlreadyRegistered, setOpenAlreadyRegistered] = useState(false);
 
-  // Fetch subjects and registration status
+  // Fetch subjects and check if teacher is already registered
   useEffect(() => {
     const fetchSubjects = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        const data = await apiClient.getStudentAvailableSubjects();
+        // Use teacher-specific endpoint
+        const data = await apiClient.getTeacherAvailableSubjects() as {
+          success: boolean;
+          subjects?: InternshipSubject[];
+          teacherRegistration?: TeacherRegistration;
+          error?: string;
+        };
 
         if (!data.success) throw new Error("Phản hồi không thành công");
 
         setSubjects(data.subjects || []);
-        setStudentRegistration(data.studentRegistration || null);
+        
+        // Check if teacher is already registered
+        setTeacherRegistration(data.teacherRegistration || null);
       } catch (e) {
         console.error("Error fetching subjects:", e);
         setError(e instanceof Error ? e.message : "Có lỗi xảy ra khi tải dữ liệu");
         setSubjects([]);
-        setStudentRegistration(null);
+        setTeacherRegistration(null);
       } finally {
         setLoading(false);
       }
     };
 
-
     fetchSubjects();
   }, []);
+
+  // Show already registered dialog on page load if teacher is registered
+  useEffect(() => {
+    if (teacherRegistration && subjects.length > 0) {
+      setOpenAlreadyRegistered(true);
+    }
+  }, [teacherRegistration, subjects]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return subjects.filter((subject) => {
       const byStatus = statusFilter === "all" || subject.status === statusFilter;
       const byQuery = !q || 
-        subject.name?.toLowerCase().includes(q) || 
-        subject.code?.toLowerCase().includes(q) ||
-        subject.instructors?.some(inst => inst.name.toLowerCase().includes(q));
+        subject.title?.toLowerCase().includes(q) || 
+        subject.id?.toLowerCase().includes(q) ||
+        subject.manager?.name?.toLowerCase().includes(q);
       return byStatus && byQuery;
     });
   }, [subjects, query, statusFilter]);
 
   const handleRegisterClick = (subject: InternshipSubject) => {
-    if (studentRegistration) {
+    if (teacherRegistration) {
       setOpenAlreadyRegistered(true);
     } else {
-      // Check registration status
-      const now = new Date();
-      const regStart = subject.registrationStartDate ? new Date(subject.registrationStartDate) : null;
-      const regEnd = subject.registrationEndDate ? new Date(subject.registrationEndDate) : null;
-      
-      if (regStart && now < regStart) {
-        alert('Chưa đến thời gian đăng ký');
-        return;
-      }
-      if (regEnd && now > regEnd) {
-        alert('Đã hết thời gian đăng ký');
-        return;
-      }
-      if (subject.currentStudents >= subject.maxStudents) {
-        alert('Môn thực tập đã đầy');
+      // Check if subject is open for registration
+      if (subject.status !== "open") {
+        alert('Môn thực tập này đã đóng đăng ký');
         return;
       }
       
@@ -102,29 +104,35 @@ const InternshipSubjectRegister: React.FC = () => {
     }
   };
 
-  const handleRegistrationSuccess = async (registration: StudentRegistration) => {
+  const handleRegistrationSuccess = async (registration: TeacherRegistration) => {
     try {
-      const data = await apiClient.registerStudentToSubject(registration.subjectId);
-      if (!data.success) throw new Error("Đăng ký thất bại");
-
-      setStudentRegistration(data.registration);
+      // Call teacher-specific registration endpoint
+      const data = await apiClient.registerTeacherToSubject(registration.subjectId) as {
+        success: boolean;
+        registration?: TeacherRegistration;
+        error?: string;
+      };
+      
+      if (!data.success) throw new Error(data.error || "Đăng ký thất bại");
+      
+      setTeacherRegistration(data.registration || null);
       setOpenRegister(false);
 
+      // Update the subject's lecturer count (not student capacity)
       setSubjects(prev =>
         prev.map(s =>
-          s.id === registration.subjectId ? { ...s, currentStudents: s.currentStudents + 1 } : s
+          s.id === registration.subjectId 
+            ? { ...s, lecturers: [...(s.lecturers || []), { id: 'current-teacher', name: 'Current Teacher', email: '' }] }
+            : s
         )
       );
 
-      alert("Đăng ký thành công! Bạn đã tham gia môn thực tập.");
+      alert("Đăng ký thành công! Bạn đã tham gia giảng dạy môn thực tập.");
     } catch (error) {
       console.error("Registration error:", error);
       alert(error instanceof Error ? error.message : "Đăng ký thất bại");
     }
-
   };
-
-  const remainingSpots = (subject: InternshipSubject) => subject.maxStudents - subject.currentStudents;
 
   const truncateText = (text: string, maxLines: number = 2) => {
     const words = text.split(' ');
@@ -198,18 +206,7 @@ const InternshipSubjectRegister: React.FC = () => {
       {/* Subject Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map((subject) => {
-          // Calculate registration status
-          const now = new Date();
-          const regStart = subject.registrationStartDate ? new Date(subject.registrationStartDate) : null;
-          const regEnd = subject.registrationEndDate ? new Date(subject.registrationEndDate) : null;
-          
-          let regStatus: 'not-started' | 'open' | 'full' | 'ended' = 'open';
-          if (regStart && now < regStart) regStatus = 'not-started';
-          else if (regEnd && now > regEnd) regStatus = 'ended';
-          else if (subject.currentStudents >= subject.maxStudents) regStatus = 'full';
-          else if (subject.status === 'locked') regStatus = 'ended';
-          
-          const canRegister = regStatus === 'open' && !studentRegistration;
+          const canRegister = subject.status === "open" && !teacherRegistration;
           
           return (
             <div key={subject.id} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow flex flex-col h-[450px]">
@@ -222,7 +219,7 @@ const InternshipSubjectRegister: React.FC = () => {
                     </h3>
                     <p className="text-sm text-gray-600 font-mono">{subject.id}</p>
                   </div>
-                  <StatusChip status={regStatus === 'full' ? 'full' : regStatus === 'open' ? 'open' : 'closed'} />
+                  <StatusChip status={subject.status === "open" ? "open" : "locked"} />
                 </div>
 
                 {/* Description */}
@@ -249,9 +246,15 @@ const InternshipSubjectRegister: React.FC = () => {
                     <span className="font-medium">{subject.lecturers?.length || 0} người</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Số lượng:</span>
+                    <span className="text-gray-500">Sinh viên:</span>
                     <span className="font-medium">
-                      {remainingSpots(subject)} chỗ trống
+                      {subject.currentStudents}/{subject.maxStudents}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Chỗ trống:</span>
+                    <span className="font-medium text-green-600">
+                      {subject.maxStudents - subject.currentStudents} sinh viên
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -279,10 +282,8 @@ const InternshipSubjectRegister: React.FC = () => {
                     disabled={!canRegister}
                     className="flex-1 h-9 px-3 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {regStatus === 'full' ? 'Đã đầy' : 
-                     regStatus === 'ended' ? 'Hết hạn' :
-                     regStatus === 'not-started' ? 'Chưa mở' :
-                     studentRegistration ? 'Đã đăng ký' : 'Đăng ký'}
+                    {subject.status === "locked" ? 'Đã khóa' :
+                     teacherRegistration ? 'Đã tham gia' : 'Tham gia'}
                   </button>
                 </div>
               </div>
@@ -312,7 +313,7 @@ const InternshipSubjectRegister: React.FC = () => {
           setOpenView(false);
           handleRegisterClick(subject);
         }}
-        canRegister={!studentRegistration}
+        canRegister={!teacherRegistration}
       />
 
       <RegisterSubjectDialog
@@ -325,7 +326,7 @@ const InternshipSubjectRegister: React.FC = () => {
       <AlreadyRegisteredDialog
         open={openAlreadyRegistered}
         onClose={() => setOpenAlreadyRegistered(false)}
-        currentRegistration={studentRegistration}
+        currentRegistration={teacherRegistration}
         subjects={subjects}
       />
     </div>

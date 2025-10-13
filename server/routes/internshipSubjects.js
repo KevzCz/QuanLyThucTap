@@ -809,4 +809,111 @@ router.post("/student/register", authenticate, async (req, res) => {
   }
 });
 
+// Get subjects for teacher registration (Teacher only)
+router.get("/teacher/available", authenticate, async (req, res) => {
+  try {
+    if (req.account.role !== 'giang-vien') {
+      return res.status(403).json({ error: 'Chỉ giảng viên mới có thể truy cập' });
+    }
+
+    // Check if teacher is already registered
+    const teacherProfile = await GiangVien.findOne({ account: req.account._id })
+      .populate('internshipSubject', 'id title');
+
+    const subjects = await InternshipSubject.find({ status: 'open' })
+      .populate('manager', 'id name email')
+      .populate('lecturers', 'id name email')
+      .populate('students', 'id name email')
+      .sort({ registrationStartDate: 1 });
+
+    // Transform data for frontend compatibility
+    const transformedSubjects = subjects.map(subject => ({
+      ...subject.toObject(),
+      name: subject.title, // Legacy compatibility
+      code: subject.id,    // Legacy compatibility
+      bcnManager: {        // Legacy compatibility
+        id: subject.manager.id,
+        name: subject.manager.name
+      }
+    }));
+
+    res.json({
+      success: true,
+      subjects: transformedSubjects,
+      teacherRegistration: teacherProfile?.internshipSubject ? {
+        teacherId: req.account.id,
+        subjectId: teacherProfile.internshipSubject.id,
+        registeredAt: teacherProfile.createdAt
+      } : null
+    });
+  } catch (error) {
+    console.error("Get teacher subjects error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Register teacher for subject (Teacher only)
+router.post("/teacher/register", authenticate, async (req, res) => {
+  try {
+    if (req.account.role !== 'giang-vien') {
+      return res.status(403).json({ error: 'Chỉ giảng viên mới có thể đăng ký' });
+    }
+
+    const { subjectId } = req.body;
+    if (!subjectId) {
+      return res.status(400).json({ error: 'Subject ID is required' });
+    }
+
+    // Check if teacher is already registered for any subject
+    const existingRegistration = await GiangVien.findOne({ account: req.account._id });
+    if (existingRegistration?.internshipSubject) {
+      return res.status(400).json({ error: 'Bạn đã tham gia giảng dạy môn thực tập khác' });
+    }
+
+    // Find the subject
+    const subject = await InternshipSubject.findOne({ id: subjectId });
+    if (!subject) {
+      return res.status(404).json({ error: 'Không tìm thấy môn thực tập' });
+    }
+
+    if (subject.status !== 'open') {
+      return res.status(400).json({ error: 'Môn thực tập đã đóng đăng ký' });
+    }
+
+    // Check if teacher is already in this subject
+    if (subject.lecturers.includes(req.account._id)) {
+      return res.status(400).json({ error: 'Bạn đã tham gia giảng dạy môn này' });
+    }
+
+    // Add teacher to subject (doesn't affect student capacity)
+    subject.lecturers.push(req.account._id);
+    await subject.save();
+
+    // Update or create teacher profile
+    await GiangVien.findOneAndUpdate(
+      { account: req.account._id },
+      { 
+        internshipSubject: subject._id,
+        managedStudents: []
+      },
+      { upsert: true }
+    );
+
+    const registration = {
+      teacherId: req.account.id,
+      subjectId: subject.id,
+      registeredAt: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      registration,
+      message: 'Đăng ký thành công'
+    });
+  } catch (error) {
+    console.error("Teacher registration error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 export default router;

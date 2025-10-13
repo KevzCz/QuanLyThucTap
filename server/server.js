@@ -11,7 +11,8 @@ import accountRoutes from "./routes/accounts.js";
 import uploadRoutes from "./routes/uploads.js";
 import internshipSubjectRoutes from "./routes/internshipSubjects.js";
 import lecturerRoutes from "./routes/lecturers.js";
-
+import pageManagementRoutes from "./routes/pageManagement.js";
+import studentRoutes from "./routes/students.js";
 const app = express();
 
 /* Basic middlewares */
@@ -26,7 +27,7 @@ app.use(cookieParser());
 /* Static uploads */
 const uploadsDir = path.resolve("./uploads");
 app.use("/uploads", express.static(uploadsDir));
-
+app.use("/api/students", studentRoutes);
 /* MongoDB connection */
 const uri = process.env.MONGODB_URI || "mongodb://localhost:27017/QLTT";
 
@@ -57,9 +58,11 @@ app.get("/api/health", (_req, res) => {
 /* Route modules */
 app.use("/api/auth", authRoutes);
 app.use("/api/accounts", accountRoutes);
-app.use("/api/uploads", uploadRoutes);
 app.use("/api/internship-subjects", internshipSubjectRoutes);
 app.use("/api/lecturers", lecturerRoutes);
+app.use("/api/uploads", uploadRoutes);
+app.use("/api/pages", pageManagementRoutes);
+app.use("/api/students", studentRoutes);
 
 /* Legacy routes for backward compatibility */
 const UserSchema = new mongoose.Schema(

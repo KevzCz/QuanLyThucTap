@@ -1,4 +1,8 @@
 import React, { useMemo, useState } from "react";
+import SearchInput from "../../../components/UI/SearchInput";
+import FilterButtonGroup from "../../../components/UI/FilterButtonGroup";
+import SubjectPill from "../../../components/UI/SubjectPill";
+import Pagination from "../../../components/UI/Pagination";
 import ViewRequestDialog from "../request/ViewRequestDialog";
 import ConfirmApproveDialog from "../request/ConfirmApproveDialog";
 import ConfirmDeleteDialog from "../request/ConfirmDeleteDialog";
@@ -74,7 +78,6 @@ const RequestManagement: React.FC = () => {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | RequestKind>("all");
   const [rows, setRows] = useState<RequestRow[]>(MOCK);
-
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -83,7 +86,9 @@ const RequestManagement: React.FC = () => {
     return rows.filter((r) => {
       const byKind = filter === "all" ? true : r.kind === filter;
       const byQuery =
-        !q || r.name.toLowerCase().includes(q) || r.code.toLowerCase().includes(q);
+        !q ||
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.code && r.code.toLowerCase().includes(q));
       return byKind && byQuery;
     });
   }, [rows, filter, query]);
@@ -112,6 +117,12 @@ const RequestManagement: React.FC = () => {
     setOpenDelete(false);
   };
 
+  const filterOptions = [
+    { key: "all" as const, label: "Tất cả" },
+    { key: "them-sinh-vien" as const, label: "Thêm" },
+    { key: "xoa-sinh-vien" as const, label: "Xóa" },
+  ];
+
   return (
     <div className="space-y-3">
       {/* Header breadcrumb mimic */}
@@ -122,62 +133,27 @@ const RequestManagement: React.FC = () => {
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          {/* search */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
-              <svg viewBox="0 0 24 24" className="h-4 w-4">
-                <path
-                  fill="currentColor"
-                  d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"
-                />
-              </svg>
-            </span>
-            <input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Tìm kiếm tên giảng viên / yêu cầu"
-              className="w-[260px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <SearchInput
+            value={query}
+            onChange={(value) => {
+              setQuery(value);
+              setPage(1);
+            }}
+            placeholder="Tìm kiếm tên giảng viên / yêu cầu"
+            width="w-[260px]"
+          />
 
-          {/* filters like picture: Tất cả / Thêm / Xóa */}
-          <div className="flex gap-2">
-            {(
-              [
-                { k: "all", label: "Tất cả" },
-                { k: "them-sinh-vien", label: "Thêm" },
-                { k: "xoa-sinh-vien", label: "Xóa" },
-              ] as const
-            ).map(({ k, label }) => (
-              <button
-                key={k}
-                onClick={() => {
-                  setFilter(k as "all" | RequestKind);
-                  setPage(1);
-                }}
-                className={`h-9 rounded-md px-3 text-sm border transition ${
-                  filter === k
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* subject pill centered */}
-        <div className="flex-1 flex justify-center px-4">
-          <input
-            disabled
-            value={subjectId}
-            className="h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center min-w-[220px] max-w-[320px] w-full"
+          <FilterButtonGroup
+            options={filterOptions}
+            value={filter}
+            onChange={(value) => {
+              setFilter(value);
+              setPage(1);
+            }}
           />
         </div>
+
+        <SubjectPill value={subjectId} />
 
         {/* right side kept empty to match spacing */}
         <div className="w-[96px]" />
@@ -260,27 +236,11 @@ const RequestManagement: React.FC = () => {
         </table>
 
         {/* Pagination like picture */}
-        <div className="flex items-center justify-center gap-2 border-t border-gray-200 bg-white px-4 py-3">
-          <button
-            className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-            disabled={page === 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            title="Trang trước"
-          >
-            ‹
-          </button>
-          <span className="text-sm text-gray-700">
-            <span className="font-semibold">{page}</span> / {pageCount}
-          </span>
-          <button
-            className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-            disabled={page === pageCount}
-            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-            title="Trang sau"
-          >
-            ›
-          </button>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalPages={pageCount}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* Dialogs */}

@@ -35,7 +35,7 @@ const SinhVienSchema = new mongoose.Schema(
     },
     internshipStatus: {
       type: String,
-      enum: ["duoc-huong-dan", "chua-duoc-huong-dan", "dang-lam-do-an", "dang-thuc-tap"],
+      enum: ["duoc-huong-dan", "chua-duoc-huong-dan", "dang-lam-do-an", "dang-thuc-tap", "tam-ngung", "hoan-thanh"],
       default: "chua-duoc-huong-dan"
     },
     studentClass: {

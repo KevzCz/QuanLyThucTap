@@ -13,7 +13,14 @@ const TeacherSubUpload: React.FC = () => {
   const [sub, setSub] = useState<SubHeader>(() => {
     const base =
       state?.sub ??
-      ({ id: subId!, title: "Trang con nộp file", order: 1, kind: "nop-file" } as SubHeader);
+      ({ 
+        id: subId!, 
+        title: "Trang con nộp file", 
+        order: 1, 
+        kind: "nop-file",
+        audience: "sinh-vien",
+        content: ""
+      } as SubHeader);
     return { ...base, startAt: base.startAt ?? "", endAt: base.endAt ?? "" };
   });
 

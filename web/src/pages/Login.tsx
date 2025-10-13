@@ -92,6 +92,7 @@ const Login: React.FC = () => {
                   className="w-full h-12 rounded-xl border border-gray-300 pl-10 pr-3 text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
                   placeholder="you@huflit.edu.vn"
                   required
+                  autoComplete="email"
                 />
               </div>
             </div>

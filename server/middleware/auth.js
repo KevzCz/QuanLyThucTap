@@ -75,20 +75,68 @@ export const authSV = [
 
 // Role-based authorization
 export const authorize = (...roles) => {
+  const allowed = Array.isArray(roles[0]) ? roles[0] : roles;
   return (req, res, next) => {
     if (!req.account) {
       return res.status(401).json({ error: "Unauthorized" });
     }
-    
-    if (!roles.includes(req.account.role)) {
+    if (!allowed.includes(req.account.role)) {
       return res.status(403).json({ error: "Forbidden - Insufficient permissions" });
     }
-    
     next();
   };
 };
+
 
 // Multiple roles
 export const authPDTOrBCN = [authenticate, authorize("phong-dao-tao", "ban-chu-nhiem")];
 export const authGVOrBCN = [authenticate, authorize("giang-vien", "ban-chu-nhiem")];
 export const authAll = [authenticate, authorize("phong-dao-tao", "ban-chu-nhiem", "giang-vien", "sinh-vien")];
+
+// Teacher-specific authorization
+export const authTeacher = [
+  authenticate,
+  (req, res, next) => {
+    if (req.account.role !== "giang-vien") {
+      return res.status(403).json({ error: "Chỉ giảng viên mới có quyền truy cập" });
+    }
+    next();
+  }
+];
+
+// BCN authorization with subject verification
+export const authBCNForSubject = async (req, res, next) => {
+  try {
+    // First authenticate
+    await new Promise((resolve, reject) => {
+      authenticate(req, res, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    if (req.account.role !== "ban-chu-nhiem") {
+      return res.status(403).json({ error: "Không có quyền truy cập" });
+    }
+
+    // Get subject from params or body
+    const subjectId = req.params.subjectId || req.body.subjectId;
+    if (subjectId) {
+      const subject = await InternshipSubject.findOne({ id: subjectId });
+      if (subject) {
+        const bcnProfile = await BanChuNhiem.findOne({ 
+          account: req.account._id,
+          internshipSubject: subject._id 
+        });
+        if (!bcnProfile) {
+          return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
+        }
+      }
+    }
+
+    next();
+  } catch (error) {
+    console.error('BCN Subject Auth error:', error);
+    res.status(401).json({ error: "Lỗi xác thực" });
+  }
+};

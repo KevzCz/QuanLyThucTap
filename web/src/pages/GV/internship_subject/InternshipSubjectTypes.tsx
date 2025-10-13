@@ -1,6 +1,5 @@
 export interface InternshipSubject {
   id: string;
-  _id?: string; // Backend MongoDB ID
   title: string;
   description?: string;
   requirements?: string[];
@@ -52,9 +51,8 @@ export interface InternshipSubject {
   };
 }
 
-export interface StudentRegistration {
+export interface TeacherRegistration {
+  teacherId: string;
   subjectId: string;
-  // optional if backend doesn’t return them yet
-  studentId?: string;
-  registeredAt?: string; // ISO string
+  registeredAt: string;
 }

@@ -1,6 +1,7 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader, SubmittedFile } from "./TeacherPageViewTypes";
+import { getSubHeader } from "../../../services/pageApi";
 import dayjs from "dayjs";
 
 const TeacherSubViewUpload: React.FC = () => {
@@ -9,15 +10,49 @@ const TeacherSubViewUpload: React.FC = () => {
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const sub = state?.sub ?? ({ id: subId!, title: "Nộp bài", order: 1, kind: "nop-file" } as SubHeader);
-  const [html] = useState<string>("<p>Nộp bài tập theo yêu cầu của giảng viên. Vui lòng đọc kỹ hướng dẫn trước khi nộp.</p>");
+  const [sub, setSub] = useState<SubHeader | null>(state?.sub || null);
+  const [html, setHtml] = useState<string>("<p>Nộp bài tập theo yêu cầu của giảng viên. Vui lòng đọc kỹ hướng dẫn trước khi nộp.</p>");
+  const [loading, setLoading] = useState(!state?.sub);
+  const [error, setError] = useState<string | null>(null);
   const [submittedFiles, setSubmittedFiles] = useState<SubmittedFile[]>([
     { id: "f1", name: "baitap_tuan1.zip", size: 2048000, uploadedAt: "2025-01-20T16:45:00", status: "approved" },
   ]);
-
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
+  // Load sub-header data if not provided via state
+  useEffect(() => {
+    if (!sub && subId) {
+      const loadSubHeader = async () => {
+        try {
+          setLoading(true);
+          const response = await getSubHeader(subId);
+          setSub(response.subHeader);
+          setHtml(response.subHeader.content || "<p>Nộp bài tập theo yêu cầu của giảng viên. Vui lòng đọc kỹ hướng dẫn trước khi nộp.</p>");
+          setError(null);
+        } catch (err) {
+          console.error('Failed to load sub-header:', err);
+          setError('Không thể tải nội dung');
+          // Fallback to mock data
+          setSub({ 
+            id: subId!, 
+            title: "Nộp bài", 
+            order: 1, 
+            kind: "nop-file",
+            audience: "sinh-vien",
+            content: "<p>Nộp bài tập theo yêu cầu của giảng viên. Vui lòng đọc kỹ hướng dẫn trước khi nộp.</p>"
+          });
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadSubHeader();
+    } else if (sub) {
+      setHtml(sub.content || "<p>Nộp bài tập theo yêu cầu của giảng viên. Vui lòng đọc kỹ hướng dẫn trước khi nộp.</p>");
+    }
+  }, [sub, subId]);
+
   const isActive = () => {
+    if (!sub) return false;
     const now = dayjs();
     const start = sub.startAt ? dayjs(sub.startAt) : null;
     const end = sub.endAt ? dayjs(sub.endAt) : null;
@@ -81,6 +116,53 @@ const TeacherSubViewUpload: React.FC = () => {
       case "pending": return "Chờ duyệt";
     }
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate("/docs-teacher")}>
+            ← Quay lại trang giảng viên
+          </button>
+          <div className="w-32 h-9 bg-gray-200 rounded-full animate-pulse" />
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/3" />
+            <div className="h-24 bg-gray-200 rounded" />
+            <div className="h-32 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate("/docs-teacher")}>
+            ← Quay lại trang giảng viên
+          </button>
+          <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
+            <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "CNTT - TT2025"}
+          </span>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
+          <div className="text-red-600 mb-2">⚠️</div>
+          <p className="text-gray-600">{error}</p>
+          <button 
+            onClick={() => navigate("/docs-teacher")} 
+            className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Quay lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sub) return null;
 
   return (
     <div className="space-y-4">

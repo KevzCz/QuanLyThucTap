@@ -1,5 +1,4 @@
 export type InternshipStatus = "open" | "locked";
-export type RegistrationStatus = "not-started" | "open" | "ended" | "full";
 
 export interface InternshipSubject {
   id: string;            
@@ -9,13 +8,13 @@ export interface InternshipSubject {
   registrationStartDate: string;
   registrationEndDate: string;
   maxStudents: number;      
+  currentStudents: number;
+  status: InternshipStatus;
   manager: {
     id: string;
     name: string;
     email: string;
   };   
-  status: InternshipStatus;
-  registrationStatus?: RegistrationStatus;
   lecturers: Array<{
     id: string;
     name: string;
@@ -31,7 +30,6 @@ export interface InternshipSubject {
     name: string;
     email: string;
   }>;
-  currentStudents: number;
   createdAt: string;
   updatedAt: string;
 }

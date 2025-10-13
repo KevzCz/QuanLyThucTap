@@ -1,34 +1,129 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader } from "./KhoaPageViewTypes";
+import { getSubHeader } from "../../../services/pageApi";
+import { useAuth } from "../../../contexts/UseAuth";
 
 const KhoaSubViewRegular: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const sub = state?.sub ?? ({ id: subId!, title: "Trang con", order: 1, kind: "thuong", audience: "tat-ca" } as SubHeader);
-  const [html] = useState<string>(
-    `<h3>Thông tin thực tập</h3>
-    <p>Đây là trang thông tin về thực tập dành cho sinh viên. Các bạn cần lưu ý những điều sau:</p>
-    <ul>
-      <li>Thời gian thực tập: 8 tuần</li>
-      <li>Địa điểm: Công ty được phân công</li>
-      <li>Yêu cầu: Hoàn thành báo cáo hàng tuần</li>
-    </ul>
-    <p>Mọi thắc mắc xin liên hệ với giảng viên hướng dẫn.</p>`
-  );
+  const [sub, setSub] = useState<SubHeader | null>(state?.sub || null);
+  const [html, setHtml] = useState<string>("");
+  const [loading, setLoading] = useState(!state?.sub);
+  const [error, setError] = useState<string | null>(null);
 
-  const icon = sub.kind === "thong-bao" ? "🔔" : sub.kind === "nop-file" ? "📤" : "•";
+  // Load sub-header data if not provided via state
+  useEffect(() => {
+    if (!sub && subId) {
+      const loadSubHeader = async () => {
+        try {
+          setLoading(true);
+          const response = await getSubHeader(subId);
+          setSub(response.subHeader);
+          setHtml(response.subHeader.content || "");
+          setError(null);
+        } catch (err) {
+          console.error('Failed to load sub-header:', err);
+          setError('Không thể tải nội dung');
+          // Fallback to mock data
+          setSub({ 
+            id: subId!, 
+            title: "Trang con", 
+            order: 1, 
+            kind: "thuong", 
+            audience: "tat-ca",
+            content: `<h3>Thông tin thực tập</h3>
+            <p>Đây là trang thông tin về thực tập dành cho sinh viên. Các bạn cần lưu ý những điều sau:</p>
+            <ul>
+              <li>Thời gian thực tập: 8 tuần</li>
+              <li>Địa điểm: Công ty được phân công</li>
+              <li>Yêu cầu: Hoàn thành báo cáo hàng tuần</li>
+            </ul>
+            <p>Mọi thắc mắc xin liên hệ với giảng viên hướng dẫn.</p>`
+          });
+          setHtml(`<h3>Thông tin thực tập</h3>
+            <p>Đây là trang thông tin về thực tập dành cho sinh viên. Các bạn cần lưu ý những điều sau:</p>
+            <ul>
+              <li>Thời gian thực tập: 8 tuần</li>
+              <li>Địa điểm: Công ty được phân công</li>
+              <li>Yêu cầu: Hoàn thành báo cáo hàng tuần</li>
+            </ul>
+            <p>Mọi thắc mắc xin liên hệ với giảng viên hướng dẫn.</p>`);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadSubHeader();
+    } else if (sub) {
+      setHtml(sub.content || sub.title);
+    }
+  }, [sub, subId]);
+
+  const icon = sub?.kind === "thong-bao" ? "🔔" : sub?.kind === "nop-file" ? "📤" : "•";
+
+  const getBackPath = () => {
+    return user?.role === "giang-vien" ? "/docs-dept" : "/docs-dept";
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate(getBackPath())}>
+            ← Quay lại trang khoa
+          </button>
+          <div className="w-32 h-9 bg-gray-200 rounded-full animate-pulse" />
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/3" />
+            <div className="space-y-2">
+              <div className="h-4 bg-gray-200 rounded" />
+              <div className="h-4 bg-gray-200 rounded w-5/6" />
+              <div className="h-4 bg-gray-200 rounded w-4/6" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate(getBackPath())}>
+            ← Quay lại trang khoa
+          </button>
+          <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
+            <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "CNTT - TT2025"}
+          </span>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
+          <div className="text-red-600 mb-2">⚠️</div>
+          <p className="text-gray-600">{error}</p>
+          <button 
+            onClick={() => navigate(getBackPath())} 
+            className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Quay lại
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate("/docs-dept")}>
+        <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate(getBackPath())}>
           ← Quay lại trang khoa
         </button>
         <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "CNTT - TT2025"}
+          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "Môn thực tập"}
         </span>
       </div>
 
@@ -37,7 +132,7 @@ const KhoaSubViewRegular: React.FC = () => {
           <span className={icon === "•" ? "text-gray-400 mr-2" : "mr-2"} aria-hidden>
             {icon}
           </span>
-          {sub.title}
+          {sub?.title}
         </h1>
         
         <div className="prose max-w-none text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />

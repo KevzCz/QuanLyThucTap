@@ -41,7 +41,9 @@ const ROLE_MENUS: Record<Role, Item[]> = {
   "giang-vien": [
     baseHome,
     { path: "/teacher-students", label: "Quản lý sinh viên", icon: <I.users /> },
+    { path: "/docs-dept", label: "Xem tài liệu khoa", icon: <I.file /> },
     { path: "/teacher-page", label: "Quản lý trang giảng viên", icon: <I.page /> },
+    { path: "/teacher-internship-registration", label: "Đăng ký môn thực tập", icon: <I.form /> },
     { path: "/teacher-reports", label: "Quản lý báo cáo", icon: <I.summary /> },
     { path: "/chat", label: "Chat hỗ trợ", icon: <I.chat /> },
   ],

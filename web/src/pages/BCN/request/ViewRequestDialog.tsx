@@ -71,7 +71,7 @@ const ViewRequestDialog: React.FC<Props> = ({ open, onClose, row, onAccept, onRe
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
                 {current.map((s, idx) => (
-                  <tr key={`${s.id}__${(page - 1) * pageSize + idx}`}>
+                  <tr key={`student_${s.id}_${(page - 1) * pageSize + idx}`}>
                     <td className="px-4 py-2 font-mono">{s.id}</td>
                     <td className="px-4 py-2">{s.name}</td>
                     <td className="px-4 py-2">{row.payload?.advisorName || "—"}</td>

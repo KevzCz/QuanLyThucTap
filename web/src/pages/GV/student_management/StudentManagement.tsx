@@ -4,8 +4,10 @@ import GVConfirmImportedDialog from "../student_management/GVConfirmImportedDial
 import GVViewStudentDialog from "../student_management/GVViewStudentDialog";
 import GVConfirmRemoveDialog from "../student_management/GVConfirmRemoveDialog";
 import { apiClient } from "../../../utils/api";
+import SearchInput from "../../../components/UI/SearchInput";
+import Pagination from "../../../components/UI/Pagination";
 
-export type GVStudentStatus = "dang-thuc-tap" | "dang-lam-do-an" | "cho-xac-nhan" | "tam-ngung" | "hoan-thanh";
+export type GVStudentStatus = "duoc-huong-dan" | "chua-duoc-huong-dan" | "dang-lam-do-an" | "dang-thuc-tap" | "hoan-thanh";
 
 export interface GVStudent {
   id: string;
@@ -16,7 +18,6 @@ export interface GVStudent {
     id: string;
     title: string;
   };
-  studentClass?: string;
   year: number;
 }
 
@@ -28,13 +29,16 @@ interface OutboxItem {
 
 const StatusChip: React.FC<{ v: GVStudentStatus }> = ({ v }) => {
   const map: Record<GVStudentStatus, { text: string; cls: string }> = {
+    "duoc-huong-dan": { text: "Được hướng dẫn", cls: "bg-green-50 text-green-700 ring-green-200" },
+    "chua-duoc-huong-dan": { text: "Chưa được hướng dẫn", cls: "bg-orange-50 text-orange-700 ring-orange-200" },
     "dang-thuc-tap": { text: "Đang thực tập", cls: "bg-blue-50 text-blue-700 ring-blue-200" },
     "dang-lam-do-an": { text: "Đang làm đồ án", cls: "bg-indigo-50 text-indigo-700 ring-indigo-200" },
-    "cho-xac-nhan": { text: "Chờ xác nhận", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
-    "tam-ngung": { text: "Tạm ngưng", cls: "bg-gray-50 text-gray-700 ring-gray-200" },
     "hoan-thanh": { text: "Hoàn thành", cls: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
   };
-  const m = map[v];
+  
+  // Fallback for undefined or invalid status
+  const m = map[v] || { text: "Không xác định", cls: "bg-gray-50 text-gray-700 ring-gray-200" };
+  
   return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${m.cls}`}>{m.text}</span>;
 };
 
@@ -63,43 +67,49 @@ const StudentManagement: React.FC = () => {
   }, []);
 
   const loadManagedStudents = async () => {
-  try {
-    setLoading(true);
-    setError("");
+    try {
+      setLoading(true);
+      setError("");
 
-    const response = await apiClient.getLecturerManagedStudents();
+      const response = await apiClient.getLecturerManagedStudents();
 
-    // Check if lecturer exists
-    if (!response.lecturer) {
-      setError("Bạn chưa được phân công làm giảng viên hướng dẫn thực tập");
+      if (!response.success) {
+        setError(response.error || "Không thể tải danh sách sinh viên");
+        setStudents([]);
+        setCurrentLecturer(null);
+        return;
+      }
+
+      // Check if lecturer exists
+      if (!response.lecturer) {
+        setError("Bạn chưa được phân công làm giảng viên hướng dẫn thực tập");
+        setStudents([]);
+        setCurrentLecturer(null);
+        return;
+      }
+
+      // normalize to GVStudent[]
+      const normalized = (response.students || []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        email: s.email,
+        status: (s.status as GVStudentStatus) || "chua-duoc-huong-dan", // Use backend default
+        internshipSubject: s.internshipSubject,
+        year: s.year ?? new Date().getFullYear(),
+      })) as GVStudent[];
+
+      setStudents(normalized);
+      setCurrentLecturer(response.lecturer);
+    } catch (err) {
+      console.error("Error loading managed students:", err);
+      const errorMessage = err instanceof Error ? err.message : "Không thể tải danh sách sinh viên";
+      setError(errorMessage);
       setStudents([]);
       setCurrentLecturer(null);
-      return;
+    } finally {
+      setLoading(false);
     }
-
-    // normalize to GVStudent[]
-    const normalized = (response.students || []).map((s) => ({
-      id: s.id,
-      name: s.name,
-      email: s.email,
-      status: s.status ?? "cho-xac-nhan",
-      internshipSubject: s.internshipSubject,
-      studentClass: s.studentClass,
-      year: s.year ?? new Date().getFullYear(),
-    })) as GVStudent[];
-
-    setStudents(normalized);
-    setCurrentLecturer(response.lecturer);
-  } catch (err) {
-    console.error("Error loading managed students:", err);
-    const errorMessage = err instanceof Error ? err.message : "Không thể tải danh sách sinh viên";
-    setError(errorMessage);
-    setStudents([]);
-    setCurrentLecturer(null);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
 
   const filtered = useMemo(() => {
@@ -189,70 +199,65 @@ const StudentManagement: React.FC = () => {
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{flash}</div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">
+          <SearchInput
+            value={query}
+            onChange={(value) => { 
+              setQuery(value); 
+              setPage(1); 
+            }}
+            placeholder="Tìm kiếm tên sinh viên"
+            width="w-[260px]"
+          />
+
           <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
-              <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"/></svg>
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value as "all" | GVStudentStatus); setPage(1); }}
+              className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[180px]"
+            >
+              <option value="all">Tất cả trạng thái</option>
+              <option value="duoc-huong-dan">Được hướng dẫn</option>
+              <option value="chua-duoc-huong-dan">Chưa được hướng dẫn</option>
+              <option value="dang-thuc-tap">Đang thực tập</option>
+              <option value="dang-lam-do-an">Đang làm đồ án</option>
+              <option value="hoan-thanh">Hoàn thành</option>
+            </select>
+            <span className="absolute inset-y-0 right-3 flex items-center text-gray-400 pointer-events-none">
+              <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
             </span>
-            <input
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-              placeholder="Tìm kiếm tên sinh viên"
-              className="w-[260px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="order-2 sm:order-1">
+            <input 
+              disabled 
+              value={currentLecturer ? `${currentLecturer.subjectTitle || 'Chưa có môn thực tập'} (${currentLecturer.name})` : 'Đang tải...'} 
+              className="h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center min-w-[280px] max-w-[400px] w-full" 
             />
           </div>
 
-          <div className="flex gap-2">
-            {(
-              [
-                { k: "all", label: "Tất cả" },
-                { k: "dang-thuc-tap", label: "Đang thực tập" },
-                { k: "dang-lam-do-an", label: "Đang làm đồ án" },
-                { k: "cho-xac-nhan", label: "Chờ xác nhận" },
-                { k: "hoan-thanh", label: "Hoàn thành" },
-              ] as const
-            ).map(({ k, label }) => (
-              <button
-                key={k}
-                onClick={() => { setStatusFilter(k as "all" | GVStudentStatus); setPage(1); }}
-                className={`h-9 rounded-md px-3 text-sm border transition ${
-                  statusFilter === k ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            className="order-1 sm:order-2 inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 h-10 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 min-w-[100px]"
+            onClick={() => setOpenAdd(true)}
+            disabled={!currentLecturer}
+            title="Thêm sinh viên"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
+            Thêm
+          </button>
         </div>
-
-        <div className="flex-1 flex justify-center px-4">
-          <input 
-            disabled 
-            value={currentLecturer ? `${currentLecturer.subjectTitle || 'Chưa có môn thực tập'} (${currentLecturer.name})` : 'Đang tải...'} 
-            className="h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center min-w-[220px] max-w-[400px] w-full" 
-          />
-        </div>
-
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 h-9 text-white text-sm hover:bg-emerald-700 disabled:opacity-50"
-          onClick={() => setOpenAdd(true)}
-          disabled={!currentLecturer}
-          title="Thêm sinh viên"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
-          Thêm
-        </button>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr className="text-left text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3 w-[120px]">Mã</th>
-              <th className="px-4 py-3">Tên</th>
-              <th className="px-4 py-3 w-[100px]">Lớp</th>
+              <th className="px-4 py-3 w-[120px]">Mã SV</th>
+              <th className="px-4 py-3">Tên sinh viên</th>
               <th className="px-4 py-3 w-[160px]">Trạng thái</th>
               <th className="px-4 py-3 w-[140px]">Thao tác</th>
             </tr>
@@ -262,7 +267,6 @@ const StudentManagement: React.FC = () => {
               <tr key={`${s.id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
                 <td className="px-4 py-3 font-mono text-gray-700">{s.id}</td>
                 <td className="px-4 py-3 text-gray-800">{s.name}</td>
-                <td className="px-4 py-3 text-gray-600">{s.studentClass || '-'}</td>
                 <td className="px-4 py-3"><StatusChip v={s.status} /></td>
                 <td className="px-2 py-2">
                   <div className="flex items-center gap-2">
@@ -286,20 +290,18 @@ const StudentManagement: React.FC = () => {
               </tr>
             ))}
             {current.length === 0 && (
-              <tr><td className="px-4 py-10 text-center text-gray-500" colSpan={5}>
+              <tr><td className="px-4 py-10 text-center text-gray-500" colSpan={4}>
                 {students.length === 0 ? "Chưa có sinh viên nào." : "Không có sinh viên phù hợp."}
               </td></tr>
             )}
           </tbody>
         </table>
 
-        {pageCount > 1 && (
-          <div className="flex items-center justify-center gap-2 border-t border-gray-200 bg-white px-4 py-3">
-            <button className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>‹</button>
-            <span className="text-sm text-gray-700"><span className="font-semibold">{page}</span> / {pageCount}</span>
-            <button className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40" disabled={page === pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>›</button>
-          </div>
-        )}
+        <Pagination
+          currentPage={page}
+          totalPages={pageCount}
+          onPageChange={setPage}
+        />
       </div>
 
       {/* Dialogs */}

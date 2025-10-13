@@ -16,6 +16,10 @@ import ConfirmImportedListDialog from "../internship_subject/ConfirmImportedList
 import ViewParticipantDialog from "../internship_subject/ViewParticipantDialog";
 import EditStudentAdvisorDialog from "../internship_subject/EditStudentAdvisorDialog";
 import { apiClient } from "../../../utils/api";
+import SearchInput from "../../../components/UI/SearchInput";
+import FilterButtonGroup from "../../../components/UI/FilterButtonGroup";
+import SubjectPill from "../../../components/UI/SubjectPill";
+import Pagination from "../../../components/UI/Pagination";
 
 /* ---------- UI helpers ---------- */
 const StatusChip: React.FC<{ v: ParticipantStatus }> = ({ v }) => {
@@ -101,7 +105,9 @@ const InternshipSubjectManagement: React.FC = () => {
     const q = query.trim().toLowerCase();
     return participants.filter((r) => {
       const byRole = roleFilter === "all" ? true : r.role === roleFilter;
-      const byQuery = !q || r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q);
+      const byQuery = !q || 
+        (r.name && r.name.toLowerCase().includes(q)) || 
+        (r.id && r.id.toLowerCase().includes(q));
       return byRole && byQuery;
     });
   }, [participants, roleFilter, query]);
@@ -122,7 +128,7 @@ const InternshipSubjectManagement: React.FC = () => {
       );
       setSubjectData(response.subject);
       setPage(1);
-    }  catch (err: unknown) {
+    } catch (err: unknown) {
       console.error("Error adding student:", err);
       setError(err instanceof Error ? err.message : "Không thể thêm sinh viên");
     }
@@ -218,6 +224,12 @@ const InternshipSubjectManagement: React.FC = () => {
     );
   }
 
+  const filterOptions = [
+    { key: "all" as const, label: "Tất cả" },
+    { key: "sinh-vien" as const, label: "Sinh viên" },
+    { key: "giang-vien" as const, label: "Giảng viên" },
+  ];
+
   return (
     <div className="space-y-3">
       {/* Error Alert */}
@@ -236,58 +248,31 @@ const InternshipSubjectManagement: React.FC = () => {
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          {/* search */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
-              <svg viewBox="0 0 24 24" className="h-4 w-4">
-                <path
-                  fill="currentColor"
-                  d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"
-                />
-              </svg>
-            </span>
-            <input
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Tìm kiếm tên sinh viên / giảng viên"
-              className="w-[300px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <SearchInput
+            value={query}
+            onChange={(value) => {
+              setQuery(value);
+              setPage(1);
+            }}
+            placeholder="Tìm kiếm tên sinh viên / giảng viên"
+            width="w-[300px]"
+          />
 
-          {/* filters */}
-          <div className="flex gap-2">
-            {(["all", "sinh-vien", "giang-vien"] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => {
-                  setRoleFilter(k);
-                  setPage(1);
-                }}
-                className={`h-9 rounded-md px-3 text-sm border transition ${
-                  roleFilter === k
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                }`}
-              >
-                {k === "all" ? "Tất cả" : k === "sinh-vien" ? "Sinh viên" : "Giảng viên"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* subject pill - centered and spanning */}
-        <div className="flex-1 flex justify-center px-4">
-          <input
-            disabled
-            value={`${subjectData.title} (${subjectData.id})`}
-            className="h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center min-w-[200px] max-w-[400px] w-full"
+          <FilterButtonGroup
+            options={filterOptions}
+            value={roleFilter}
+            onChange={(value) => {
+              setRoleFilter(value);
+              setPage(1);
+            }}
           />
         </div>
 
-        {/* add button */}
+        <SubjectPill 
+          value={subjectData ? `${subjectData.title} (${subjectData.id})` : "Đang tải..."}
+          className="min-w-[200px] max-w-[400px]"
+        />
+
         <button
           type="button"
           className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 h-9 text-white text-sm hover:bg-emerald-700"
@@ -368,27 +353,11 @@ const InternshipSubjectManagement: React.FC = () => {
 
         {/* Pagination */}
         {pageCount > 1 && (
-          <div className="flex items-center justify-center gap-2 border-t border-gray-200 bg-white px-4 py-3">
-            <button
-              className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-              disabled={page === 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              title="Trang trước"
-            >
-              ‹
-            </button>
-            <span className="text-sm text-gray-700">
-              <span className="font-semibold">{page}</span> / {pageCount}
-            </span>
-            <button
-              className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-              disabled={page === pageCount}
-              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-              title="Trang sau"
-            >
-              ›
-            </button>
-          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={pageCount}
+            onPageChange={setPage}
+          />
         )}
       </div>
 

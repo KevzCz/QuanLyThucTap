@@ -6,7 +6,9 @@ export type SubKind  = "thuong" | "nop-file" | "van-ban" | "thong-bao" | "file";
 
 export interface SubHeader {
   id: string;
+  _id?: string; // Backend compatibility
   title: string;          // can be plain text or HTML (for "van-ban")
+  content?: string;       // Add content property
   order: number;
   kind: SubKind;
   audience: Audience;
@@ -18,6 +20,7 @@ export interface SubHeader {
 
 export interface HeaderBlock {
   id: string;
+  _id?: string; // Backend compatibility
   title: string;
   order: number;
   audience: Audience;

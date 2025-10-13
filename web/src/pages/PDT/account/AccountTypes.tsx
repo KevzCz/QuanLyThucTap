@@ -15,3 +15,8 @@ export const roleLabel: Record<Role, string> = {
   "giang-vien": "Giảng viên",
   "sinh-vien": "Sinh viên",
 };
+
+export const statusLabel: Record<Status, string> = {
+  "open": "Hoạt động",
+  "locked": "Đã khóa",
+};

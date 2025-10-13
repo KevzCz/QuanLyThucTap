@@ -1,6 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { HeaderBlock, SubHeader } from "./KhoaPageViewTypes";
+import SearchInput from "../../../components/UI/SearchInput";
+import ChevronButton from "../../../components/UI/ChevronButton";
+import PageToolbar from "../../../components/UI/PageToolbar";
+import { getPageStructure } from "../../../services/pageApi";
+import { useAuth } from "../../../contexts/UseAuth";
+import { apiClient } from "../../../utils/api";
 import dayjs from "dayjs";
 
 const htmlToTextWithBreaks = (html: string) => {
@@ -48,20 +54,102 @@ const MOCK: HeaderBlock[] = [
   },
 ];
 
-const ChevronBtn: React.FC<{ open: boolean; onClick: () => void }> = ({ open, onClick }) => (
-  <button onClick={onClick} className="h-7 w-7 grid place-items-center rounded-md hover:bg-gray-100">
-    <svg viewBox="0 0 24 24" className={`h-4 w-4 transition ${open ? "rotate-90" : ""}`}>
-      <path fill="currentColor" d="m10 17 5-5-5-5v10z" />
-    </svg>
-  </button>
-);
-
 const KhoaPageView: React.FC = () => {
   const navigate = useNavigate();
-  const [subjectId] = useState("CNTT - TT2025");
+  const { user } = useAuth();
+  const [subjectId, setSubjectId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [data] = useState<HeaderBlock[]>(MOCK);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({ h1: true, h2: true, h3: true });
+  const [data, setData] = useState<HeaderBlock[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  // Load available subjects and select the first one
+  useEffect(() => {
+    const loadAvailableSubjects = async () => {
+      try {
+        if (user?.role === "giang-vien") {
+          const response = await apiClient.request<{ success: boolean; subjects: Array<{ id: string; title: string }> }>("/internship-subjects/teacher/available");
+          
+          if (response.subjects && response.subjects.length > 0) {
+            setSubjectId(response.subjects[0].id);
+          } else {
+            setSubjectId("CNTT - TT2025");
+          }
+        } else {
+          // For students, get their assigned instructor's subject
+          const instructorResponse = await apiClient.getStudentAssignedInstructor();
+          
+          if (instructorResponse.subject?.id) {
+            setSubjectId(instructorResponse.subject.id);
+          } else {
+            // No instructor assigned, try to get available subjects
+            const response = await apiClient.request<{ success: boolean; subjects: Array<{ id: string; title: string }> }>("/internship-subjects/student/available");
+            
+            if (response.subjects && response.subjects.length > 0) {
+              setSubjectId(response.subjects[0].id);
+            } else {
+              setSubjectId("CNTT - TT2025");
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load available subjects:', err);
+        // Fallback to mock data
+        setSubjectId("CNTT - TT2025");
+      }
+    };
+
+    loadAvailableSubjects();
+  }, [user?.role]);
+
+  // Load page data when subjectId is available
+  useEffect(() => {
+    if (!subjectId) return;
+    
+    const loadPageData = async () => {
+      try {
+        setLoading(true);
+        const audience = user?.role === "giang-vien" ? "giang-vien" : "sinh-vien";
+        const response = await getPageStructure(subjectId, audience);
+        
+        // Transform backend data to frontend format
+        const transformedHeaders = response.headers.map(header => ({
+          ...header,
+          id: header._id || header.id,
+          subs: header.subs.map(sub => ({
+            ...sub,
+            id: sub._id || sub.id
+          }))
+        }));
+        
+        setData(transformedHeaders);
+        
+        // Auto-expand all headers initially
+        const initialExpanded: Record<string, boolean> = {};
+        transformedHeaders.forEach(h => {
+          initialExpanded[h.id] = true;
+        });
+        setExpanded(initialExpanded);
+        
+        setError(null);
+      } catch (err) {
+        console.error('Failed to load page data:', err);
+        setError('Không thể tải dữ liệu trang');
+        // Fallback to mock data for development
+        setData(MOCK);
+        const mockExpanded: Record<string, boolean> = {};
+        MOCK.forEach(h => {
+          mockExpanded[h.id] = true;
+        });
+        setExpanded(mockExpanded);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPageData();
+  }, [subjectId, user?.role]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -88,28 +176,87 @@ const KhoaPageView: React.FC = () => {
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-200">
-        <div className="mx-0 sm:mx-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-2 py-3">
+  const getBackPath = () => {
+    return user?.role === "giang-vien" ? "/teacher-students" : "/dashboard";
+  };
+
+  if (loading || !subjectId) {
+    return (
+      <div className="space-y-4">
+        <PageToolbar>
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
-                <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"/></svg>
-              </span>
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Tìm kiếm nội dung"
-                className="w-[340px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            <div className="w-[340px] h-9 bg-gray-200 rounded-md animate-pulse" />
+            <div className="w-32 h-9 bg-gray-200 rounded-full animate-pulse" />
+          </div>
+        </PageToolbar>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8">
+          <div className="animate-pulse space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-12 bg-gray-200 rounded" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <PageToolbar>
+          <div className="flex items-center gap-3">
+            <button 
+              className="text-sm text-blue-600 hover:underline"
+              onClick={() => navigate(getBackPath())}
+            >
+              ← Quay lại
+            </button>
+            <SearchInput
+              value={query}
+              onChange={setQuery}
+              placeholder="Tìm kiếm nội dung"
+              width="w-[340px]"
+            />
             <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
               <span className="w-2 h-2 rounded-full bg-blue-500" /> {subjectId}
             </span>
           </div>
+        </PageToolbar>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
+          <div className="text-red-600 mb-2">⚠️</div>
+          <p className="text-gray-600">{error}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Thử lại
+          </button>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <PageToolbar>
+        <div className="flex items-center gap-3">
+          <button 
+            className="text-sm text-blue-600 hover:underline"
+            onClick={() => navigate(getBackPath())}
+          >
+            ← Quay lại
+          </button>
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Tìm kiếm nội dung"
+            width="w-[340px]"
+          />
+          <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
+            <span className="w-2 h-2 rounded-full bg-blue-500" /> {subjectId}
+          </span>
+        </div>
+      </PageToolbar>
 
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         {filtered.sort((a, b) => a.order - b.order).map((h) => {
@@ -117,7 +264,7 @@ const KhoaPageView: React.FC = () => {
           return (
             <div key={h.id} className="border-b last:border-b-0">
               <div className="flex items-center gap-2 px-4 py-4 bg-gray-50">
-                <ChevronBtn open={open} onClick={() => setExpanded((m) => ({ ...m, [h.id]: !open }))} />
+                <ChevronButton open={open} onClick={() => setExpanded((m) => ({ ...m, [h.id]: !open }))} />
                 <h3 className="text-lg font-bold flex-1">{h.title}</h3>
               </div>
 

@@ -49,8 +49,29 @@ const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDe
             <input className="w-full h-11 rounded-lg border border-gray-300 px-3" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Vị trí</label>
-            <input type="number" min={1} className="w-full h-11 rounded-lg border border-gray-300 px-3" value={order} onChange={(e) => setOrder(parseInt(e.target.value || "1", 10))} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Thứ tự hiện tại</label>
+            <div className="relative">
+              <input 
+                type="number" 
+                min={1} 
+                className="w-full h-11 rounded-lg border border-gray-300 px-3 bg-gray-50 text-gray-600" 
+                value={order} 
+                readOnly
+              />
+              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              <svg className="w-3 h-3 inline mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                <path d="M10 4a2 2 0 100-4 2 2 0 000 4z"/>
+                <path d="M10 20a2 2 0 100-4 2 2 0 000 4z"/>
+              </svg>
+              Kéo thả ở danh sách để thay đổi thứ tự
+            </p>
           </div>
         </div>
       )}

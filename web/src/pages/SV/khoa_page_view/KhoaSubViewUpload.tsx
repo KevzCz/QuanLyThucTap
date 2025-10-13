@@ -1,24 +1,63 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader, SubmittedFile } from "./KhoaPageViewTypes";
+import { getSubHeader } from "../../../services/pageApi";
+import { useAuth } from "../../../contexts/UseAuth";
 import dayjs from "dayjs";
 
 const KhoaSubViewUpload: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const sub = state?.sub ?? ({ id: subId!, title: "Nộp file", order: 1, kind: "nop-file", audience: "sinh-vien" } as SubHeader);
-  const [html] = useState<string>("<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>");
-  const [submittedFiles, setSubmittedFiles] = useState<SubmittedFile[]>([
-    { id: "f1", name: "baocao_tuan1.pdf", size: 1024000, uploadedAt: "2025-01-15T10:30:00", status: "approved" },
-    { id: "f2", name: "baocao_tuan2.docx", size: 512000, uploadedAt: "2025-01-22T14:20:00", status: "pending" },
-  ]);
-
+  const [sub, setSub] = useState<SubHeader | null>(state?.sub || null);
+  const [html, setHtml] = useState<string>("<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>");
+  const [loading, setLoading] = useState(!state?.sub);
+  const [error, setError] = useState<string | null>(null);
+  const [submittedFiles, setSubmittedFiles] = useState<SubmittedFile[]>(
+    [
+      { id: "f1", name: "baocao_tuan1.pdf", size: 1024000, uploadedAt: "2025-01-15T10:30:00", status: "approved" },
+      { id: "f2", name: "baocao_tuan2.docx", size: 512000, uploadedAt: "2025-01-22T14:20:00", status: "pending" },
+    ]
+  );
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
+  // Load sub-header data if not provided via state
+  useEffect(() => {
+    if (!sub && subId) {
+      const loadSubHeader = async () => {
+        try {
+          setLoading(true);
+          const response = await getSubHeader(subId);
+          setSub(response.subHeader);
+          setHtml(response.subHeader.content || "<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>");
+          setError(null);
+        } catch (err) {
+          console.error('Failed to load sub-header:', err);
+          setError('Không thể tải nội dung');
+          // Fallback to mock data
+          setSub({ 
+            id: subId!, 
+            title: "Nộp file", 
+            order: 1, 
+            kind: "nop-file", 
+            audience: "sinh-vien",
+            content: "<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>"
+          });
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadSubHeader();
+    } else if (sub) {
+      setHtml(sub.content || "<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>");
+    }
+  }, [sub, subId]);
+
   const isActive = () => {
+    if (!sub) return false;
     const now = dayjs();
     const start = sub.startAt ? dayjs(sub.startAt) : null;
     const end = sub.endAt ? dayjs(sub.endAt) : null;
@@ -83,14 +122,65 @@ const KhoaSubViewUpload: React.FC = () => {
     }
   };
 
+  const getBackPath = () => {
+    return user?.role === "giang-vien" ? "/docs-dept" : "/docs-dept";
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate(getBackPath())}>
+            ← Quay lại trang khoa
+          </button>
+          <div className="w-32 h-9 bg-gray-200 rounded-full animate-pulse" />
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/3" />
+            <div className="h-24 bg-gray-200 rounded" />
+            <div className="h-32 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate(getBackPath())}>
+            ← Quay lại trang khoa
+          </button>
+          <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
+            <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "Môn thực tập"}
+          </span>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
+          <div className="text-red-600 mb-2">⚠️</div>
+          <p className="text-gray-600">{error}</p>
+          <button 
+            onClick={() => navigate(getBackPath())} 
+            className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Quay lại
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sub) return null;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate("/docs-dept")}>
+        <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate(getBackPath())}>
           ← Quay lại trang khoa
         </button>
         <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "CNTT - TT2025"}
+          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "Môn thực tập"}
         </span>
       </div>
 

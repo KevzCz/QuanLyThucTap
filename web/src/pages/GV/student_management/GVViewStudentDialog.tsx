@@ -36,10 +36,6 @@ const GVViewStudentDialog: React.FC<Props> = ({ open, onClose, student, subjectI
                   <span className="font-medium">{student.email}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Lớp:</span>
-                  <span className="font-medium">{student.studentClass || 'Chưa cập nhật'}</span>
-                </div>
-                <div className="flex justify-between">
                   <span className="text-gray-500">Năm:</span>
                   <span className="font-medium">{student.year}</span>
                 </div>
