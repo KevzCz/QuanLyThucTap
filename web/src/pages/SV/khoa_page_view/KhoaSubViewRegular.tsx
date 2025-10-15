@@ -23,42 +23,27 @@ const KhoaSubViewRegular: React.FC = () => {
           setLoading(true);
           const response = await getSubHeader(subId);
           setSub(response.subHeader);
-          setHtml(response.subHeader.content || "");
+          
+          // For van-ban type, content is in title. For others, use content field
+          const displayContent = response.subHeader.kind === "van-ban" 
+            ? response.subHeader.title 
+            : (response.subHeader.content || response.subHeader.title || "");
+          
+          setHtml(displayContent);
           setError(null);
         } catch (err) {
           console.error('Failed to load sub-header:', err);
           setError('Không thể tải nội dung');
-          // Fallback to mock data
-          setSub({ 
-            id: subId!, 
-            title: "Trang con", 
-            order: 1, 
-            kind: "thuong", 
-            audience: "tat-ca",
-            content: `<h3>Thông tin thực tập</h3>
-            <p>Đây là trang thông tin về thực tập dành cho sinh viên. Các bạn cần lưu ý những điều sau:</p>
-            <ul>
-              <li>Thời gian thực tập: 8 tuần</li>
-              <li>Địa điểm: Công ty được phân công</li>
-              <li>Yêu cầu: Hoàn thành báo cáo hàng tuần</li>
-            </ul>
-            <p>Mọi thắc mắc xin liên hệ với giảng viên hướng dẫn.</p>`
-          });
-          setHtml(`<h3>Thông tin thực tập</h3>
-            <p>Đây là trang thông tin về thực tập dành cho sinh viên. Các bạn cần lưu ý những điều sau:</p>
-            <ul>
-              <li>Thời gian thực tập: 8 tuần</li>
-              <li>Địa điểm: Công ty được phân công</li>
-              <li>Yêu cầu: Hoàn thành báo cáo hàng tuần</li>
-            </ul>
-            <p>Mọi thắc mắc xin liên hệ với giảng viên hướng dẫn.</p>`);
         } finally {
           setLoading(false);
         }
       };
       loadSubHeader();
     } else if (sub) {
-      setHtml(sub.content || sub.title);
+      const displayContent = sub.kind === "van-ban"
+        ? sub.title
+        : (sub.content || sub.title || "");
+      setHtml(displayContent);
     }
   }, [sub, subId]);
 

@@ -1,9 +1,15 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader, SubmittedFile } from "./KhoaPageViewTypes";
-import { getSubHeader } from "../../../services/pageApi";
+import { 
+  getSubHeader, 
+  getSubmissions, 
+  submitFile, 
+  deleteSubmission 
+} from "../../../services/pageApi";
 import { useAuth } from "../../../contexts/UseAuth";
 import dayjs from "dayjs";
+import { resolveFileHref /*, buildDownloadHref */ } from "../../../utils/fileLinks";
 
 const KhoaSubViewUpload: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
@@ -16,45 +22,50 @@ const KhoaSubViewUpload: React.FC = () => {
   const [html, setHtml] = useState<string>("<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>");
   const [loading, setLoading] = useState(!state?.sub);
   const [error, setError] = useState<string | null>(null);
-  const [submittedFiles, setSubmittedFiles] = useState<SubmittedFile[]>(
-    [
-      { id: "f1", name: "baocao_tuan1.pdf", size: 1024000, uploadedAt: "2025-01-15T10:30:00", status: "approved" },
-      { id: "f2", name: "baocao_tuan2.docx", size: 512000, uploadedAt: "2025-01-22T14:20:00", status: "pending" },
-    ]
-  );
+  const [submittedFiles, setSubmittedFiles] = useState<SubmittedFile[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
-  // Load sub-header data if not provided via state
+  // Load sub-header data and submissions
   useEffect(() => {
-    if (!sub && subId) {
-      const loadSubHeader = async () => {
-        try {
-          setLoading(true);
-          const response = await getSubHeader(subId);
-          setSub(response.subHeader);
-          setHtml(response.subHeader.content || "<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>");
-          setError(null);
-        } catch (err) {
-          console.error('Failed to load sub-header:', err);
-          setError('Không thể tải nội dung');
-          // Fallback to mock data
-          setSub({ 
-            id: subId!, 
-            title: "Nộp file", 
-            order: 1, 
-            kind: "nop-file", 
-            audience: "sinh-vien",
-            content: "<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>"
-          });
-        } finally {
-          setLoading(false);
-        }
-      };
-      loadSubHeader();
-    } else if (sub) {
-      setHtml(sub.content || "<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>");
+    if (subId) {
+      loadData();
     }
-  }, [sub, subId]);
+  }, [subId]);
+
+  const loadData = async () => {
+    if (!subId) return;
+
+    try {
+      setLoading(true);
+      const [subResponse, submissionsResponse] = await Promise.all([
+        getSubHeader(subId),
+        getSubmissions(subId)
+      ]);
+
+      setSub(subResponse.subHeader);
+      setHtml(subResponse.subHeader.content || "<p>Vui lòng nộp báo cáo theo đúng thời hạn quy định.</p>");
+      // Show all submissions for teachers, filtered for students by backend
+      setSubmittedFiles(
+        submissionsResponse.submissions.map(s => ({
+          id: s._id,
+          name: s.fileName,
+          size: s.fileSize,
+          uploadedAt: s.createdAt,
+          status: s.status === "accepted" ? "approved" : s.status === "rejected" ? "rejected" : "pending",
+          submitter: s.submitter,
+          fileUrl: s.fileUrl,             // <— add this
+        }))
+      );
+
+      setError(null);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      setError('Không thể tải nội dung');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const isActive = () => {
     if (!sub) return false;
@@ -83,27 +94,66 @@ const KhoaSubViewUpload: React.FC = () => {
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const submitFiles = () => {
-    if (pendingFiles.length === 0) return;
+  // Submit all pending files
+  const submitFiles = async () => {
+    if (pendingFiles.length === 0 || !sub) return;
     
-    const newSubmissions: SubmittedFile[] = pendingFiles.map(file => ({
-      id: `f_${Date.now()}_${Math.random()}`,
-      name: file.name,
-      size: file.size,
-      uploadedAt: new Date().toISOString(),
-      status: "pending" as const,
-    }));
+    try {
+      setUploading(true);
 
-    setSubmittedFiles(prev => [...prev, ...newSubmissions]);
-    setPendingFiles([]);
-    
-    if (inputRef.current) {
-      inputRef.current.value = '';
+      for (const file of pendingFiles) {
+        // Upload file
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const uploadResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/uploads`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error('Upload failed');
+        }
+
+        const uploadData = await uploadResponse.json();
+
+        // Submit file
+        await submitFile(sub._id || sub.id, {
+          fileUrl: uploadData.fileUrl,
+          fileName: uploadData.fileName,
+          fileSize: uploadData.fileSize
+        });
+      }
+
+      // Reload submissions
+      await loadData();
+      setPendingFiles([]);
+      
+      if (inputRef.current) {
+        inputRef.current.value = '';
+      }
+
+      alert('Nộp file thành công!');
+    } catch (error) {
+      console.error('File upload error:', error);
+      alert('Không thể nộp file. Vui lòng thử lại.');
+    } finally {
+      setUploading(false);
     }
   };
 
-  const deleteSubmittedFile = (id: string) => {
-    setSubmittedFiles(prev => prev.filter(f => f.id !== id));
+  // Remove a submitted file (if status is pending)
+  const deleteSubmittedFile = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa file này?')) return;
+
+    try {
+      await deleteSubmission(id);
+      await loadData();
+    } catch (error) {
+      console.error('Failed to delete submission:', error);
+      alert('Không thể xóa file');
+    }
   };
 
   const getStatusColor = (status: SubmittedFile['status']) => {
@@ -204,19 +254,28 @@ const KhoaSubViewUpload: React.FC = () => {
           <div className="mt-6">
             <h3 className="text-lg font-semibold mb-3">Nộp file mới</h3>
             <div
-              className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center hover:bg-gray-100 cursor-pointer"
-              onClick={() => inputRef.current?.click()}
+              className={`rounded-xl border-2 border-dashed p-6 text-center transition-colors ${
+                uploading
+                  ? "border-gray-200 bg-gray-100 cursor-not-allowed opacity-50"
+                  : "border-gray-300 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+              }`}
+              onClick={uploading ? undefined : () => inputRef.current?.click()}
             >
-              <div className="text-3xl mb-2">📤</div>
-              <div className="text-gray-700 font-medium">Chọn file để nộp</div>
-              <div className="text-xs text-gray-500">PDF, DOC, DOCX, JPG, PNG • Tối đa 10MB</div>
+              <div className="text-3xl mb-2">{uploading ? "⏳" : "📤"}</div>
+              <div className="text-gray-700 font-medium">
+                {uploading ? "Đang tải lên..." : "Chọn file để nộp"}
+              </div>
+              <div className="text-xs text-gray-500">
+                {uploading ? "Vui lòng đợi..." : "PDF, DOC, DOCX, JPG, PNG • Tối đa 10MB mỗi file"}
+              </div>
               <input
                 ref={inputRef}
                 type="file"
                 multiple
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.xls,.xlsx"
                 className="hidden"
                 onChange={onFileSelect}
+                disabled={uploading}
               />
             </div>
 
@@ -234,6 +293,7 @@ const KhoaSubViewUpload: React.FC = () => {
                       <button
                         onClick={() => removePendingFile(index)}
                         className="h-7 w-7 rounded-md bg-red-100 text-red-600 hover:bg-red-200"
+                        disabled={uploading}
                       >
                         ×
                       </button>
@@ -244,14 +304,16 @@ const KhoaSubViewUpload: React.FC = () => {
                   <button
                     onClick={() => setPendingFiles([])}
                     className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                    disabled={uploading}
                   >
                     Hủy tất cả
                   </button>
                   <button
                     onClick={submitFiles}
-                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                    className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                    disabled={uploading}
                   >
-                    Nộp file ({pendingFiles.length})
+                    {uploading ? "Đang nộp..." : `Nộp file (${pendingFiles.length})`}
                   </button>
                 </div>
               </div>
@@ -261,7 +323,9 @@ const KhoaSubViewUpload: React.FC = () => {
 
         {/* Submitted files */}
         <div className="mt-6">
-          <h3 className="text-lg font-semibold mb-3">File đã nộp</h3>
+          <h3 className="text-lg font-semibold mb-3">
+            {user?.role === "giang-vien" ? "Tất cả file đã nộp" : "File đã nộp"}
+          </h3>
           {submittedFiles.length === 0 ? (
             <div className="text-center py-8 text-gray-500">Chưa có file nào được nộp</div>
           ) : (
@@ -270,15 +334,28 @@ const KhoaSubViewUpload: React.FC = () => {
                 {submittedFiles.map((file) => (
                   <div key={file.id} className="flex items-center justify-between px-4 py-3">
                     <div className="flex-1">
-                      <div className="font-medium">{file.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {formatFileSize(file.size)} • {dayjs(file.uploadedAt).format("DD/MM/YYYY HH:mm")}
-                      </div>
+                    <a
+                      href={resolveFileHref(file.name ? file.fileUrl ?? "" : "")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium text-blue-600 hover:underline"
+                      download={file.name}
+                    >
+                      {file.name}
+                    </a>
+                    <div className="text-sm text-gray-500">
+                      {formatFileSize(file.size)} • {dayjs(file.uploadedAt).format("DD/MM/YYYY HH:mm")}
+                      {user?.role === "giang-vien" && file.submitter && (
+                        <></>
+                      )}
                     </div>
+                  </div>
+
                     <div className="flex items-center gap-2">
                       <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${getStatusColor(file.status)}`}>
                         {getStatusText(file.status)}
                       </span>
+                      {/* Allow deletion only for students and only pending files */}
                       {file.status === "pending" && (
                         <button
                           onClick={() => deleteSubmittedFile(file.id)}

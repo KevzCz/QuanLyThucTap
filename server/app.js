@@ -30,7 +30,15 @@ app.use("/api/internship-subjects", internshipSubjectRoutes);
 app.use("/api/pages", pageRoutes); // Add page management routes
 app.use("/api/lecturers", lecturerRoutes);
 app.use("/api/students", studentRoutes);
-
+app.use(
+  "/uploads",
+  express.static(uploadsDir, {
+    // If you see CORP/CORS issues when opening in new tab:
+    setHeaders: (res) => {
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    },
+  })
+);
 // Health check
 app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });

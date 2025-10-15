@@ -6,6 +6,8 @@ import SubHeader from "../models/SubHeader.js";
 import InternshipSubject from "../models/InternshipSubject.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
 import GiangVien from "../models/GiangVien.js";
+import FileSubmission from "../models/FileSubmission.js";
+import SinhVien from "../models/SinhVien.js";
 import { authBCN, authenticate, authorize } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -287,7 +289,7 @@ router.put("/subs/:subId", ...authBCN, async (req, res) => {
     }
 
     // Update fields
-    if (title) subHeader.title = title;
+    if (title !== undefined) subHeader.title = title;
     if (content !== undefined) subHeader.content = content;
     if (order !== undefined) subHeader.order = order;
     if (audience) subHeader.audience = audience;
@@ -298,9 +300,28 @@ router.put("/subs/:subId", ...authBCN, async (req, res) => {
 
     await subHeader.save();
 
+    console.log('SubHeader updated:', {
+      id: subHeader._id,
+      title: subHeader.title,
+      content: subHeader.content?.substring(0, 50) + '...',
+      kind: subHeader.kind
+    });
+
     res.json({
       success: true,
-      subHeader
+      subHeader: {
+        _id: subHeader._id,
+        id: subHeader.id,
+        title: subHeader.title,
+        content: subHeader.content,
+        order: subHeader.order,
+        kind: subHeader.kind,
+        audience: subHeader.audience,
+        startAt: subHeader.startAt,
+        endAt: subHeader.endAt,
+        fileUrl: subHeader.fileUrl,
+        fileName: subHeader.fileName
+      }
     });
   } catch (error) {
     console.error("Update sub-header error:", error);
@@ -368,11 +389,34 @@ router.get("/subs/:subId", authenticate, async (req, res) => {
         internshipSubject: subHeader.pageHeader.internshipSubject._id 
       });
       canEdit = !!bcnProfile;
+    } else if (req.account.role === "giang-vien") {
+      // Check if teacher owns this sub-header (for teacher pages)
+      if (subHeader.pageHeader.pageType === "teacher") {
+        const lecturerProfile = await GiangVien.findOne({ 
+          account: req.account._id,
+          _id: subHeader.pageHeader.instructor
+        });
+        canEdit = !!lecturerProfile;
+      }
     }
 
+    // Return the sub-header with all its content
     res.json({
       success: true,
-      subHeader,
+      subHeader: {
+        _id: subHeader._id,
+        id: subHeader.id,
+        title: subHeader.title,
+        content: subHeader.content || "",
+        order: subHeader.order,
+        kind: subHeader.kind,
+        audience: subHeader.audience,
+        startAt: subHeader.startAt,
+        endAt: subHeader.endAt,
+        fileUrl: subHeader.fileUrl,
+        fileName: subHeader.fileName,
+        isActive: subHeader.isActive
+      },
       canEdit,
       subject: {
         id: subHeader.pageHeader.internshipSubject.id,
@@ -1045,6 +1089,197 @@ router.put("/teacher/headers/:headerId/subs/reorder", authenticate, authorize(["
   } catch (error) {
     console.error("Reorder teacher sub-headers error:", error);
     res.status(400).json({ error: "Không thể thay đổi thứ tự sub-header: " + error.message });
+  }
+});
+
+// Get submissions for a sub-header (role-based filtering)
+router.get("/subs/:subId/submissions", authenticate, async (req, res) => {
+  try {
+    const { subId } = req.params;
+
+    const subHeader = await SubHeader.findById(subId).populate({
+      path: 'pageHeader',
+      populate: { path: 'internshipSubject instructor' }
+    });
+
+    if (!subHeader) {
+      return res.status(404).json({ error: "Không tìm thấy sub-header" });
+    }
+    if (subHeader.kind !== "nop-file") {
+      return res.status(400).json({ error: "Sub-header này không phải loại nộp file" });
+    }
+
+    const query = { subHeader: subHeader._id };
+
+    // Role-based filtering:
+    // - Students: only their own
+    // - Teachers: only their own (NOT their students' uploads)
+    // - BCN/PDT: see all
+    if (req.account.role === "sinh-vien" || req.account.role === "giang-vien") {
+      query.submitter = req.account._id;
+    }
+
+    const submissions = await FileSubmission.find(query)
+      .populate('submitter', 'id name email')
+      .populate('reviewedBy', 'id name email')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      submissions,
+      // Only BCN/PDT can review
+      canReview: req.account.role === "ban-chu-nhiem" || req.account.role === "phong-dao-tao"
+    });
+  } catch (error) {
+    console.error("Get submissions error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+
+// Submit a file (students and teachers)
+router.post("/subs/:subId/submissions", authenticate, async (req, res) => {
+  try {
+    const { subId } = req.params;
+    const { fileUrl, fileName, fileSize } = req.body;
+
+    if (!fileUrl || !fileName || !fileSize) {
+      return res.status(400).json({ error: "File information is required" });
+    }
+
+    const subHeader = await SubHeader.findById(subId).populate('pageHeader');
+    if (!subHeader) {
+      return res.status(404).json({ error: "Không tìm thấy sub-header" });
+    }
+    if (subHeader.kind !== "nop-file") {
+      return res.status(400).json({ error: "Sub-header này không phải loại nộp file" });
+    }
+
+    // Time window checks
+    const now = new Date();
+    if (subHeader.startAt && now < new Date(subHeader.startAt)) {
+      return res.status(400).json({ error: "Chưa đến thời gian nộp file" });
+    }
+    if (subHeader.endAt && now > new Date(subHeader.endAt)) {
+      return res.status(400).json({ error: "Đã hết thời gian nộp file" });
+    }
+
+    // IMPORTANT: Do NOT delete existing submissions anymore — allow multiple
+    const submission = new FileSubmission({
+      subHeader: subHeader._id,
+      submitter: req.account._id,
+      fileUrl,
+      fileName,
+      fileSize
+    });
+
+    await submission.save();
+    await submission.populate('submitter', 'id name email');
+
+    res.status(201).json({
+      success: true,
+      submission
+    });
+  } catch (error) {
+    console.error("Submit file error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+
+// Update submission status (BCN only)
+router.put("/submissions/:submissionId", ...authBCN, async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { status, reviewNote } = req.body;
+
+    const submission = await FileSubmission.findById(submissionId)
+      .populate({
+        path: 'subHeader',
+        populate: {
+          path: 'pageHeader',
+          populate: { path: 'internshipSubject' }
+        }
+      });
+
+    if (!submission) {
+      return res.status(404).json({ error: "Không tìm thấy bài nộp" });
+    }
+
+    // Verify BCN manages this subject
+    const bcnProfile = await BanChuNhiem.findOne({ 
+      account: req.account._id,
+      internshipSubject: submission.subHeader.pageHeader.internshipSubject._id 
+    });
+    if (!bcnProfile) {
+      return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
+    }
+
+    if (status) submission.status = status;
+    if (reviewNote !== undefined) submission.reviewNote = reviewNote;
+    submission.reviewedBy = req.account._id;
+    submission.reviewedAt = new Date();
+
+    await submission.save();
+    await submission.populate('submitter', 'id name email');
+    await submission.populate('reviewedBy', 'id name email');
+
+    res.json({
+      success: true,
+      submission
+    });
+  } catch (error) {
+    console.error("Update submission error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Delete submission (submitter or BCN)
+router.delete("/submissions/:submissionId", authenticate, async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+
+    const submission = await FileSubmission.findById(submissionId)
+      .populate({
+        path: 'subHeader',
+        populate: {
+          path: 'pageHeader',
+          populate: { path: 'internshipSubject' }
+        }
+      });
+
+    if (!submission) {
+      return res.status(404).json({ error: "Không tìm thấy bài nộp" });
+    }
+
+    // Check permissions
+    const isOwner = submission.submitter.toString() === req.account._id.toString();
+    const isBCN = req.account.role === "ban-chu-nhiem";
+    
+    if (!isOwner && !isBCN) {
+      return res.status(403).json({ error: "Không có quyền xóa bài nộp này" });
+    }
+
+    if (isBCN) {
+      // Verify BCN manages this subject
+      const bcnProfile = await BanChuNhiem.findOne({ 
+        account: req.account._id,
+        internshipSubject: submission.subHeader.pageHeader.internshipSubject._id 
+      });
+      if (!bcnProfile) {
+        return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
+      }
+    }
+
+    await FileSubmission.deleteOne({ _id: submission._id });
+
+    res.json({
+      success: true,
+      message: "Đã xóa bài nộp thành công"
+    });
+  } catch (error) {
+    console.error("Delete submission error:", error);
+    res.status(400).json({ error: error.message });
   }
 });
 

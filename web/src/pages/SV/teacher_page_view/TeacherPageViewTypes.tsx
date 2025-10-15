@@ -32,6 +32,10 @@ export interface SubmittedFile {
   size: number;
   uploadedAt: string;
   status: "pending" | "approved" | "rejected";
+  submitter?: {
+    id: string;
+    name: string;
+  };
 }
 
 export const submissionStatusLabel: Record<SubmittedFile['status'], string> = {

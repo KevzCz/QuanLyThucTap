@@ -136,10 +136,22 @@ export const updateSubHeader = async (subId: string, data: {
   fileUrl?: string;
   fileName?: string;
 }): Promise<SubHeader> => {
+  console.log('Updating subheader:', subId, 'with data:', {
+    ...data,
+    content: data.content?.substring(0, 50) + '...'
+  });
+  
   const response = await apiClient.request<{ success: boolean; subHeader: SubHeader }>(`/pages/subs/${subId}`, {
     method: 'PUT',
     body: JSON.stringify(data)
   });
+  
+  console.log('Update response:', {
+    success: response.success,
+    subHeaderId: response.subHeader._id,
+    hasContent: !!response.subHeader.content
+  });
+  
   return response.subHeader;
 };
 
@@ -255,5 +267,69 @@ export const reorderTeacherSubHeaders = async (headerId: string, subHeaderIds: s
   await apiClient.request(`/pages/teacher/headers/${headerId}/subs/reorder`, {
     method: 'PUT',
     body: JSON.stringify({ subHeaderIds })
+  });
+};
+
+export interface FileSubmission {
+  _id: string;
+  subHeader: string;
+  submitter: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  status: "submitted" | "reviewed" | "accepted" | "rejected";
+  reviewNote?: string;
+  reviewedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  reviewedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SubmissionsResponse {
+  success: boolean;
+  submissions: FileSubmission[];
+  canReview: boolean;
+}
+
+// Get submissions for a sub-header
+export const getSubmissions = async (subId: string): Promise<SubmissionsResponse> => {
+  return apiClient.request(`/pages/subs/${subId}/submissions`);
+};
+
+// Submit a file
+export const submitFile = async (subId: string, data: {
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+}): Promise<{ success: boolean; submission: FileSubmission }> => {
+  return apiClient.request(`/pages/subs/${subId}/submissions`, {
+    method: 'POST',
+    body: JSON.stringify(data)
+  });
+};
+
+// Update submission status (BCN only)
+export const updateSubmissionStatus = async (submissionId: string, data: {
+  status?: "submitted" | "reviewed" | "accepted" | "rejected";
+  reviewNote?: string;
+}): Promise<{ success: boolean; submission: FileSubmission }> => {
+  return apiClient.request(`/pages/submissions/${submissionId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+};
+
+// Delete submission
+export const deleteSubmission = async (submissionId: string): Promise<void> => {
+  await apiClient.request(`/pages/submissions/${submissionId}`, {
+    method: 'DELETE'
   });
 };

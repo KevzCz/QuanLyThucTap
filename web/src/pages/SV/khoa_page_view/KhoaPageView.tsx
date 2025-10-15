@@ -21,39 +21,6 @@ const htmlToTextWithBreaks = (html: string) => {
   return s.trim();
 };
 
-const MOCK: HeaderBlock[] = [
-  {
-    id: "h1",
-    title: "Thông báo khoa",
-    order: 1,
-    audience: "tat-ca",
-    subs: [
-      { id: "s1", title: "Thông báo về lịch thực tập", order: 1, kind: "thong-bao", audience: "tat-ca" },
-      { id: "s2", title: "Hướng dẫn thực tập.pdf", order: 2, kind: "file", audience: "tat-ca", fileUrl: "/files/huong-dan.pdf", fileName: "Hướng dẫn thực tập.pdf" },
-    ],
-  },
-  {
-    id: "h2",
-    title: "Nộp báo cáo",
-    order: 2,
-    audience: "sinh-vien",
-    subs: [
-      { id: "s3", title: "Nộp báo cáo tuần", order: 1, kind: "nop-file", audience: "sinh-vien", startAt: "2025-01-20T00:00", endAt: "2025-01-27T23:59" },
-      { id: "s4", title: "Nộp báo cáo cuối kỳ", order: 2, kind: "nop-file", audience: "sinh-vien", startAt: "2025-02-01T00:00", endAt: "2025-02-15T23:59" },
-    ],
-  },
-  {
-    id: "h3",
-    title: "Tài liệu tham khảo",
-    order: 3,
-    audience: "tat-ca",
-    subs: [
-      { id: "s5", title: "Thông tin về thực tập", order: 1, kind: "thuong", audience: "tat-ca" },
-      { id: "s6", title: "Mẫu báo cáo.docx", order: 2, kind: "file", audience: "tat-ca", fileUrl: "/files/mau-bao-cao.docx", fileName: "Mẫu báo cáo.docx" },
-    ],
-  },
-];
-
 const KhoaPageView: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -133,16 +100,6 @@ const KhoaPageView: React.FC = () => {
         setExpanded(initialExpanded);
         
         setError(null);
-      } catch (err) {
-        console.error('Failed to load page data:', err);
-        setError('Không thể tải dữ liệu trang');
-        // Fallback to mock data for development
-        setData(MOCK);
-        const mockExpanded: Record<string, boolean> = {};
-        MOCK.forEach(h => {
-          mockExpanded[h.id] = true;
-        });
-        setExpanded(mockExpanded);
       } finally {
         setLoading(false);
       }

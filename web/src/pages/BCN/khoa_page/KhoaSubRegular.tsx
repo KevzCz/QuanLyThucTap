@@ -1,33 +1,126 @@
 // pages/BCN/khoa_page/KhoaSubRegular.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader } from "./KhoaPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
+import { getSubHeader, updateSubHeader } from "../../../services/pageApi";
 
 const KhoaSubRegular: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
 
-  // Falls back to a simple regular sub if routed directly
-  const sub =
-    state?.sub ??
-    ({ id: subId!, title: "Trang con (thường)", order: 1, kind: "thuong", audience: "tat-ca" } as SubHeader);
-
+  const [sub, setSub] = useState<SubHeader | null>(null);
   const [editing, setEditing] = useState(false);
-  const [html, setHtml] = useState<string>(
-    `<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc vel risus quis orci
-    posuere dictum. Cras semper, nibh non auctor placerat, urna ante dictum arcu, a
-    ultrices neque lacus id quam.</p>`
-  );
+  const [html, setHtml] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [canEdit, setCanEdit] = useState(false);
 
-  // icon by kind (no external helpers)
+  useEffect(() => {
+    loadSubHeader();
+  }, [subId]);
+
+  const loadSubHeader = async () => {
+    if (!subId) return;
+    
+    try {
+      setLoading(true);
+      const response = await getSubHeader(subId);
+      setSub(response.subHeader);
+      
+      // For van-ban type, content is in title. For others, use content field
+      const displayContent = response.subHeader.kind === "van-ban" 
+        ? response.subHeader.title 
+        : (response.subHeader.content || response.subHeader.title || "");
+      
+      setHtml(displayContent);
+      setCanEdit(response.canEdit);
+    } catch (error) {
+      console.error('Failed to load sub-header:', error);
+      // Fallback to state if available
+      if (state?.sub) {
+        setSub(state.sub);
+        const displayContent = state.sub.kind === "van-ban"
+          ? state.sub.title
+          : (state.sub.content || state.sub.title || "");
+        setHtml(displayContent);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!sub || !canEdit) return;
+    
+    try {
+      const updateData: Partial<SubHeader> = {
+        content: html
+      };
+      
+      // For van-ban type, also update title with the HTML content
+      if (sub.kind === "van-ban") {
+        updateData.title = html;
+      }
+      
+      await updateSubHeader(sub._id || sub.id, updateData);
+      setEditing(false);
+      
+      // Show success message
+      const successMsg = document.createElement('div');
+      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      successMsg.textContent = 'Đã lưu thay đổi thành công!';
+      document.body.appendChild(successMsg);
+      setTimeout(() => successMsg.remove(), 3000);
+      
+      // Reload to get updated data
+      await loadSubHeader();
+    } catch (error) {
+      console.error('Failed to save:', error);
+      alert('Không thể lưu thay đổi: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
   const icon =
-    sub.kind === "thong-bao"
+    sub?.kind === "thong-bao"
       ? "🔔"
-      : sub.kind === "nop-file"
+      : sub?.kind === "nop-file"
       ? "🗂️"
-      : "•"; // neutral bullet for "thuong"
+      : "•";
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate("/bcn-page")}>
+            ← Quay lại trang khoa
+          </button>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/3" />
+            <div className="h-32 bg-gray-200 rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!sub) {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate("/bcn-page")}>
+            ← Quay lại trang khoa
+          </button>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5 text-center">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h3 className="text-lg font-semibold text-gray-900">Không tìm thấy nội dung</h3>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -51,16 +144,18 @@ const KhoaSubRegular: React.FC = () => {
             >
               {icon}
             </span>
-            {sub.title}
+            {sub.kind === "van-ban" ? "Văn bản" : sub.title}
           </h1>
-          <button
-            className={`h-9 px-3 rounded-md text-white ${
-              editing ? "bg-emerald-600 hover:bg-emerald-700" : "bg-gray-700 hover:bg-gray-800"
-            }`}
-            onClick={() => setEditing((v) => !v)}
-          >
-            {editing ? "Lưu" : "Sửa"}
-          </button>
+          {canEdit && (
+            <button
+              className={`h-9 px-3 rounded-md text-white ${
+                editing ? "bg-emerald-600 hover:bg-emerald-700" : "bg-gray-700 hover:bg-gray-800"
+              }`}
+              onClick={() => editing ? handleSave() : setEditing(true)}
+            >
+              {editing ? "Lưu" : "Sửa"}
+            </button>
+          )}
         </div>
 
         <div className="mt-4">

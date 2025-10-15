@@ -1,19 +1,29 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
+import fs from "fs"; // Add fs for directory check
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
 
 /* Multer storage configuration */
 const uploadsDir = path.resolve("./uploads");
+
+
+// Ensure uploads directory exists
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
 const storage = multer.diskStorage({
   destination: function (_req, _file, cb) {
     cb(null, uploadsDir);
   },
   filename: function (_req, file, cb) {
-    const safe = Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
-    cb(null, safe);
+    const safeOriginal = file.originalname.replace(/\s+/g, "_");
+    // Use UUID + time to avoid any collision
+    const unique = `${Date.now()}-${crypto.randomUUID()}`;
+    cb(null, `${unique}-${safeOriginal}`);
   }
 });
 
@@ -37,24 +47,30 @@ const upload = multer({
 });
 
 // Upload single file
+// server/routes/uploads.js (your POST /api/uploads route)
 router.post("/", authenticate, upload.single("file"), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "Không có file nào được tải lên" });
     }
 
-    res.json({ 
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    // If your API is mounted at /api, the static /uploads is still at host/uploads
+    const publicUrl = `${baseUrl}/uploads/${req.file.filename}`;
+
+    res.json({
       success: true,
-      path: `/uploads/${req.file.filename}`,
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      size: req.file.size
+      fileUrl: publicUrl,           // <— absolute URL
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      uploadedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error("Upload error:", error);
     res.status(400).json({ error: error.message });
   }
 });
+
 
 // Upload multiple files
 router.post("/multiple", authenticate, upload.array("files", 10), (req, res) => {

@@ -13,14 +13,16 @@ interface Props {
 const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDelete }) => {
   const [title, setTitle] = useState("");
   const [order, setOrder] = useState(1);
+  const [audience, setAudience] = useState<"tat-ca" | "sinh-vien" | "giang-vien">("sinh-vien");
 
   useEffect(() => {
     if (!header) return;
     setTitle(header.title);
     setOrder(header.order);
+    setAudience(header.audience);
   }, [header, open]);
 
-  const save = () => header && onSave({ ...header, title, order });
+  const save = () => header && onSave({ ...header, title, order, audience });
 
   return (
     <Modal
@@ -45,8 +47,15 @@ const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDe
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Tên header</label>
-            <input className="w-full h-11 rounded-lg border border-gray-300 px-3" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tên header <span className="text-red-500">*</span>
+            </label>
+            <input 
+              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" 
+              value={title} 
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Nhập tên header"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Thứ tự hiện tại</label>
@@ -72,6 +81,18 @@ const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDe
               </svg>
               Kéo thả ở danh sách để thay đổi thứ tự
             </p>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ai có thể thấy</label>
+            <select 
+              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" 
+              value={audience} 
+              onChange={(e) => setAudience(e.target.value as "tat-ca" | "sinh-vien" | "giang-vien")}
+            >
+              <option value="tat-ca">Sinh viên / Giảng viên / Tất cả</option>
+              <option value="sinh-vien">Chỉ sinh viên</option>
+              <option value="giang-vien">Chỉ giảng viên</option>
+            </select>
           </div>
         </div>
       )}

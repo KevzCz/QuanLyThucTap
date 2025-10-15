@@ -32,4 +32,9 @@ export interface SubmittedFile {
   size: number;
   uploadedAt: string;
   status: "pending" | "approved" | "rejected";
+  submitter?: {
+    id: string;
+    name: string;
+  };
+fileUrl?: string;
 }
