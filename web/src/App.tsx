@@ -19,6 +19,7 @@ import { ChatManagement as BCNChatManagement } from "./pages/BCN";
 import { ChatManagement as GVChatManagement } from "./pages/GV";
 import { ChatManagement as SVChatManagement } from "./pages/SV";
 import { InternshipSubjectRegister as GVInternshipSubjectRegister, KhoaPageViewRoutes as GVKhoaPageViewRoutes } from "./pages/GV";
+import { ToastProvider } from './components/UI/Toast';
 
 const AppRoutes: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -119,9 +120,11 @@ const AppRoutes: React.FC = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
+      <ToastProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </ToastProvider>
     </AuthProvider>
   );
 }

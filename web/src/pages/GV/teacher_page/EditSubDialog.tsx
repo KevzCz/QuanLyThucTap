@@ -14,6 +14,7 @@ interface Props {
 
 const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, onDelete }) => {
   const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
   const [order, setOrder] = useState(1);
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
@@ -21,6 +22,7 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
   useEffect(() => {
     if (!sub) return;
     setTitle(sub.title);
+    setContent(sub.content || sub.title);
     setOrder(sub.order);
     setStartAt(sub.startAt || "");
     setEndAt(sub.endAt || "");
@@ -30,7 +32,8 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
     if (!headerId || !sub) return;
     onSave(headerId, {
       ...sub,
-      title,
+      title: (sub.kind === "van-ban" || sub.kind === "thuong") ? title : title,
+      content: (sub.kind === "van-ban" || sub.kind === "thuong") ? title : content,
       order,
       startAt: sub.kind === "nop-file" ? startAt : undefined,
       endAt: sub.kind === "nop-file" ? endAt : undefined,
@@ -62,18 +65,21 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
         <div className="text-gray-500">Không tìm thấy.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className={sub.kind === "van-ban" ? "sm:col-span-2" : ""}>
+          <div className={(sub.kind === "van-ban" || sub.kind === "thuong") ? "sm:col-span-2" : ""}>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              {sub.kind === "van-ban" ? "Nội dung (văn bản)" : "Tên sub-header"}
+              {sub.kind === "van-ban" ? "Nội dung (văn bản)" : 
+               sub.kind === "thuong" ? "Nội dung" :
+               sub.kind === "file" ? "Tên hiển thị" : "Tên sub-header"}
             </label>
 
-            {sub.kind === "van-ban" ? (
+            {(sub.kind === "van-ban" || sub.kind === "thuong") ? (
               <RichTextEditor html={title} onChange={setTitle} />
             ) : (
               <input
                 className="w-full h-11 rounded-lg border border-gray-300 px-3"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                placeholder={sub.kind === "file" ? "Ví dụ: Hướng dẫn thực tập.pdf" : "Tên sub-header"}
               />
             )}
           </div>
@@ -108,7 +114,7 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Loại</label>
             <div className="inline-flex rounded-full bg-gray-100 text-gray-700 px-3 py-1 text-xs font-medium">
-              {sub.kind === "thuong" ? "Thường" : sub.kind === "thong-bao" ? "Thông báo" : sub.kind === "nop-file" ? "Nộp file" : "Văn bản"}
+              {sub.kind === "thuong" ? "Thường" : sub.kind === "thong-bao" ? "Thông báo" : sub.kind === "nop-file" ? "Nộp file" : sub.kind === "van-ban" ? "Văn bản" : "File"}
             </div>
           </div>
 

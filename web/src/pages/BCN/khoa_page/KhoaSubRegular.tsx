@@ -28,9 +28,9 @@ const KhoaSubRegular: React.FC = () => {
       const response = await getSubHeader(subId);
       setSub(response.subHeader);
       
-      // For van-ban type, content is in title. For others, use content field
-      const displayContent = response.subHeader.kind === "van-ban" 
-        ? response.subHeader.title 
+      // For van-ban and thuong types, content is in content field. For others, use content field
+      const displayContent = (response.subHeader.kind === "van-ban" || response.subHeader.kind === "thuong")
+        ? (response.subHeader.content || response.subHeader.title || "")
         : (response.subHeader.content || response.subHeader.title || "");
       
       setHtml(displayContent);
@@ -40,8 +40,8 @@ const KhoaSubRegular: React.FC = () => {
       // Fallback to state if available
       if (state?.sub) {
         setSub(state.sub);
-        const displayContent = state.sub.kind === "van-ban"
-          ? state.sub.title
+        const displayContent = (state.sub.kind === "van-ban" || state.sub.kind === "thuong")
+          ? (state.sub.content || state.sub.title || "")
           : (state.sub.content || state.sub.title || "");
         setHtml(displayContent);
       }
@@ -58,8 +58,8 @@ const KhoaSubRegular: React.FC = () => {
         content: html
       };
       
-      // For van-ban type, also update title with the HTML content
-      if (sub.kind === "van-ban") {
+      // For van-ban and thuong types, also update title with the HTML content
+      if (sub.kind === "van-ban" || sub.kind === "thuong") {
         updateData.title = html;
       }
       
@@ -144,7 +144,7 @@ const KhoaSubRegular: React.FC = () => {
             >
               {icon}
             </span>
-            {sub.kind === "van-ban" ? "Văn bản" : sub.title}
+            {(sub.kind === "van-ban" || sub.kind === "thuong") ? "Nội dung" : sub.title}
           </h1>
           {canEdit && (
             <button

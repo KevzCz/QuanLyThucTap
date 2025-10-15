@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { HeaderBlock, SubHeader, TeacherPageStructure } from "./TeacherPageTypes";
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import SearchInput from "../../../components/UI/SearchInput";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import SubjectPill from "../../../components/UI/SubjectPill";
@@ -16,6 +17,9 @@ import dayjs from "dayjs";
 // Add missing API functions
 import { apiClient } from "../../../utils/api";
 import { useAuth } from "../../../contexts/UseAuth";
+import { Icons } from "../../../components/UI/Icons";
+import { useToast } from "../../../components/UI/Toast";
+import PageLayout from "../../../components/UI/PageLayout";
 
 const htmlToTextWithBreaks = (html: string) => {
   let s = html || "";
@@ -44,6 +48,7 @@ const AudienceText = {
 /* ---------- UI helpers ---------- */
 const TeacherPageManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { user } = useAuth();
   const [teacherData, setTeacherData] = useState<TeacherPageStructure | null>(null);
@@ -183,9 +188,10 @@ const TeacherPageManagement: React.FC = () => {
       
       setData(prev => [...prev, transformedHeader].sort((a, b) => a.order - b.order));
       setExpanded(prev => ({ ...prev, [transformedHeader.id]: true }));
+      showSuccess("Tạo header thành công", `Header "${h.title}" đã được tạo`);
     } catch (err) {
       console.error('Failed to create header:', err);
-      alert('Không thể tạo header');
+      showError("Không thể tạo header", "Vui lòng thử lại sau");
     }
   };
 
@@ -201,9 +207,10 @@ const TeacherPageManagement: React.FC = () => {
       });
       
       setData(prev => prev.map(x => x.id === h.id ? h : x).sort((a, b) => a.order - b.order));
+      showSuccess("Cập nhật header thành công");
     } catch (err) {
       console.error('Failed to update header:', err);
-      alert('Không thể cập nhật header');
+      showError("Không thể cập nhật header", "Vui lòng thử lại sau");
     }
   };
 
@@ -506,102 +513,92 @@ const TeacherPageManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4">
-      <PageToolbar>
-        <div className="flex items-center gap-3">
-          <SearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder="Tìm kiếm header / sub-header"
-            width="w-[340px]"
-          />
-          <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-            <span className="w-2 h-2 rounded-full bg-green-500" /> 
-            {teacherData.subject.title} - {teacherData.instructor.name}
-          </span>
-        </div>
+    <PageLayout
+      title="Quản lý trang giảng viên"
+      loading={loading}
+      error={error || undefined}
+      onRetry={loadTeacherPageData}
+      searchValue={query}
+      onSearchChange={setQuery}
+      searchPlaceholder="Tìm kiếm header / sub-header"
+      statusPill={teacherData?.subject ? {
+        label: `${teacherData.subject.title} - ${teacherData.instructor.name}`,
+        color: 'green'
+      } : undefined}
+      primaryAction={{
+        label: "Tạo header",
+        onClick: () => setOpenCreateHeader(true),
+        icon: <Icons.add size="sm" />
+      }}
+    >
+      {/* Content */}
+      {[...filtered].sort((a, b) => a.order - b.order).map((h) => {
+        const open = !!expanded[h.id];
+        const isHeaderBeingDragged = draggedHeader === h.id;
+        const isHeaderDragTarget = dragOverHeader === h.id && draggedHeader && !draggedSub;
+        
+        return (
+          <div
+            key={h._id || h.id}
+            className={`border-b last:border-b-0 transition-all duration-200 ${
+              isHeaderBeingDragged ? 'opacity-40 scale-95 rotate-1 shadow-lg' : ''
+            } ${
+              isHeaderDragTarget ? 'ring-2 ring-blue-500 ring-opacity-50 bg-blue-50' : ''
+            }`}
+            draggable={!draggedSub}
+            onDragStart={(e) => !draggedSub && handleHeaderDragStart(e, h.id)}
+            onDragEnd={handleHeaderDragEnd}
+            onDragOver={(e) => handleHeaderDragOver(e, h.id)}
+            onDragLeave={handleHeaderDragLeave}
+            onDrop={(e) => handleHeaderDrop(e, h.id)}
+          >
 
-        <button
-          className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 h-9 text-white text-sm hover:bg-emerald-700"
-          onClick={() => setOpenCreateHeader(true)}
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
-          Tạo header
-        </button>
-      </PageToolbar>
-
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-        {[...filtered].sort((a, b) => a.order - b.order).map((h, idx) => {
-          const headerKey = h._id || h.id || `h-${idx}`;
-          const open = !!expanded[h.id];
-          const isHeaderBeingDragged = draggedHeader === h.id;
-          const isHeaderDragTarget = dragOverHeader === h.id && draggedHeader && !draggedSub;
-          
-          return (
-            <div
-              key={headerKey}
-              className={`border-b last:border-b-0 transition-all duration-200 ${
-                isHeaderBeingDragged ? 'opacity-40 scale-95 rotate-1 shadow-lg' : ''
-              } ${
-                isHeaderDragTarget ? 'ring-2 ring-blue-500 ring-opacity-50 bg-blue-50' : ''
-              }`}
-              draggable={!draggedSub}
-              onDragStart={(e) => !draggedSub && handleHeaderDragStart(e, h.id)}
-              onDragEnd={handleHeaderDragEnd}
-              onDragOver={(e) => handleHeaderDragOver(e, h.id)}
-              onDragLeave={handleHeaderDragLeave}
-              onDrop={(e) => handleHeaderDrop(e, h.id)}
-            >
-
-              <div className="flex items-center gap-2 px-4 py-4 bg-gray-50">
-                {/* Enhanced drag handle */}
-                <div 
-                  className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors" 
-                  title="Kéo để sắp xếp lại thứ tự"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                  </svg>
-                </div>
-                
-                <ChevronButton open={open} onClick={() => setExpanded((m) => ({ ...m, [h.id]: !open }))} />
-                <h3 className="text-lg font-bold flex-1">{h.title}</h3>
-                <Tag>{AudienceText[h.audience]}</Tag>
-                
-                {/* Order indicator */}
-                <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full font-mono">
-                  #{h.order}
-                </span>
-                
-                <button className="ml-2 h-8 w-8 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors" title="Sửa header" onClick={() => setEditHeader(h)}>
-                  <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
-                </button>
-                <button className="h-8 w-8 grid place-items-center rounded-md bg-cyan-600 text-white hover:bg-cyan-700 transition-colors" title="Thêm sub-header" onClick={() => setCreateUnder(h)}>
-                  <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
-                </button>
-                <button
-                  className="h-8 w-8 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors"
-                  title="Xóa header"
-                  onClick={() => setConfirmDelHeader(h)}
-                >
-                  <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
-                </button>
+            <div className="flex items-center gap-2 px-4 py-4 bg-gray-50">
+              {/* Enhanced drag handle */}
+              <div 
+                className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors" 
+                title="Kéo để sắp xếp lại thứ tự"
+              >
+                <Icons.file size="sm" />
               </div>
+              
+              <ChevronButton open={open} onClick={() => setExpanded((m) => ({ ...m, [h.id]: !open }))} />
+              <h3 className="text-lg font-bold flex-1">{h.title}</h3>
+              <Tag>{AudienceText[h.audience]}</Tag>
+              
+              {/* Order indicator */}
+              <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full font-mono">
+                #{h.order}
+              </span>
+              
+              <button className="ml-2 h-8 w-8 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors" title="Sửa header" onClick={() => setEditHeader(h)}>
+                <Icons.edit size="sm" />
+              </button>
+              <button className="h-8 w-8 grid place-items-center rounded-md bg-cyan-600 text-white hover:bg-cyan-700 transition-colors" title="Thêm sub-header" onClick={() => setCreateUnder(h)}>
+                <Icons.add size="sm" />
+              </button>
+              <button
+                className="h-8 w-8 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors"
+                title="Xóa header"
+                onClick={() => setConfirmDelHeader(h)}
+              >
+                <Icons.delete size="sm" />
+              </button>
+            </div>
 
-              {open && (
-                <div className="px-6 pb-4 space-y-2">
-                  {[...h.subs].sort((a, b) => a.order - b.order).map((s, sIdx) => {
-                     const subKey = s._id || s.id || `s-${sIdx}`;
-                    const isSubBeingDragged = draggedSub?.subId === s.id;
-                    const isSubDragTarget = dragOverSub?.subId === s.id && 
+            {open && (
+              <div className="px-6 pb-4 space-y-2">
+                {/* Sub-headers with unified icons */}
+                {[...h.subs].sort((a, b) => a.order - b.order).map((s, sIdx) => {
+                   const subKey = s._id || s.id || `s-${sIdx}`;
+                  const isSubBeingDragged = draggedSub?.subId === s.id;
+                  const isSubDragTarget = dragOverSub?.subId === s.id && 
                                           dragOverSub?.headerId === h.id && 
                                           draggedSub && 
                                           !draggedHeader;
-                    
-                    return (
-                      <div 
-                        key={subKey}
-                        className={`flex items-center py-3 px-3 rounded-lg transition-all duration-200 ${
+                  
+                  return (
+                    <div key={subKey} className={`flex items-center py-3 px-3 rounded-lg transition-all duration-200 ${
                           isSubBeingDragged ? 'opacity-40 scale-95 shadow-lg bg-gray-100' : 'hover:bg-gray-50'
                         } ${
                           isSubDragTarget ? 'ring-2 ring-blue-500 ring-opacity-50 bg-blue-50' : ''
@@ -613,87 +610,84 @@ const TeacherPageManagement: React.FC = () => {
                         onDragLeave={handleSubDragLeave}
                         onDrop={(e) => handleSubDrop(e, h.id, s.id)}
                       >
-                        {/* Enhanced drag handle for sub-headers */}
-                        <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors mr-2" title="Kéo để sắp xếp lại thứ tự">
-                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                          </svg>
-                        </div>
-                        
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
-                          {/* icon by kind */}
-                          {s.kind === "thong-bao" ? (
-                            <span className="shrink-0 text-blue-600" title="Thông báo">🔔</span>
-                          ) : s.kind === "nop-file" ? (
-                            <span className="shrink-0 text-gray-700" title="Nộp file">🗂️</span>
-                          ) : s.kind === "file" ? (
-                            <span className="shrink-0 text-green-600" title="File tải xuống">📎</span>
-                          ) : (
-                            <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục"> • </span>
-                          )}
-
-                          {/* label */}
-                          {s.kind === "van-ban" ? (
-                            <span className="text-gray-900 whitespace-pre-line">
-                              {htmlToTextWithBreaks(s.title) || "(Văn bản trống)"}
-                            </span>
-                          ) : (
-                            <button
-                              className="truncate text-left text-gray-900 hover:underline"
-                              onClick={() => gotoSub(h, s)}
-                            >
-                              {s.title}
-                            </button>
-                          )}
-                        </div>
-
-                        {/* right meta & actions */}
-                        <div className="ml-4 flex items-center gap-3 shrink-0">
-                          {/* Order indicator */}
-                          <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full font-mono">
-                            #{s.order}
-                          </span>
-                          
-                          <span className="inline-flex rounded-full bg-gray-100 text-gray-700 px-2.5 py-0.5 text-xs font-medium">
-                            {{
-                              "thuong": "Thường",
-                              "thong-bao": "Thông báo",
-                              "nop-file": "Nộp file",
-                              "van-ban": "Văn bản",
-                              "file": "File tải xuống",
-                            }[s.kind]}
-                          </span>
-
-                          {s.kind === "nop-file" && (
-                            <span className="text-xs text-gray-500 whitespace-nowrap">
-                              {s.startAt ? `${dayjs(s.startAt).format("DD/MM")}` : "?"} - {s.endAt ? `${dayjs(s.endAt).format("DD/MM")}` : "?"}
-                            </span>
-                          )}
-
-                          <button
-                            className="h-7 w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-                            title="Sửa sub-header"
-                            onClick={() => setEditSub({ headerId: h.id, sub: s })}
-                          >
-                            <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
-                          </button>
-                          <button
-                            className="h-7 w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors"
-                            title="Xóa"
-                            onClick={() => setConfirmDelSub({ header: h, sub: s })}
-                          >
-                            <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
-                          </button>
-                        </div>
+                      {/* Drag handle */}
+                      <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors mr-2">
+                        <Icons.file size="sm" />
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                      
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {/* Unified content type icons */}
+                        {s.kind === "thong-bao" ? (
+                          <span className="shrink-0 text-blue-600" title="Thông báo">{Icons.notification}</span>
+                        ) : s.kind === "nop-file" ? (
+                          <span className="shrink-0 text-gray-700" title="Nộp file">{Icons.upload}</span>
+                        ) : s.kind === "file" ? (
+                          <span className="shrink-0 text-green-600" title="File tải xuống">{Icons.download}</span>
+                        ) : (
+                          <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục">{Icons.document}</span>
+                        )}
+
+                        {/* label */}
+                        {(s.kind === "van-ban" || s.kind === "thuong") ? (
+                          <span className="text-gray-900 whitespace-pre-line">
+                            {htmlToTextWithBreaks(s.content || s.title) || "(Nội dung trống)"}
+                          </span>
+                        ) : (
+                          <button
+                            className="truncate text-left text-gray-900 hover:underline"
+                            onClick={() => gotoSub(h, s)}
+                          >
+                            {s.title}
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Actions with unified icons */}
+                      <div className="ml-4 flex items-center gap-3 shrink-0">
+                        {/* Order indicator */}
+                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full font-mono">
+                          #{s.order}
+                        </span>
+                        
+                        <span className="inline-flex rounded-full bg-gray-100 text-gray-700 px-2.5 py-0.5 text-xs font-medium">
+                          {{
+                            "thuong": "Thường",
+                            "thong-bao": "Thông báo",
+                            "nop-file": "Nộp file",
+                            "van-ban": "Văn bản",
+                            "file": "File tải xuống",
+                          }[s.kind]}
+                        </span>
+
+                        {s.kind === "nop-file" && (
+                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                            {s.startAt ? `${dayjs(s.startAt).format("DD/MM")}` : "?"} - {s.endAt ? `${dayjs(s.endAt).format("DD/MM")}` : "?"}
+                          </span>
+                        )}
+
+                        <button
+                          className="h-7 w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                          title="Sửa sub-header"
+                          onClick={() => setEditSub({ headerId: h.id, sub: s })}
+                        >
+                          <Icons.edit size="sm" />
+                        </button>
+                        <button
+                          className="h-7 w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors"
+                          title="Xóa"
+                          onClick={() => setConfirmDelSub({ header: h, sub: s })}
+                        >
+                          <Icons.delete size="sm" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {/* Dialogs */}
       <CreateHeaderDialog open={openCreateHeader} onClose={() => setOpenCreateHeader(false)} onCreate={(h) => { addHeader(h); setOpenCreateHeader(false); }} />
@@ -720,7 +714,7 @@ const TeacherPageManagement: React.FC = () => {
           setConfirmDelSub(null);
         }}
       />
-    </div>
+    </PageLayout>
   );
 };
 

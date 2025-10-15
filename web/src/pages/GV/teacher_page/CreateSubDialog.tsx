@@ -62,8 +62,8 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
     }
     
     onCreate(header.id, {
-      title: title.trim(),
-      content: kind === "van-ban" ? title : content,
+      title: (kind === "van-ban" || kind === "thuong") ? title.trim() : title.trim(),
+      content: (kind === "van-ban" || kind === "thuong") ? title : content,
       kind,
       audience: "sinh-vien", // Always sinh-vien for teacher pages
       startAt: kind === "nop-file" ? startAt : undefined,
@@ -157,10 +157,12 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
           {/* Title/Content based on kind */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              {kind === "file" ? "Tên hiển thị" : "Tiêu đề"} 
+              {kind === "file" ? "Tên hiển thị" : 
+               kind === "van-ban" ? "Nội dung (văn bản)" : 
+               kind === "thuong" ? "Nội dung" : "Tiêu đề"} 
               <span className="text-red-500">*</span>
             </label>
-            {kind === "van-ban" ? (
+            {(kind === "van-ban" || kind === "thuong") ? (
               <RichTextEditor html={title} onChange={setTitle} />
             ) : (
               <input

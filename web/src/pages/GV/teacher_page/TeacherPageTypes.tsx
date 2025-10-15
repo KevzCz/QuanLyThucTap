@@ -5,7 +5,7 @@ export interface SubHeader {
   id: string;
   _id?: string; // Backend MongoDB ID
   title: string;          // can be plain text or HTML (for "van-ban")
-  content?: string;       // Add content property for consistency
+  content?: string;       // Rich content for thuong/van-ban types
   order: number;
   kind: SubKind;
   audience: Audience;

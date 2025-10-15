@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticate, authorize } from "../middleware/auth.js";
+import { authenticate, authorize, authSV } from "../middleware/auth.js";
 import SinhVien from "../models/SinhVien.js";
 import GiangVien from "../models/GiangVien.js";
 import Account from "../models/Account.js";
@@ -73,6 +73,101 @@ router.get("/my-instructor", authenticate, authorize(["sinh-vien"]), async (req,
       success: false, 
       error: "Internal server error",
       details: error.message 
+    });
+  }
+});
+
+// Get student's assigned instructor (alternative route)
+router.get('/assigned-instructor', authSV, async (req, res) => {
+  try {
+    console.log("Getting assigned instructor for student:", req.account.id);
+    
+    // Find the student profile
+    const student = await SinhVien.findOne({ account: req.account._id })
+      .populate('internshipSubject', 'id title')
+      .lean();
+
+    console.log("Found student profile:", student ? "Yes" : "No");
+    console.log("Student supervisor:", student?.supervisor);
+
+    if (!student) {
+      return res.json({
+        success: true,
+        instructor: null,
+        subject: null
+      });
+    }
+
+    if (!student.supervisor) {
+      return res.json({
+        success: true,
+        instructor: null,
+        subject: student.internshipSubject ? {
+          id: student.internshipSubject.id,
+          title: student.internshipSubject.title
+        } : null
+      });
+    }
+
+    // Get the supervisor's account details
+    // First find the GiangVien profile, then get their account
+    const supervisor = await GiangVien.findById(student.supervisor)
+      .populate('account', 'id name email')
+      .lean();
+
+    console.log("Found supervisor profile:", supervisor ? "Yes" : "No");
+
+    if (!supervisor || !supervisor.account) {
+      // If supervisor ObjectId doesn't match a GiangVien, it might be an Account ObjectId directly
+      const supervisorAccount = await Account.findById(student.supervisor)
+        .select('id name email role')
+        .lean();
+
+      console.log("Found supervisor account directly:", supervisorAccount ? "Yes" : "No");
+
+      if (supervisorAccount && supervisorAccount.role === 'giang-vien') {
+        return res.json({
+          success: true,
+          instructor: {
+            id: supervisorAccount.id,
+            name: supervisorAccount.name,
+            email: supervisorAccount.email
+          },
+          subject: student.internshipSubject ? {
+            id: student.internshipSubject.id,
+            title: student.internshipSubject.title
+          } : null
+        });
+      }
+
+      return res.json({
+        success: true,
+        instructor: null,
+        subject: student.internshipSubject ? {
+          id: student.internshipSubject.id,
+          title: student.internshipSubject.title
+        } : null
+      });
+    }
+
+    res.json({
+      success: true,
+      instructor: {
+        id: supervisor.account.id,
+        name: supervisor.account.name,
+        email: supervisor.account.email
+      },
+      subject: student.internshipSubject ? {
+        id: student.internshipSubject.id,
+        title: student.internshipSubject.title
+      } : null
+    });
+
+  } catch (error) {
+    console.error('Error getting student assigned instructor:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Internal server error: ' + error.message
     });
   }
 });

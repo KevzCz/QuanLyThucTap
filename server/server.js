@@ -64,6 +64,10 @@ app.use("/api/uploads", uploadRoutes);
 app.use("/api/pages", pageManagementRoutes);
 app.use("/api/students", studentRoutes);
 
+// Add the teacher-specific page routes from pages.js
+import pagesRoutes from "./routes/pages.js";
+app.use("/api/pages", pagesRoutes);
+
 /* Legacy routes for backward compatibility */
 const UserSchema = new mongoose.Schema(
   {

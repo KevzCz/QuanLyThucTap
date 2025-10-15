@@ -243,9 +243,9 @@ const KhoaPageView: React.FC = () => {
                             <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục">•</span>
                           )}
 
-                          {s.kind === "van-ban" ? (
+                          {(s.kind === "van-ban" || s.kind === "thuong") ? (
                             <span className="text-gray-900 whitespace-pre-line">
-                              {htmlToTextWithBreaks(s.title) || "(Văn bản trống)"}
+                              {htmlToTextWithBreaks(s.content || s.title) || "(Nội dung trống)"}
                             </span>
                           ) : (
                             <button

@@ -486,22 +486,64 @@ class ApiClient {
     });
   }
 
-  // ===== New Methods =====
-  // Get student's assigned instructor
-  getStudentAssignedInstructor() {
-    // Try the students route first, fall back to auth route
+  // Get single teacher sub-header
+  getTeacherSubHeader(subId: string) {
+    return this.request<{ 
+      success: boolean; 
+      subHeader: {
+        _id: string;
+        id: string;
+        title: string;
+        content?: string;
+        order: number;
+        kind: string;
+        audience: string;
+        startAt?: string;
+        endAt?: string;
+        fileUrl?: string;
+        fileName?: string;
+      }; 
+      canEdit: boolean; 
+      subject: { id: string; title: string } 
+    }>(`/pages/teacher/subs/${subId}`);
+  }
+
+  // Get submissions for teacher sub-header
+  getTeacherSubmissions(subId: string) {
     return this.request<{
       success: boolean;
-      instructor?: { id: string; name: string; email: string };
-      subject?: { id: string; title: string };
-    }>("/students/my-instructor").catch(() => {
-      // Fallback to auth endpoint
-      return this.request<{
-        success: boolean;
-        instructor?: { id: string; name: string; email: string };
-        subject?: { id: string; title: string };
-      }>("/auth/student-instructor");
+      submissions: Array<{
+        _id: string;
+        subHeader: string;
+        submitter: { id: string; name: string; email: string };
+        fileUrl: string;
+        fileName: string;
+        fileSize: number;
+        status: "submitted" | "reviewed" | "accepted" | "rejected";
+        reviewNote?: string;
+        reviewedBy?: { id: string; name: string; email: string };
+        reviewedAt?: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+      canReview: boolean;
+    }>(`/pages/teacher/subs/${subId}/submissions`);
+  }
+
+  // Update teacher submission status
+  updateTeacherSubmissionStatus(submissionId: string, data: {
+    status?: "submitted" | "reviewed" | "accepted" | "rejected";
+    reviewNote?: string;
+  }) {
+    return this.request(`/pages/teacher/submissions/${submissionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
     });
+  }
+
+  // Student: get assigned instructor
+  getStudentAssignedInstructor() {
+    return this.request<{ success: boolean; instructor: { id: string; name: string; email: string } | null; subject: { id: string; title: string } | null }>("/students/assigned-instructor");
   }
 }
 

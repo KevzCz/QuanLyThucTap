@@ -51,12 +51,16 @@ const TeacherPageView: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // First, get the student's assigned instructor
+      // Use the correct API method
       const studentResponse = await apiClient.getStudentAssignedInstructor();
       console.log('Student response:', studentResponse);
       
       if (!studentResponse.instructor) {
         setError("Bạn chưa được phân công giảng viên hướng dẫn");
+        setTeacherInfo({
+          instructor: { id: '', name: '', email: '' },
+          subject: studentResponse.subject || { id: '', title: '' }
+        });
         return;
       }
 
@@ -231,9 +235,9 @@ const TeacherPageView: React.FC = () => {
                           <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục">•</span>
                         )}
 
-                        {s.kind === "van-ban" ? (
+                        {(s.kind === "van-ban" || s.kind === "thuong") ? (
                           <span className="text-gray-900 whitespace-pre-line">
-                            {htmlToTextWithBreaks(s.title) || "(Văn bản trống)"}
+                            {htmlToTextWithBreaks(s.content || s.title) || "(Nội dung trống)"}
                           </span>
                         ) : (
                           <button
