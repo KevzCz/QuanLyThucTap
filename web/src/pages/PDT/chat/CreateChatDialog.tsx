@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Modal from "../../../util/Modal";
 import type { ChatUser, ChatConversation, UserRole } from "./ChatTypes";
 import { roleLabel, roleColor } from "./ChatTypes";
+import { chatAPI } from "../../../services/chatApi";
 
 interface Props {
   open: boolean;
@@ -9,25 +10,45 @@ interface Props {
   onCreateConversation: (conversation: ChatConversation) => void;
 }
 
-// Mock users that PDT can chat with
-const MOCK_USERS: ChatUser[] = [
-  { id: "BCN001", name: "PGS. Nguyễn Văn A", role: "ban-chu-nhiem", isOnline: true },
-  { id: "BCN002", name: "TS. Trần Thị B", role: "ban-chu-nhiem", isOnline: false },
-  { id: "GV001", name: "ThS. Lê Văn C", role: "giang-vien", isOnline: true },
-  { id: "GV002", name: "TS. Phạm Thị D", role: "giang-vien", isOnline: true },
-  { id: "GV003", name: "PGS. Hoàng Văn E", role: "giang-vien", isOnline: false },
-  { id: "SV001", name: "Nguyễn Thị F", role: "sinh-vien", isOnline: true },
-  { id: "SV002", name: "Trần Văn G", role: "sinh-vien", isOnline: false },
-  { id: "SV003", name: "Lê Thị H", role: "sinh-vien", isOnline: true },
-];
-
 const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation }) => {
   const [query, setQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<"all" | UserRole>("all");
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
+  const [availableUsers, setAvailableUsers] = useState<ChatUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Load available users when dialog opens
+  useEffect(() => {
+    if (open) {
+      loadAvailableUsers();
+    }
+  }, [open]);
+
+  const loadAvailableUsers = async () => {
+    try {
+      setLoading(true);
+      const users = await chatAPI.getAvailableUsers();
+      // Transform API users to match ChatUser interface
+      const transformedUsers = (users || []).map(user => ({
+        id: user.userId,
+        name: user.name,
+        role: user.role as UserRole,
+        avatar: user.avatar,
+        isOnline: user.isOnline
+      }));
+      setAvailableUsers(transformedUsers);
+    } catch (error) {
+      console.error('Error loading available users:', error);
+      // Fallback to empty array if API fails
+      setAvailableUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredUsers = useMemo(() => {
-    let users = MOCK_USERS;
+    let users = availableUsers;
     
     if (selectedRole !== "all") {
       users = users.filter(user => user.role === selectedRole);
@@ -42,27 +63,44 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
     }
     
     return users;
-  }, [query, selectedRole]);
+  }, [query, selectedRole, availableUsers]);
 
-  const handleCreateChat = () => {
-    if (!selectedUser) return;
+  const handleCreateChat = async () => {
+    if (!selectedUser || loading) return;
 
-    const newConversation: ChatConversation = {
-      id: `conv_${Date.now()}`,
-      participants: [
-        { id: "PDT001", name: "TS. Lê Thị B", role: "phong-dao-tao", isOnline: true },
-        selectedUser
-      ],
-      updatedAt: new Date().toISOString(),
-      unreadCount: 0,
-      isActive: true,
-    };
+    try {
+      setLoading(true);
+      setError("");
 
-    onCreateConversation(newConversation);
-    onClose();
-    setSelectedUser(null);
-    setQuery("");
-    setSelectedRole("all");
+      // Create conversation via API
+      const result = await chatAPI.createConversation({
+        participantIds: [selectedUser.id],
+        conversationType: 'direct'
+      });
+
+      // Transform API response to local format
+      const newConversation: ChatConversation = {
+        id: result.conversationId,
+        participants: [
+          { id: "PDT001", name: "TS. Lê Thị B", role: "phong-dao-tao", isOnline: true },
+          selectedUser
+        ],
+        updatedAt: result.updatedAt,
+        unreadCount: 0,
+        isActive: result.isActive ?? true,
+      };
+
+      onCreateConversation(newConversation);
+      onClose();
+      setSelectedUser(null);
+      setQuery("");
+      setSelectedRole("all");
+    } catch (err) {
+      console.error('Error creating conversation:', err);
+      setError('Không thể tạo cuộc trò chuyện');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -81,10 +119,10 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
           </button>
           <button
             onClick={handleCreateChat}
-            disabled={!selectedUser}
+            disabled={!selectedUser || loading}
             className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            Tạo cuộc trò chuyện
+            {loading ? "Đang tạo..." : "Tạo cuộc trò chuyện"}
           </button>
         </div>
       }
@@ -122,6 +160,13 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
             ))}
           </div>
         </div>
+
+        {/* Error display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="text-sm text-red-800">{error}</div>
+          </div>
+        )}
 
         {/* User list */}
         <div className="border border-gray-200 rounded-lg max-h-80 overflow-y-auto">

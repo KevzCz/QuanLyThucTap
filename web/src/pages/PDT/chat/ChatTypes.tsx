@@ -21,10 +21,11 @@ export interface ChatMessage {
 export interface ChatRequest {
   id: string;
   fromUser: ChatUser;
-  toUser: ChatUser;
+  toUser?: ChatUser; // Made optional to match API
   message: string;
+  subject?: string; // Added missing subject field
   timestamp: string;
-  status: "pending" | "accepted" | "declined";
+  status: "pending" | "accepted" | "declined" | "expired" | "cancelled";
   // New fields for PDT binding system
   assignedTo?: ChatUser; // Which PDT member is handling this
   isAssigned?: boolean;   // Quick check if someone is handling it

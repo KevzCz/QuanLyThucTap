@@ -4,6 +4,8 @@ import mongoose from "mongoose";
 import cors from "cors";
 import path from "path";
 import cookieParser from "cookie-parser";
+import { createServer } from "http";
+import { Server as SocketIOServer } from "socket.io";
 
 // Import route modules
 import authRoutes from "./routes/auth.js";
@@ -14,7 +16,19 @@ import lecturerRoutes from "./routes/lecturers.js";
 import pageManagementRoutes from "./routes/pageManagement.js";
 import studentRoutes from "./routes/students.js";
 import requestRoutes from "./routes/requests.js";
+import reportRoutes from "./routes/reports.js";
+import chatRoutes from "./routes/chat.js";
 const app = express();
+const httpServer = createServer(app);
+
+// Configure Socket.io
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
+});
 
 /* Basic middlewares */
 app.use(cors({
@@ -24,6 +38,9 @@ app.use(cors({
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Make io available to routes
+app.set('io', io);
 
 /* Static uploads */
 const uploadsDir = path.resolve("./uploads");
@@ -65,6 +82,8 @@ app.use("/api/uploads", uploadRoutes);
 app.use("/api/pages", pageManagementRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/requests", requestRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/chat", chatRoutes);
 
 // Add the teacher-specific page routes from pages.js
 import pagesRoutes from "./routes/pages.js";
@@ -121,9 +140,149 @@ app.use((error, req, res, next) => {
   });
 });
 
+/* Socket.io connection handling */
+const activeUsers = new Map(); // Store active users and their socket connections
+
+io.on('connection', (socket) => {
+  console.log(`🔗 User connected: ${socket.id}`);
+
+  // Handle user authentication
+  socket.on('authenticate', (userData) => {
+    if (userData && userData.id) {
+      socket.userId = userData.id;
+      socket.userName = userData.name;
+      socket.userRole = userData.role;
+      
+      activeUsers.set(userData.id, {
+        socketId: socket.id,
+        name: userData.name,
+        role: userData.role,
+        lastSeen: new Date()
+      });
+
+      // Join user to their personal room
+      socket.join(`user_${userData.id}`);
+      
+      // Join user to their role room
+      if (userData.role) {
+        socket.join(`role_${userData.role}`);
+        console.log(`🔐 User ${userData.name} joined role room: role_${userData.role}`);
+      }
+      
+      // Broadcast user online status
+      socket.broadcast.emit('userOnline', {
+        userId: userData.id,
+        name: userData.name,
+        role: userData.role
+      });
+
+      console.log(`👤 User authenticated: ${userData.name} (${userData.id})`);
+    }
+  });
+
+  // Join conversation rooms
+  socket.on('joinConversation', (conversationId) => {
+    if (conversationId) {
+      socket.join(`conversation_${conversationId}`);
+      console.log(`💬 User ${socket.userId} joined conversation: ${conversationId}`);
+    }
+  });
+
+  // Leave conversation rooms
+  socket.on('leaveConversation', (conversationId) => {
+    if (conversationId) {
+      socket.leave(`conversation_${conversationId}`);
+      console.log(`👋 User ${socket.userId} left conversation: ${conversationId}`);
+    }
+  });
+
+  // Handle typing indicators
+  socket.on('typing', (data) => {
+    if (data.conversationId) {
+      socket.to(`conversation_${data.conversationId}`).emit('userTyping', {
+        userId: socket.userId,
+        userName: socket.userName,
+        conversationId: data.conversationId
+      });
+    }
+  });
+
+  socket.on('stopTyping', (data) => {
+    if (data.conversationId) {
+      socket.to(`conversation_${data.conversationId}`).emit('userStoppedTyping', {
+        userId: socket.userId,
+        conversationId: data.conversationId
+      });
+    }
+  });
+
+  // Handle message read receipts
+  socket.on('markAsRead', (data) => {
+    if (data.conversationId && data.messageId) {
+      socket.to(`conversation_${data.conversationId}`).emit('messageRead', {
+        messageId: data.messageId,
+        readBy: {
+          userId: socket.userId,
+          userName: socket.userName,
+          readAt: new Date()
+        }
+      });
+    }
+  });
+
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    console.log(`🔌 User disconnected: ${socket.id}`);
+    
+    if (socket.userId) {
+      activeUsers.delete(socket.userId);
+      
+      // Broadcast user offline status
+      socket.broadcast.emit('userOffline', {
+        userId: socket.userId
+      });
+    }
+  });
+
+  // Handle errors
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
+  });
+});
+
+// Broadcast new messages to conversation participants
+export const broadcastMessage = (conversationId, message) => {
+  io.to(`conversation_${conversationId}`).emit('newMessage', message);
+};
+
+// Broadcast new chat requests
+export const broadcastChatRequest = (request) => {
+  // Send to target user
+  io.to(`user_${request.toUser.userId}`).emit('newChatRequest', request);
+  
+  // If it's a PDT request, send to all PDT members
+  if (request.toUser.role === 'phong-dao-tao') {
+    io.emit('newPDTRequest', request);
+  }
+};
+
+// Broadcast request status updates
+export const broadcastRequestUpdate = (request) => {
+  io.to(`user_${request.fromUser.userId}`).emit('requestUpdated', request);
+  if (request.assignedTo?.userId) {
+    io.to(`user_${request.assignedTo.userId}`).emit('requestUpdated', request);
+  }
+};
+
+// Get active users
+export const getActiveUsers = () => {
+  return Array.from(activeUsers.values());
+};
+
 /* Start server */
 const port = Number(process.env.PORT || 3001);
-app.listen(port, () => {
+httpServer.listen(port, () => {
   console.log(`🚀 API server listening on http://localhost:${port}`);
   console.log(`📖 API documentation: http://localhost:${port}/api/health`);
+  console.log(`💬 Socket.io enabled for real-time chat`);
 });

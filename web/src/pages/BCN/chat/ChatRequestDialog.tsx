@@ -1,7 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import Modal from "../../../util/Modal";
 import type { ChatRequest } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
+import { useAuth } from "../../../contexts/UseAuth";
+import { chatAPI } from "../../../services/chatApi";
 import dayjs from "dayjs";
 
 interface Props {
@@ -10,33 +12,82 @@ interface Props {
   request: ChatRequest | null;
   onAccept: (request: ChatRequest) => void;
   onDecline: (request: ChatRequest) => void;
+  onRevoke?: (request: ChatRequest) => void;
 }
 
-const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, onDecline }) => {
+const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, onDecline, onRevoke }) => {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+
   if (!request) return null;
+
+  // Check if this is the user's own request
+  const isOwnRequest = request.fromUser.id === user?.id;
+
+  const handleRevoke = async () => {
+    if (!request || !isOwnRequest) return;
+    
+    try {
+      setLoading(true);
+      await chatAPI.declineChatRequest(request.id); // Use decline API for revoke
+      
+      if (onRevoke) {
+        onRevoke(request);
+      }
+      onClose();
+    } catch (error) {
+      console.error('Error revoking request:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getActions = () => {
+    if (isOwnRequest) {
+      return (
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="h-10 px-4 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            Đóng
+          </button>
+          <button
+            onClick={handleRevoke}
+            disabled={loading}
+            className="h-10 px-4 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          >
+            {loading ? "Đang hủy..." : "Hủy yêu cầu"}
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex gap-3">
+        <button
+          onClick={() => onDecline(request)}
+          className="h-10 px-4 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+        >
+          Từ chối
+        </button>
+        <button
+          onClick={() => onAccept(request)}
+          className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+        >
+          Chấp nhận
+        </button>
+      </div>
+    );
+  };
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Yêu cầu chat"
+      title={isOwnRequest ? "Yêu cầu chat của bạn" : "Yêu cầu chat"}
       widthClass="max-w-md"
-      actions={
-        <div className="flex gap-3">
-          <button
-            onClick={() => onDecline(request)}
-            className="h-10 px-4 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-          >
-            Từ chối
-          </button>
-          <button
-            onClick={() => onAccept(request)}
-            className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-          >
-            Chấp nhận
-          </button>
-        </div>
-      }
+      actions={getActions()}
     >
       <div className="space-y-4">
         <div className="flex items-start gap-3">
@@ -65,14 +116,22 @@ const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, 
         </div>
 
         <div className="text-xs text-gray-500">
-          Gửi lúc: {dayjs(request.timestamp).format("DD/MM/YYYY HH:mm")}
+          {isOwnRequest ? "Đã gửi lúc" : "Gửi lúc"}: {dayjs(request.timestamp).format("DD/MM/YYYY HH:mm")}
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-          <div className="text-sm text-blue-800">
-            <strong>Lưu ý:</strong> Chấp nhận yêu cầu sẽ tạo cuộc trò chuyện mới và bạn có thể bắt đầu nhắn tin ngay lập tức.
+        {isOwnRequest ? (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="text-sm text-yellow-800">
+              <strong>Lưu ý:</strong> Đây là yêu cầu chat bạn đã gửi. Bạn có thể hủy yêu cầu này nếu không còn cần thiết.
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="text-sm text-blue-800">
+              <strong>Lưu ý:</strong> Chấp nhận yêu cầu sẽ tạo cuộc trò chuyện mới và bạn có thể bắt đầu nhắn tin ngay lập tức.
+            </div>
+          </div>
+        )}
       </div>
     </Modal>
   );

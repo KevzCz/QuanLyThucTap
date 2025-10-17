@@ -4,6 +4,8 @@ import type { ChatConversation, ChatMessage, ChatUser } from "../../PDT/chat/Cha
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import dayjs from "dayjs";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -11,40 +13,9 @@ interface Props {
   currentUser: ChatUser;
 }
 
-// Mock messages for GV conversation
-const MOCK_MESSAGES: ChatMessage[] = [
-  {
-    id: "msg1",
-    senderId: "SV002",
-    content: "Thầy ơi, em cần hỗ trợ về báo cáo thực tập tuần này.",
-    timestamp: "2025-01-20T14:30:00",
-    type: "text",
-  },
-  {
-    id: "msg2",
-    senderId: "GV001",
-    content: "Chào em! Thầy sẽ hỗ trợ em. Em gặp khó khăn gì cụ thể trong báo cáo?",
-    timestamp: "2025-01-20T14:32:00",
-    type: "text",
-  },
-  {
-    id: "msg3",
-    senderId: "SV002",
-    content: "Em không biết viết phần đánh giá kết quả công việc như thế nào cho đúng ạ.",
-    timestamp: "2025-01-20T14:35:00",
-    type: "text",
-  },
-  {
-    id: "msg4",
-    senderId: "GV001",
-    content: "Em cần mô tả cụ thể công việc đã làm, kết quả đạt được, và những khó khăn gặp phải. Thầy sẽ gửi em mẫu báo cáo để tham khảo.",
-    timestamp: "2025-01-20T14:37:00",
-    type: "text",
-  },
-];
 
 const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -58,19 +29,101 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
+  // Load messages when conversation changes
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!conversation?.id) {
+        setMessages([]);
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversation.id}/messages`, {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const responseData = await response.json();
+          const messagesData = responseData.data || [];
+          // Transform messages to match expected format
+          const transformedMessages = messagesData.map((msg: Record<string, unknown>) => ({
+            ...msg,
+            id: msg.messageId || msg.id, // Map messageId to id
+            timestamp: msg.createdAt || msg.timestamp // Map createdAt to timestamp
+          }));
+          setMessages(transformedMessages);
+        } else {
+          console.error('Failed to load messages');
+          setMessages([]);
+        }
+      } catch (error) {
+        console.error('Error loading messages:', error);
+        setMessages([]);
+      }
+    };
+
+    loadMessages();
+  }, [conversation?.id]);
+
+  const handleSendMessage = async () => {
     if (!newMessage.trim() || !conversation) return;
 
-    const message: ChatMessage = {
-      id: `msg_${Date.now()}`,
+    const messageContent = newMessage.trim();
+    setNewMessage(""); // Clear input immediately for better UX
+
+    // Create optimistic message for UI
+    const optimisticMessage: ChatMessage = {
+      id: `temp_${Date.now()}`,
       senderId: currentUser.id,
-      content: newMessage.trim(),
+      content: messageContent,
       timestamp: new Date().toISOString(),
       type: "text",
     };
 
-    setMessages(prev => [...prev, message]);
-    setNewMessage("");
+    // Add optimistic message to UI
+    setMessages(prev => [...prev, optimisticMessage]);
+
+    try {
+      // Send message to server
+      const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversation.id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          content: messageContent,
+          type: 'text'
+        })
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        // Replace optimistic message with server response
+        if (responseData.success && responseData.data) {
+          const serverMessage = {
+            ...responseData.data,
+            id: responseData.data.messageId || responseData.data.id,
+            timestamp: responseData.data.createdAt || responseData.data.timestamp
+          };
+          setMessages(prev => 
+            prev.map(msg => msg.id === optimisticMessage.id ? serverMessage : msg)
+          );
+        }
+      } else {
+        console.error('Failed to send message');
+        // Remove optimistic message on failure
+        setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
+        // Restore message content to input
+        setNewMessage(messageContent);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
+      // Restore message content to input
+      setNewMessage(messageContent);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

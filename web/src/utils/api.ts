@@ -116,11 +116,13 @@ class ApiClient {
   public async request<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const hasBody = options.body !== undefined;
+    const isFormData = options.body instanceof FormData;
 
     const config: RequestInit = {
       credentials: "include",
       headers: {
-        ...(hasBody ? { "Content-Type": "application/json" } : {}),
+        // Don't set Content-Type for FormData - let the browser set it with boundary
+        ...(hasBody && !isFormData ? { "Content-Type": "application/json" } : {}),
         ...options.headers,
       },
       ...options,
@@ -508,29 +510,7 @@ class ApiClient {
     });
   }
 
-  // Get single teacher sub-header
-  getTeacherSubHeader(subId: string) {
-    return this.request<{ 
-      success: boolean; 
-      subHeader: {
-        _id: string;
-        id: string;
-        title: string;
-        content?: string;
-        order: number;
-        kind: string;
-        audience: string;
-        startAt?: string;
-        endAt?: string;
-        fileUrl?: string;
-        fileName?: string;
-      }; 
-      canEdit: boolean; 
-      subject: { id: string; title: string } 
-    }>(`/pages/teacher/subs/${subId}`);
-  }
-
-  // Request management methods
+  // Report management methods
   createRequest(data: {
     students: Array<{ id: string; name: string }>;
     type: "add-student" | "remove-student";
@@ -654,9 +634,283 @@ class ApiClient {
     });
   }
 
-  // Student: get assigned instructor
+  // Get student's assigned instructor and page data
   getStudentAssignedInstructor() {
-    return this.request<{ success: boolean; instructor: { id: string; name: string; email: string } | null; subject: { id: string; title: string } | null }>("/students/assigned-instructor");
+    return this.request<{
+      instructor?: { id: string; name: string; email: string };
+      subject?: { id: string; title: string };
+    }>("/internship-subjects/student/assigned-instructor");
+  }
+
+  // Teacher report management methods
+  getTeacherReports(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    reportType?: string;
+  }) {
+    const qs = new URLSearchParams();
+    if (params) {
+      if (params.page != null) qs.append("page", String(params.page));
+      if (params.limit != null) qs.append("limit", String(params.limit));
+      if (params.status && params.status !== "all") qs.append("status", params.status);
+      if (params.reportType && params.reportType !== "all") qs.append("reportType", params.reportType);
+    }
+    const endpoint = `/reports/teacher${qs.toString() ? `?${qs.toString()}` : ""}`;
+    return this.request<{
+      success: boolean;
+      reports: Array<{
+        _id: string;
+        id: string;
+        title: string;
+        content: string;
+        reportType: string;
+        status: string;
+        submittedAt?: string;
+        reviewedAt?: string;
+        reviewNote?: string;
+        attachments?: Array<{
+          fileName: string;
+          fileUrl: string;
+          fileSize: number;
+        }>;
+        createdAt: string;
+        updatedAt: string;
+        internshipSubject: { id: string; title: string };
+        instructor: { id: string; name: string };
+      }>;
+      pagination?: { page: number; pages: number; total: number };
+    }>(endpoint);
+  }
+
+  createTeacherReport(data: {
+    title: string;
+    content: string;
+    reportType: string;
+    attachments?: Array<{
+      fileName: string;
+      fileUrl: string;
+      fileSize: number;
+    }>;
+  }) {
+    return this.request<{
+      success: boolean;
+      report: {
+        _id: string;
+        id: string;
+        title: string;
+        content: string;
+        reportType: string;
+        status: string;
+        createdAt: string;
+        updatedAt: string;
+        internshipSubject: { id: string; title: string };
+        instructor: { id: string; name: string };
+        attachments?: Array<{
+          fileName: string;
+          fileUrl: string;
+          fileSize: number;
+        }>;
+      };
+    }>("/reports/teacher", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  updateTeacherReport(reportId: string, updates: {
+    title: string;
+    content: string;
+    reportType: string;
+    attachments?: Array<{
+      fileName: string;
+      fileUrl: string;
+      fileSize: number;
+    }>;
+  }) {
+    return this.request<{
+      success: boolean;
+      report: {
+        _id: string;
+        id: string;
+        title: string;
+        content: string;
+        reportType: string;
+        status: string;
+        createdAt: string;
+        updatedAt: string;
+        internshipSubject: { id: string; title: string };
+        instructor: { id: string; name: string };
+        attachments?: Array<{
+          fileName: string;
+          fileUrl: string;
+          fileSize: number;
+        }>;
+      };
+    }>(`/reports/teacher/${reportId}`, {
+      method: "PUT",
+      body: JSON.stringify(updates),
+    });
+  }
+
+  submitTeacherReport(reportId: string) {
+    return this.request<{
+      success: boolean;
+      report: {
+        _id: string;
+        id: string;
+        title: string;
+        content: string;
+        reportType: string;
+        status: string;
+        submittedAt?: string;
+        reviewedAt?: string;
+        reviewNote?: string;
+        attachments?: Array<{
+          fileName: string;
+          fileUrl: string;
+          fileSize: number;
+        }>;
+        createdAt: string;
+        updatedAt: string;
+        internshipSubject: { id: string; title: string };
+        instructor: { id: string; name: string };
+      };
+      message?: string;
+    }>(`/reports/teacher/${reportId}/submit`, {
+      method: "PUT",
+    });
+  }
+
+  deleteTeacherReport(reportId: string) {
+    return this.request<{ success: boolean; message: string }>(`/reports/teacher/${reportId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // Add missing teacher submission methods
+  getTeacherSubHeader(subId: string) {
+    return this.request<{ 
+      success: boolean; 
+      subHeader: {
+        _id: string;
+        id: string;
+        title: string;
+        content?: string;
+        order: number;
+        kind: string;
+        audience: string;
+        startAt?: string;
+        endAt?: string;
+        fileUrl?: string;
+        fileName?: string;
+      }; 
+      canEdit: boolean; 
+      subject: { id: string; title: string } 
+    }>(`/pages/teacher/subs/${subId}`);
+  }
+
+  getTeacherSubmissions(subId: string) {
+    return this.request<{
+      success: boolean;
+      submissions: Array<{
+        _id: string;
+        subHeader: string;
+        submitter: {
+          id: string;
+          name: string;
+          email: string;
+        };
+        fileUrl: string;
+        fileName: string;
+        fileSize: number;
+        status: "submitted" | "reviewed" | "accepted" | "rejected";
+        reviewNote?: string;
+        reviewedBy?: {
+          id: string;
+          name: string;
+          email: string;
+        };
+        reviewedAt?: string;
+        createdAt: string;
+        updatedAt: string;
+      }>;
+      canReview: boolean;
+    }>(`/pages/teacher/subs/${subId}/submissions`);
+  }
+
+  updateTeacherSubmissionStatus(submissionId: string, data: {
+    status: "submitted" | "reviewed" | "accepted" | "rejected";
+    reviewNote?: string;
+  }) {
+    return this.request(`/pages/teacher/submissions/${submissionId}/status`, {
+      method: "PUT",
+      body: JSON.stringify(data)
+    });
+  }
+
+  // BCN report management methods
+  getBCNReports(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    reportType?: string;
+    search?: string;
+  }) {
+    const qs = new URLSearchParams();
+    if (params) {
+      if (params.page != null) qs.append("page", String(params.page));
+      if (params.limit != null) qs.append("limit", String(params.limit));
+      if (params.status && params.status !== "all") qs.append("status", params.status);
+      if (params.reportType && params.reportType !== "all") qs.append("reportType", params.reportType);
+      if (params.search) qs.append("search", params.search);
+    }
+    const endpoint = `/reports/bcn/review${qs.toString() ? `?${qs.toString()}` : ""}`;
+    return this.request<{
+      success: boolean;
+      reports: Array<{
+        _id: string;
+        id: string;
+        title: string;
+        content: string;
+        reportType: string;
+        status: string;
+        submittedAt?: string;
+        reviewedAt?: string;
+        reviewNote?: string;
+        attachments?: Array<{
+          fileName: string;
+          fileUrl: string;
+          fileSize: number;
+        }>;
+        createdAt: string;
+        updatedAt: string;
+        internshipSubject: { id: string; title: string };
+        instructor: { id: string; name: string; email: string };
+        reviewedBy?: { id: string; name: string; email: string };
+      }>;
+      pagination?: { page: number; pages: number; total: number };
+    }>(endpoint);
+  }
+
+  reviewReport(reportId: string, data: {
+    status: "reviewed" | "approved" | "rejected";
+    reviewNote?: string;
+  }) {
+    return this.request<{
+      success: boolean;
+      report: {
+        _id: string;
+        status: string;
+        reviewNote?: string;
+        reviewedBy: { id: string; name: string; email: string };
+        reviewedAt: string;
+        [key: string]: unknown;
+      };
+    }>(`/reports/bcn/${reportId}/review`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
   }
 }
 

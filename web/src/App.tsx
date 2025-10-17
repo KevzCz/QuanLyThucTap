@@ -12,7 +12,7 @@ import KhoaPageManagement from "./pages/BCN/khoa_page/KhoaPageManagement";
 import KhoaPageRoutes from "./pages/BCN/khoa_page/KhoaPageRoutes";
 import RequestManagement from "./pages/BCN/request/RequestManagement";
 import StudentManagement from "./pages/GV/student_management/StudentManagement";
-import { TeacherPageRoutes } from "./pages/GV";
+import { TeacherPageRoutes, ReportManagement as GVReportManagement } from "./pages/GV";
 import { KhoaPageViewRoutes, TeacherPageViewRoutes, InternshipSubjectRegister as SVInternshipSubjectRegister } from "./pages/SV";
 import { ChatManagement as PDTChatManagement } from "./pages/PDT";
 import { ChatManagement as BCNChatManagement } from "./pages/BCN";
@@ -20,6 +20,7 @@ import { ChatManagement as GVChatManagement } from "./pages/GV";
 import { ChatManagement as SVChatManagement } from "./pages/SV";
 import { InternshipSubjectRegister as GVInternshipSubjectRegister, KhoaPageViewRoutes as GVKhoaPageViewRoutes } from "./pages/GV";
 import { ToastProvider } from './components/UI/Toast';
+import KhoaReportManagement from "./pages/BCN/report/KhoaReportManagement";
 
 const AppRoutes: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -85,7 +86,7 @@ const AppRoutes: React.FC = () => {
             <Route path="bcn-page" element={<KhoaPageManagement />} />
             <Route path="bcn-page/*" element={<KhoaPageRoutes />} />
             <Route path="request" element={<RequestManagement />} />
-            <Route path="bcn-reports" element={Stub("Quản lý báo cáo (Khoa)")} />
+            <Route path="bcn-reports" element={<KhoaReportManagement />}/>
           </>
         )}
 
@@ -96,7 +97,7 @@ const AppRoutes: React.FC = () => {
             <Route path="docs-dept/*" element={<GVKhoaPageViewRoutes />} />
             <Route path="teacher-page/*" element={<TeacherPageRoutes />} />
             <Route path="teacher-internship-registration" element={<GVInternshipSubjectRegister />} />
-            <Route path="teacher-reports" element={Stub("Quản lý báo cáo (GV)")} />
+            <Route path="teacher-reports" element={<GVReportManagement />} />
           </>
         )}
 

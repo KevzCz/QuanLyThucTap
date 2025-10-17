@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Modal from "../../../util/Modal";
 import type { ChatUser, ChatConversation, ChatRequest, UserRole } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
+import { useAuth } from "../../../contexts/UseAuth";
+import { chatAPI } from "../../../services/chatApi";
 
 interface Props {
   open: boolean;
@@ -10,30 +12,79 @@ interface Props {
   onSendRequest?: (request: ChatRequest) => void;
 }
 
-// Mock users that BCN can interact with (GV, SV, and PDT)
-const MOCK_USERS: ChatUser[] = [
-  // PDT - can send requests to
-  { id: "PDT_ROLE", name: "Phòng Đào Tạo", role: "phong-dao-tao", isOnline: true },
-  
-  // GV and SV - can chat directly with
-  { id: "GV001", name: "ThS. Lê Văn C", role: "giang-vien", isOnline: true },
-  { id: "GV002", name: "TS. Phạm Thị D", role: "giang-vien", isOnline: true },
-  { id: "GV003", name: "PGS. Hoàng Văn E", role: "giang-vien", isOnline: false },
-  { id: "GV004", name: "TS. Nguyễn Thị F", role: "giang-vien", isOnline: true },
-  { id: "SV001", name: "Nguyễn Thị G", role: "sinh-vien", isOnline: true },
-  { id: "SV002", name: "Trần Văn H", role: "sinh-vien", isOnline: false },
-  { id: "SV003", name: "Lê Thị I", role: "sinh-vien", isOnline: true },
-  { id: "SV004", name: "Phạm Văn J", role: "sinh-vien", isOnline: true },
-];
-
 const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation, onSendRequest }) => {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<"all" | UserRole>("all");
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [message, setMessage] = useState("");
+  const [availableUsers, setAvailableUsers] = useState<ChatUser[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Current user as BCN
+  const currentUser: ChatUser = {
+    id: user?.id || "BCN001",
+    name: user?.name || "Ban Chủ Nhiệm",
+    role: "ban-chu-nhiem" as const,
+    isOnline: true
+  };
+
+  // Load available users when dialog opens
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (!open) return;
+      
+      try {
+        setLoading(true);
+        setError("");
+        
+        // Load users from all roles that BCN can interact with
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const [pdtUsers, gvUsers, svUsers] = await Promise.all([
+          chatAPI.getAvailableUsers("phong-dao-tao"),
+          chatAPI.getAvailableUsers("giang-vien"),
+          chatAPI.getAvailableUsers("sinh-vien")
+        ]);
+
+        // Add special PDT entry for requests
+        const pdtEntry: ChatUser = {
+          id: "PDT_ROLE",
+          name: "Phòng Đào Tạo",
+          role: "phong-dao-tao",
+          isOnline: true
+        };
+
+        // Transform API users to ChatUser format
+        const transformedGvUsers: ChatUser[] = gvUsers.map(u => ({
+          id: u.userId,
+          name: u.name,
+          role: u.role as UserRole,
+          isOnline: u.isOnline
+        }));
+
+        const transformedSvUsers: ChatUser[] = svUsers.map(u => ({
+          id: u.userId,
+          name: u.name,
+          role: u.role as UserRole,
+          isOnline: u.isOnline
+        }));
+
+        const allUsers = [pdtEntry, ...transformedGvUsers, ...transformedSvUsers];
+        setAvailableUsers(allUsers);
+      } catch (err) {
+        console.error('Error loading users:', err);
+        setError('Không thể tải danh sách người dùng');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, [open]);
 
   const filteredUsers = useMemo(() => {
-    let users = MOCK_USERS;
+    let users = availableUsers;
     
     if (selectedRole !== "all") {
       users = users.filter(user => user.role === selectedRole);
@@ -48,45 +99,76 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
     }
     
     return users;
-  }, [query, selectedRole]);
+  }, [query, selectedRole, availableUsers]);
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!selectedUser) return;
 
-    if (selectedUser.role === "phong-dao-tao") {
-      // Send request to PDT
-      const chatRequest: ChatRequest = {
-        id: `req_${Date.now()}`,
-        fromUser: { id: "BCN001", name: "PGS. Nguyễn Văn B", role: "ban-chu-nhiem", isOnline: true },
-        toUser: selectedUser,
-        message: message.trim() || "Xin chào, tôi cần hỗ trợ từ Phòng Đào Tạo.",
-        timestamp: new Date().toISOString(),
-        status: "pending",
-        isAssigned: false,
-      };
+    try {
+      setLoading(true);
+      setError("");
 
-      onSendRequest?.(chatRequest);
-    } else {
-      // Direct conversation with GV/SV
-      const newConversation: ChatConversation = {
-        id: `conv_${Date.now()}`,
-        participants: [
-          { id: "BCN001", name: "PGS. Nguyễn Văn B", role: "ban-chu-nhiem", isOnline: true },
-          selectedUser
-        ],
-        updatedAt: new Date().toISOString(),
-        unreadCount: 0,
-        isActive: true,
-      };
+      if (selectedUser.role === "phong-dao-tao") {
+        // Send request to PDT via API
+        const requestData = {
+          toUserId: selectedUser.id,
+          message: message.trim() || "Xin chào, tôi cần hỗ trợ từ Phòng Đào Tạo.",
+          subject: "Yêu cầu hỗ trợ từ Ban Chủ Nhiệm",
+          requestType: "support",
+          priority: "normal" as const
+        };
 
-      onCreateConversation?.(newConversation);
+        const result = await chatAPI.createChatRequest(requestData);
+        
+        // Transform the result to local format for callback
+        if (result && onSendRequest) {
+          const localRequest: ChatRequest = {
+            id: result.requestId,
+            fromUser: currentUser,
+            toUser: selectedUser,
+            message: result.message,
+            subject: result.subject,
+            timestamp: result.createdAt,
+            status: result.status as "pending" | "accepted" | "declined" | "expired" | "cancelled",
+            isAssigned: result.isAssigned
+          };
+          onSendRequest(localRequest);
+        }
+      } else {
+        // Create direct conversation with GV/SV via API
+        const conversationData = {
+          participantIds: [selectedUser.id],
+          conversationType: "direct" as const,
+          title: `Chat với ${selectedUser.name}`
+        };
+
+        const result = await chatAPI.createConversation(conversationData);
+        
+        // Transform the result to local format for callback
+        if (result && onCreateConversation) {
+          const localConversation: ChatConversation = {
+            id: result.conversationId,
+            participants: [currentUser, selectedUser],
+            updatedAt: result.updatedAt,
+            unreadCount: 0,
+            isActive: result.isActive
+          };
+          onCreateConversation(localConversation);
+        }
+      }
+
+      // Close dialog and reset state
+      onClose();
+      setSelectedUser(null);
+      setQuery("");
+      setSelectedRole("all");
+      setMessage("");
+    } catch (err) {
+      console.error('Error creating chat/request:', err);
+      setError('Không thể tạo cuộc trò chuyện hoặc gửi yêu cầu');
+    } finally {
+      setLoading(false);
     }
-
-    onClose();
-    setSelectedUser(null);
-    setQuery("");
-    setSelectedRole("all");
-    setMessage("");
   };
 
   const isRequestMode = selectedUser?.role === "phong-dao-tao";
@@ -107,10 +189,10 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
           </button>
           <button
             onClick={handleAction}
-            disabled={!selectedUser || (isRequestMode && !message.trim())}
+            disabled={!selectedUser || (isRequestMode && !message.trim()) || loading}
             className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
-            {isRequestMode ? "Gửi yêu cầu" : "Tạo cuộc trò chuyện"}
+            {loading ? "Đang xử lý..." : (isRequestMode ? "Gửi yêu cầu" : "Tạo cuộc trò chuyện")}
           </button>
         </div>
       }
@@ -149,9 +231,21 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
           </div>
         </div>
 
+        {/* Error display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+            <div className="text-sm text-red-800">{error}</div>
+          </div>
+        )}
+
         {/* User list */}
         <div className="border border-gray-200 rounded-lg max-h-60 overflow-y-auto">
-          {filteredUsers.length === 0 ? (
+          {loading ? (
+            <div className="p-4 text-center text-gray-500">
+              <div className="animate-spin inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full mr-2"></div>
+              Đang tải danh sách người dùng...
+            </div>
+          ) : filteredUsers.length === 0 ? (
             <div className="p-4 text-center text-gray-500">
               Không tìm thấy người dùng phù hợp
             </div>

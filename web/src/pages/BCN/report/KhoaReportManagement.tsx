@@ -1,0 +1,378 @@
+import React, { useState, useEffect, useMemo } from "react";
+import { useAuth } from "../../../contexts/UseAuth";
+import { apiClient } from "../../../utils/api";
+import SearchInput from "../../../components/UI/SearchInput";
+import Pagination from "../../../components/UI/Pagination";
+import ViewKhoaReportDialog from "./ViewKhoaReportDialog";
+import ReviewReportDialog from "./ReviewReportDialog";
+import { useToast } from "../../../components/UI/Toast";
+import dayjs from "dayjs";
+
+export interface KhoaReport {
+  _id: string;
+  id: string;
+  title: string;
+  content: string;
+  reportType: "tuan" | "thang" | "quy" | "nam" | "khac";
+  status: "draft" | "submitted" | "reviewed" | "approved" | "rejected";
+  submittedAt?: string;
+  reviewedAt?: string;
+  reviewNote?: string;
+  attachments?: Array<{
+    fileName: string;
+    fileUrl: string;
+    fileSize: number;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+  internshipSubject: {
+    id: string;
+    title: string;
+  };
+  instructor: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  reviewedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+const ReportTypeLabels = {
+  "tuan": "Báo cáo tuần",
+  "thang": "Báo cáo tháng", 
+  "quy": "Báo cáo quý",
+  "nam": "Báo cáo năm",
+  "khac": "Báo cáo khác"
+};
+
+const StatusLabels = {
+  "draft": "Bản nháp",
+  "submitted": "Đã gửi",
+  "reviewed": "Đã xem",
+  "approved": "Đã duyệt",
+  "rejected": "Từ chối"
+};
+
+const StatusColors = {
+  "draft": "bg-gray-100 text-gray-700 ring-gray-600/20",
+  "submitted": "bg-blue-100 text-blue-700 ring-blue-600/20",
+  "reviewed": "bg-yellow-100 text-yellow-700 ring-yellow-600/20",
+  "approved": "bg-green-100 text-green-700 ring-green-600/20",
+  "rejected": "bg-red-100 text-red-700 ring-red-600/20"
+};
+
+const KhoaReportManagement: React.FC = () => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
+  
+  const [reports, setReports] = useState<KhoaReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [managedSubject, setManagedSubject] = useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+
+  // Filters and pagination
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | KhoaReport["status"]>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | KhoaReport["reportType"]>("all");
+  const [instructorFilter, setInstructorFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
+
+  // Dialogs
+  const [viewingReport, setViewingReport] = useState<KhoaReport | null>(null);
+  const [reviewingReport, setReviewingReport] = useState<KhoaReport | null>(null);
+
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  const loadReports = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Get BCN's managed subject and its reports
+      const [subjectResponse, reportsResponse] = await Promise.all([
+        apiClient.getBCNManagedSubject(),
+        apiClient.getBCNReports()
+      ]);
+
+      if (!subjectResponse.success || !subjectResponse.subject) {
+        setError("Bạn chưa được phân công quản lý môn thực tập nào");
+        return;
+      }
+
+      setManagedSubject({
+        id: subjectResponse.subject.id,
+        title: subjectResponse.subject.title
+      });
+
+      setReports((reportsResponse.reports || []) as KhoaReport[]);
+
+    } catch (err) {
+      console.error("Error loading reports:", err);
+      setError("Không thể tải danh sách báo cáo");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return reports.filter((report) => {
+      const byStatus = statusFilter === "all" || report.status === statusFilter;
+      const byType = typeFilter === "all" || report.reportType === typeFilter;
+      const byInstructor = !instructorFilter || report.instructor.name.toLowerCase().includes(instructorFilter.toLowerCase());
+      const byQuery = !q || 
+        report.title.toLowerCase().includes(q) ||
+        report.content.toLowerCase().includes(q) ||
+        report.instructor.name.toLowerCase().includes(q);
+      return byStatus && byType && byInstructor && byQuery;
+    });
+  }, [reports, statusFilter, typeFilter, instructorFilter, query]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const current = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+const handleReviewReport = async (reportId: string, status: "reviewed" | "approved" | "rejected", reviewNote?: string) => {
+    try {
+        const response = await apiClient.reviewReport(reportId, { status, reviewNote });
+        
+        // Update the report in the local state by merging the response data
+        setReports(prev => prev.map(r => {
+            if (r._id === reportId) {
+                return {
+                    ...r,
+                    status,
+                    reviewNote,
+                    reviewedBy: response.report.reviewedBy,
+                    reviewedAt: response.report.reviewedAt
+                };
+            }
+            return r;
+        }));
+        
+        setReviewingReport(null);
+        showSuccess("Đã cập nhật trạng thái báo cáo");
+    } catch (err) {
+        console.error("Error reviewing report:", err);
+        showError("Không thể cập nhật trạng thái báo cáo");
+    }
+};
+
+  // Get unique instructors for filter
+  const instructors = useMemo(() => {
+    const unique = Array.from(new Set(reports.map(r => r.instructor.name))).sort();
+    return unique;
+  }, [reports]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="flex items-center gap-2">
+          <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+          <span className="text-gray-500">Đang tải danh sách báo cáo...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !managedSubject) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-4xl mb-4">📋</div>
+        <div className="text-gray-700 font-medium mb-2">Không thể tải báo cáo</div>
+        <div className="text-gray-500 text-sm mb-4">{error}</div>
+        <button
+          onClick={loadReports}
+          className="text-blue-600 hover:text-blue-700 text-sm underline"
+        >
+          Thử lại
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header and filters */}
+      <div className="flex flex-col gap-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
+            </svg>
+            <div className="text-sm text-blue-800">
+              <span className="font-medium">Môn thực tập được quản lý:</span> {managedSubject.title}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">
+            <SearchInput
+              value={query}
+              onChange={(value) => {
+                setQuery(value);
+                setPage(1);
+              }}
+              placeholder="Tìm kiếm báo cáo..."
+              width="w-[280px]"
+            />
+
+            <div className="flex gap-2 flex-wrap">
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as "all" | KhoaReport["status"]);
+                  setPage(1);
+                }}
+                className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[140px]"
+              >
+                <option value="all">Tất cả trạng thái</option>
+                {Object.entries(StatusLabels).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+
+              <select
+                value={typeFilter}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value as "all" | KhoaReport["reportType"]);
+                  setPage(1);
+                }}
+                className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[140px]"
+              >
+                <option value="all">Tất cả loại</option>
+                {Object.entries(ReportTypeLabels).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+
+              <select
+                value={instructorFilter}
+                onChange={(e) => {
+                  setInstructorFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[160px]"
+              >
+                <option value="">Tất cả giảng viên</option>
+                {instructors.map(instructor => (
+                  <option key={instructor} value={instructor}>{instructor}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Reports table */}
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr className="text-left text-xs font-semibold text-gray-600">
+              <th className="px-4 py-3">Báo cáo</th>
+              <th className="px-4 py-3 w-[140px]">Giảng viên</th>
+              <th className="px-4 py-3 w-[120px]">Loại</th>
+              <th className="px-4 py-3 w-[120px]">Trạng thái</th>
+              <th className="px-4 py-3 w-[140px]">Ngày gửi</th>
+              <th className="px-4 py-3 w-[140px]">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 text-sm">
+            {current.map((report) => (
+              <tr key={report._id} className="hover:bg-gray-50/50">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-gray-900">{report.title}</div>
+                  <div className="text-xs text-gray-500 mt-1 line-clamp-2">
+                    {report.content ? report.content.replace(/<[^>]*>/g, '').slice(0, 100) + '...' : 'Không có nội dung'}
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="font-medium text-gray-900">{report.instructor.name}</div>
+                  <div className="text-xs text-gray-500">{report.instructor.id}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-2 py-1 text-xs font-medium">
+                    {ReportTypeLabels[report.reportType]}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${StatusColors[report.status]}`}>
+                    {StatusLabels[report.status]}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-500">
+                  {report.submittedAt ? dayjs(report.submittedAt).format("DD/MM/YYYY") : "-"}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setViewingReport(report)}
+                      className="h-7 w-7 grid place-items-center rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                      title="Xem chi tiết"
+                    >
+                      <svg viewBox="0 0 24 24" className="h-4 w-4">
+                        <path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"/>
+                      </svg>
+                    </button>
+                    
+                    {report.status === "submitted" && (
+                      <button
+                        onClick={() => setReviewingReport(report)}
+                        className="h-7 w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+                        title="Xem xét"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4">
+                          <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+            {current.length === 0 && (
+              <tr>
+                <td className="px-4 py-10 text-center text-gray-500" colSpan={6}>
+                  {reports.length === 0 ? "Chưa có báo cáo nào." : "Không có báo cáo phù hợp."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        <Pagination
+          currentPage={page}
+          totalPages={pageCount}
+          onPageChange={setPage}
+        />
+      </div>
+
+      {/* Dialogs */}
+      <ViewKhoaReportDialog
+        open={!!viewingReport}
+        onClose={() => setViewingReport(null)}
+        report={viewingReport}
+      />
+
+      <ReviewReportDialog
+        open={!!reviewingReport}
+        onClose={() => setReviewingReport(null)}
+        report={reviewingReport}
+        onSubmit={handleReviewReport}
+      />
+    </div>
+  );
+};
+
+export default KhoaReportManagement;

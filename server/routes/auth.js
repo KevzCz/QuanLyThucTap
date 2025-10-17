@@ -1,6 +1,8 @@
 import express from "express";
 import Account from "../models/Account.js";
 import { generateToken, authenticate, authorize } from "../middleware/auth.js";
+import InternshipSubject from "../models/InternshipSubject.js";
+import BanChuNhiem from "../models/BanChuNhiem.js";
 
 const router = express.Router();
 
