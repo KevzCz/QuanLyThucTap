@@ -13,6 +13,7 @@ import internshipSubjectRoutes from "./routes/internshipSubjects.js";
 import lecturerRoutes from "./routes/lecturers.js";
 import pageManagementRoutes from "./routes/pageManagement.js";
 import studentRoutes from "./routes/students.js";
+import requestRoutes from "./routes/requests.js";
 const app = express();
 
 /* Basic middlewares */
@@ -63,6 +64,7 @@ app.use("/api/lecturers", lecturerRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/pages", pageManagementRoutes);
 app.use("/api/students", studentRoutes);
+app.use("/api/requests", requestRoutes);
 
 // Add the teacher-specific page routes from pages.js
 import pagesRoutes from "./routes/pages.js";

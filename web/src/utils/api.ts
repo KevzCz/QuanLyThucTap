@@ -225,6 +225,28 @@ class ApiClient {
     return this.request<{ success: boolean; subject: InternshipSubject }>(`/internship-subjects/${id}`);
   }
 
+  // Get detailed internship subject with supervision info
+  getInternshipSubjectWithSupervision(id: string) {
+    return this.request<{ 
+      success: boolean; 
+      subject: {
+        id: string;
+        title: string;
+        students: Array<{
+          id: string;
+          name: string;
+          email: string;
+          supervisor?: { id: string; name: string };
+        }>;
+        lecturers: Array<{
+          id: string;
+          name: string;
+          email: string;
+        }>;
+      }
+    }>(`/internship-subjects/${id}`);
+  }
+
   getAvailableManagers() {
     return this.request<{ success: boolean; managers: Array<{ id: string; name: string; email: string }> }>("/internship-subjects/available-managers");
   }
@@ -508,36 +530,127 @@ class ApiClient {
     }>(`/pages/teacher/subs/${subId}`);
   }
 
-  // Get submissions for teacher sub-header
-  getTeacherSubmissions(subId: string) {
+  // Request management methods
+  createRequest(data: {
+    students: Array<{ id: string; name: string }>;
+    type: "add-student" | "remove-student";
+    reviewNote?: string;
+  }) {
     return this.request<{
       success: boolean;
-      submissions: Array<{
+      request: {
         _id: string;
-        subHeader: string;
-        submitter: { id: string; name: string; email: string };
-        fileUrl: string;
-        fileName: string;
-        fileSize: number;
-        status: "submitted" | "reviewed" | "accepted" | "rejected";
+        students: Array<{ id: string; name: string }>;
+        type: "add-student" | "remove-student";
+        status: "pending" | "accepted" | "rejected";
+        createdAt: string;
+        internshipSubject: { id: string; title: string };
+      };
+    }>("/requests", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  getMyRequests(params?: {
+    page?: number;
+    limit?: number;
+    status?: "pending" | "accepted" | "rejected";
+    type?: "add-student" | "remove-student";
+  }) {
+    const qs = new URLSearchParams();
+    if (params) {
+      if (params.page != null) qs.append("page", String(params.page));
+      if (params.limit != null) qs.append("limit", String(params.limit));
+      if (params.status) qs.append("status", params.status);
+      if (params.type) qs.append("type", params.type);
+    }
+    const endpoint = `/requests/my-requests${qs.toString() ? `?${qs.toString()}` : ""}`;
+    return this.request<{
+      success: boolean;
+      requests: Array<{
+        _id: string;
+        students: Array<{ id: string; name: string }>;
+        type: "add-student" | "remove-student";
+        status: "pending" | "accepted" | "rejected";
         reviewNote?: string;
         reviewedBy?: { id: string; name: string; email: string };
         reviewedAt?: string;
         createdAt: string;
-        updatedAt: string;
+        internshipSubject: { id: string; title: string };
       }>;
-      canReview: boolean;
-    }>(`/pages/teacher/subs/${subId}/submissions`);
+      pagination: { page: number; pages: number; total: number };
+    }>(endpoint);
   }
 
-  // Update teacher submission status
-  updateTeacherSubmissionStatus(submissionId: string, data: {
-    status?: "submitted" | "reviewed" | "accepted" | "rejected";
-    reviewNote?: string;
+  deleteRequest(requestId: string) {
+    return this.request<{ success: boolean; message: string }>(`/requests/${requestId}`, {
+      method: "DELETE",
+    });
+  }
+
+  // BCN request management
+  getBCNPendingRequests(params?: {
+    page?: number;
+    limit?: number;
+    type?: "add-student" | "remove-student";
+    search?: string;
   }) {
-    return this.request(`/pages/teacher/submissions/${submissionId}`, {
-      method: 'PUT',
-      body: JSON.stringify(data)
+    const qs = new URLSearchParams();
+    if (params) {
+      if (params.page != null) qs.append("page", String(params.page));
+      if (params.limit != null) qs.append("limit", String(params.limit));
+      if (params.type) qs.append("type", params.type);
+      if (params.search) qs.append("search", params.search);
+    }
+    const endpoint = `/requests/bcn/pending${qs.toString() ? `?${qs.toString()}` : ""}`;
+    return this.request<{
+      success: boolean;
+      requests: Array<{
+        _id: string;
+        name: string;
+        idgv: string;
+        students: Array<{ id: string; name: string }>;
+        type: "add-student" | "remove-student";
+        status: "pending";
+        createdAt: string;
+        internshipSubject: { id: string; title: string };
+      }>;
+      pagination: { page: number; pages: number; total: number };
+    }>(endpoint);
+  }
+
+  acceptRequest(requestId: string, reviewNote?: string) {
+    return this.request<{
+      success: boolean;
+      request: {
+        _id: string;
+        status: "accepted";
+        reviewNote?: string;
+        reviewedBy: { id: string; name: string; email: string };
+        reviewedAt: string;
+      };
+      message: string;
+    }>(`/requests/${requestId}/accept`, {
+      method: "PUT",
+      body: JSON.stringify({ reviewNote }),
+    });
+  }
+
+  rejectRequest(requestId: string, reviewNote?: string) {
+    return this.request<{
+      success: boolean;
+      request: {
+        _id: string;
+        status: "rejected";
+        reviewNote?: string;
+        reviewedBy: { id: string; name: string; email: string };
+        reviewedAt: string;
+      };
+      message: string;
+    }>(`/requests/${requestId}/reject`, {
+      method: "PUT",
+      body: JSON.stringify({ reviewNote }),
     });
   }
 

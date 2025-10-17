@@ -3,6 +3,7 @@ import GVAddStudentsDialog from "../student_management/GVAddStudentsDialog";
 import GVConfirmImportedDialog from "../student_management/GVConfirmImportedDialog";
 import GVViewStudentDialog from "../student_management/GVViewStudentDialog";
 import GVConfirmRemoveDialog from "../student_management/GVConfirmRemoveDialog";
+import GVRequestsDialog from "../student_management/GVRequestsDialog";
 import { apiClient } from "../../../utils/api";
 import SearchInput from "../../../components/UI/SearchInput";
 import Pagination from "../../../components/UI/Pagination";
@@ -21,6 +22,7 @@ export interface GVStudent {
   year: number;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface OutboxItem {
   id: string;
   kind: "add-single" | "add-bulk" | "remove-single";
@@ -134,13 +136,36 @@ const StudentManagement: React.FC = () => {
   const [removing, setRemoving] = useState<GVStudent | undefined>();
   const [openRemove, setOpenRemove] = useState(false);
 
-  const [outbox, setOutbox] = useState<OutboxItem[]>([]);
+  const [openRequests, setOpenRequests] = useState(false);
+
   const [flash, setFlash] = useState<string | null>(null);
 
-  const pushRequest = (kind: OutboxItem["kind"], payload: unknown) => {
-    setOutbox((prev) => [{ id: crypto.randomUUID(), kind, payload }, ...prev]);
-    setFlash("Đã gửi yêu cầu lên BCN. Bạn có thể tiếp tục làm việc.");
-    window.setTimeout(() => setFlash(null), 3500);
+  const handleSendAddRequest = async (students: Array<{ id: string; name: string }>) => {
+    try {
+      await apiClient.createRequest({
+        students,
+        type: 'add-student'
+      });
+      setFlash("Đã gửi yêu cầu thêm sinh viên lên BCN.");
+      window.setTimeout(() => setFlash(null), 3500);
+    } catch (err) {
+      console.error("Send add request error:", err);
+      setError(err instanceof Error ? err.message : "Không thể gửi yêu cầu");
+    }
+  };
+
+  const handleSendRemoveRequest = async (student: { id: string; name: string }) => {
+    try {
+      await apiClient.createRequest({
+        students: [student],
+        type: 'remove-student'
+      });
+      setFlash("Đã gửi yêu cầu xóa sinh viên lên BCN.");
+      window.setTimeout(() => setFlash(null), 3500);
+    } catch (err) {
+      console.error("Send remove request error:", err);
+      setError(err instanceof Error ? err.message : "Không thể gửi yêu cầu");
+    }
   };
 
   // Show loading state
@@ -239,17 +264,32 @@ const StudentManagement: React.FC = () => {
             />
           </div>
 
-          <button
-            type="button"
-            className="order-1 sm:order-2 inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 h-10 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 min-w-[100px]"
-            onClick={() => setOpenAdd(true)}
-            disabled={!currentLecturer}
-            title="Thêm sinh viên"
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
-            Thêm
-          </button>
+          <div className="order-1 sm:order-2 flex items-center gap-2">
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 h-10 text-white text-sm hover:bg-blue-700"
+              onClick={() => setOpenRequests(true)}
+              title="Xem yêu cầu đã gửi"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4">
+                <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+              </svg>
+              Yêu cầu
+            </button>
+
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 h-10 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 min-w-[100px]"
+              onClick={() => setOpenAdd(true)}
+              disabled={!currentLecturer}
+              title="Thêm sinh viên"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
+              Thêm
+            </button>
+          </div>
         </div>
+
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -310,9 +350,10 @@ const StudentManagement: React.FC = () => {
         onClose={() => setOpenAdd(false)}
         advisorId={currentLecturer?.id || ""}
         advisorName={currentLecturer?.name || ""}
+        subjectId={currentLecturer?.subjectId}
         onRequestSingle={(sv) => {
           setOpenAdd(false);
-          pushRequest("add-single", { advisorId: currentLecturer?.id, advisorName: currentLecturer?.name, student: sv });
+          handleSendAddRequest([sv]);
         }}
         onParsed={(rows) => {
           setPendingBulk(rows.map((r) => ({ id: r.id, name: r.name })));
@@ -328,7 +369,7 @@ const StudentManagement: React.FC = () => {
         rows={pendingBulk}
         onConfirm={(rows) => {
           setOpenConfirmBulk(false);
-          pushRequest("add-bulk", { advisorId: currentLecturer?.id, advisorName: currentLecturer?.name, students: rows });
+          handleSendAddRequest(rows);
         }}
       />
 
@@ -345,13 +386,14 @@ const StudentManagement: React.FC = () => {
         student={removing}
         onConfirm={(sv) => {
           setOpenRemove(false);
-          pushRequest("remove-single", { advisorId: currentLecturer?.id, advisorName: currentLecturer?.name, student: sv });
+          handleSendRemoveRequest(sv);
         }}
       />
 
-      {outbox.length > 0 && (
-        <div className="text-xs text-gray-500">Yêu cầu đã tạo: {outbox.length}</div>
-      )}
+      <GVRequestsDialog
+        open={openRequests}
+        onClose={() => setOpenRequests(false)}
+      />
     </div>
   );
 };

@@ -1,31 +1,29 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import SearchInput from "../../../components/UI/SearchInput";
 import FilterButtonGroup from "../../../components/UI/FilterButtonGroup";
 import SubjectPill from "../../../components/UI/SubjectPill";
 import Pagination from "../../../components/UI/Pagination";
-import ViewRequestDialog from "../request/ViewRequestDialog";
-import ConfirmApproveDialog from "../request/ConfirmApproveDialog";
-import ConfirmDeleteDialog from "../request/ConfirmDeleteDialog";
+import ViewRequestDialog from "./ViewRequestDialog";
+import ConfirmApproveDialog from "./ConfirmApproveDialog";
+import ConfirmDeleteDialog from "./ConfirmDeleteDialog";
+import { apiClient } from "../../../utils/api";
 
 /** Types */
-export type RequestKind = "them-sinh-vien" | "xoa-sinh-vien";
+export type RequestKind = "add-student" | "remove-student";
 export interface RequestRow {
-  id: string;
-  code: string;
+  _id: string;
   name: string;
+  idgv: string;
   kind: RequestKind;
-  createdAt: string; // dd/mm/yyyy
-  payload?: {
-    advisorId?: string;
-    advisorName?: string;
-    students?: Array<{ id: string; name: string }>;
-  };
+  createdAt: string;
+  students: Array<{ id: string; name: string }>;
+  internshipSubject: { id: string; title: string };
 }
 
 /** Helpers */
 const kindText: Record<RequestKind, string> = {
-  "them-sinh-vien": "Thêm sinh viên",
-  "xoa-sinh-vien": "Xóa sinh viên",
+  "add-student": "Thêm sinh viên",
+  "remove-student": "Xóa sinh viên",
 };
 
 const IconBtn: React.FC<
@@ -41,57 +39,82 @@ const IconBtn: React.FC<
   </button>
 );
 
-/** Mock data to demonstrate UI */
-const MOCK: RequestRow[] = [
-  {
-    id: "r1",
-    code: "GVXXX",
-    name: "Trần Văn C",
-    kind: "them-sinh-vien",
-    createdAt: "1/10/2025",
-    payload: {
-      advisorId: "GVXXX",
-      advisorName: "Lê Văn B",
-      students: [
-        { id: "SVXXX", name: "Nguyễn Văn A" },
-        { id: "SVXXY", name: "Nguyễn Văn A" },
-        { id: "SVXXZ", name: "Nguyễn Văn A" },
-      ],
-    },
-  },
-  ...Array.from({ length: 12 }).map((_, i) => ({
-    id: `r${i + 2}`,
-    code: `GV${600 + i}`,
-    name: "Trần Văn C",
-    kind: "them-sinh-vien" as const,
-    createdAt: "1/10/2025",
-    payload: {
-      advisorId: `GV${600 + i}`,
-      advisorName: "Lê Văn B",
-      students: [{ id: `SV${700 + i}`, name: `Nguyễn Văn ${String.fromCharCode(65 + (i % 26))}` }],
-    },
-  })),
-];
-
 const RequestManagement: React.FC = () => {
-  const [subjectId] = useState("CNTT - TT2025");
+  const [subjectInfo, setSubjectInfo] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | RequestKind>("all");
-  const [rows, setRows] = useState<RequestRow[]>(MOCK);
+  const [requests, setRequests] = useState<RequestRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Load requests on mount
+  useEffect(() => {
+    loadBCNManagedSubject();
+    loadRequests();
+  }, []);
+
+  const loadBCNManagedSubject = async () => {
+    try {
+      const response = await apiClient.getBCNManagedSubject();
+      if (response.success && response.subject) {
+        setSubjectInfo({
+          id: response.subject.id,
+          title: response.subject.title
+        });
+      }
+    } catch (err) {
+      console.error("Error loading BCN subject:", err);
+    }
+  };
+
+  const loadRequests = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      
+      const response = await apiClient.getBCNPendingRequests({
+        search: query.trim() || undefined,
+        type: filter !== "all" ? filter : undefined
+      });
+      
+      if (response.success) {
+        // Transform API response to match component expectations
+        const transformedRequests: RequestRow[] = response.requests.map(req => ({
+          _id: req._id,
+          name: req.name,
+          idgv: req.idgv,
+          kind: req.type,
+          createdAt: new Date(req.createdAt).toLocaleDateString('vi-VN'),
+          students: req.students,
+          internshipSubject: req.internshipSubject
+        }));
+        
+        setRequests(transformedRequests);
+      }
+    } catch (err) {
+      console.error("Error loading requests:", err);
+      setError(err instanceof Error ? err.message : "Không thể tải danh sách yêu cầu");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reload when search/filter changes
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      loadRequests();
+      setPage(1);
+    }, 300);
+    
+    return () => clearTimeout(timeoutId);
+  }, [query, filter]);
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter((r) => {
-      const byKind = filter === "all" ? true : r.kind === filter;
-      const byQuery =
-        !q ||
-        (r.name && r.name.toLowerCase().includes(q)) ||
-        (r.code && r.code.toLowerCase().includes(q));
-      return byKind && byQuery;
-    });
-  }, [rows, filter, query]);
+    // Filtering is now done on the server side
+    return requests;
+  }, [requests]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -107,20 +130,32 @@ const RequestManagement: React.FC = () => {
   const [openDelete, setOpenDelete] = useState(false);
 
   /** handlers */
-  const approve = (row: RequestRow) => {
-    setRows((prev) => prev.filter((r) => r.id !== row.id));
-    setOpenApprove(false);
+  const approve = async (row: RequestRow, reviewNote?: string) => {
+    try {
+      await apiClient.acceptRequest(row._id, reviewNote);
+      setRequests(prev => prev.filter(r => r._id !== row._id));
+      setOpenApprove(false);
+    } catch (err) {
+      console.error("Error approving request:", err);
+      alert("Không thể chấp nhận yêu cầu");
+    }
   };
 
-  const remove = (row: RequestRow) => {
-    setRows((prev) => prev.filter((r) => r.id !== row.id));
-    setOpenDelete(false);
+  const reject = async (row: RequestRow, reviewNote?: string) => {
+    try {
+      await apiClient.rejectRequest(row._id, reviewNote);
+      setRequests(prev => prev.filter(r => r._id !== row._id));
+      setOpenDelete(false);
+    } catch (err) {
+      console.error("Error rejecting request:", err);
+      alert("Không thể từ chối yêu cầu");
+    }
   };
 
   const filterOptions = [
     { key: "all" as const, label: "Tất cả" },
-    { key: "them-sinh-vien" as const, label: "Thêm" },
-    { key: "xoa-sinh-vien" as const, label: "Xóa" },
+    { key: "add-student" as const, label: "Thêm" },
+    { key: "remove-student" as const, label: "Xóa" },
   ];
 
   return (
@@ -130,6 +165,19 @@ const RequestManagement: React.FC = () => {
         <span className="text-gray-800 font-medium">Ban chủ nhiệm</span> / Quản lý yêu cầu
       </div>
 
+      {/* Error Alert */}
+      {error && (
+        <div className="rounded-md bg-red-50 border border-red-200 p-3">
+          <p className="text-sm text-red-700">{error}</p>
+          <button
+            onClick={() => setError("")}
+            className="mt-2 text-xs text-red-600 hover:text-red-800"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -137,7 +185,6 @@ const RequestManagement: React.FC = () => {
             value={query}
             onChange={(value) => {
               setQuery(value);
-              setPage(1);
             }}
             placeholder="Tìm kiếm tên giảng viên / yêu cầu"
             width="w-[260px]"
@@ -148,12 +195,11 @@ const RequestManagement: React.FC = () => {
             value={filter}
             onChange={(value) => {
               setFilter(value);
-              setPage(1);
             }}
           />
         </div>
 
-        <SubjectPill value={subjectId} />
+        <SubjectPill value={subjectInfo ? `${subjectInfo.title} (${subjectInfo.id})` : "Đang tải..."} />
 
         {/* right side kept empty to match spacing */}
         <div className="w-[96px]" />
@@ -164,7 +210,7 @@ const RequestManagement: React.FC = () => {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr className="text-left text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3 w-[120px]">Mã</th>
+              <th className="px-4 py-3 w-[120px]">Mã GV</th>
               <th className="px-4 py-3">Tên</th>
               <th className="px-4 py-3 w-[200px]">Yêu cầu</th>
               <th className="px-4 py-3 w-[140px]">Ngày tạo</th>
@@ -172,75 +218,87 @@ const RequestManagement: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 text-sm">
-            {current.map((r, idx) => (
-              <tr key={`${r.id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
-                <td className="px-4 py-3 font-mono text-gray-700">{r.code}</td>
-                <td className="px-4 py-3 text-gray-800">{r.name}</td>
-                <td className="px-4 py-3 text-gray-700">{kindText[r.kind]}</td>
-                <td className="px-4 py-3 text-gray-700">{r.createdAt}</td>
-                <td className="px-2 py-2">
-                  <div className="flex items-center gap-2">
-                    <IconBtn
-                      title="Xem"
-                      className="bg-sky-500 hover:bg-sky-600"
-                      onClick={() => {
-                        setViewing(r);
-                        setOpenView(true);
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4">
-                        <path
-                          fill="currentColor"
-                          d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
-                        />
-                      </svg>
-                    </IconBtn>
-
-                    <IconBtn
-                      title="Chấp nhận"
-                      className="bg-orange-500 hover:bg-orange-600"
-                      onClick={() => {
-                        setApproving(r);
-                        setOpenApprove(true);
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4">
-                        <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                      </svg>
-                    </IconBtn>
-
-                    <IconBtn
-                      title="Xóa yêu cầu"
-                      className="bg-rose-500 hover:bg-rose-600"
-                      onClick={() => {
-                        setDeleting(r);
-                        setOpenDelete(true);
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4">
-                        <path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z" />
-                      </svg>
-                    </IconBtn>
+            {loading ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                    Đang tải...
                   </div>
                 </td>
               </tr>
-            ))}
-            {current.length === 0 && (
+            ) : current.length === 0 ? (
               <tr>
                 <td className="px-4 py-10 text-center text-gray-500" colSpan={5}>
-                  Không có yêu cầu phù hợp.
+                  {requests.length === 0 ? "Không có yêu cầu nào." : "Không có yêu cầu phù hợp."}
                 </td>
               </tr>
+            ) : (
+              current.map((r, idx) => (
+                <tr key={`${r._id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-3 font-mono text-gray-700">{r.idgv}</td>
+                  <td className="px-4 py-3 text-gray-800">{r.name}</td>
+                  <td className="px-4 py-3 text-gray-700">{kindText[r.kind]}</td>
+                  <td className="px-4 py-3 text-gray-700">{r.createdAt}</td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-2">
+                      <IconBtn
+                        title="Xem"
+                        className="bg-sky-500 hover:bg-sky-600"
+                        onClick={() => {
+                          setViewing(r);
+                          setOpenView(true);
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4">
+                          <path
+                            fill="currentColor"
+                            d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
+                          />
+                        </svg>
+                      </IconBtn>
+
+                      <IconBtn
+                        title="Chấp nhận"
+                        className="bg-emerald-500 hover:bg-emerald-600"
+                        onClick={() => {
+                          setApproving(r);
+                          setOpenApprove(true);
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4">
+                          <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                        </svg>
+                      </IconBtn>
+
+                      <IconBtn
+                        title="Từ chối yêu cầu"
+                        className="bg-rose-500 hover:bg-rose-600"
+                        onClick={() => {
+                          setDeleting(r);
+                          setOpenDelete(true);
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4">
+                          <path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z" />
+                        </svg>
+                      </IconBtn>
+                    </div>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
 
-        {/* Pagination like picture */}
-        <Pagination
-          currentPage={page}
-          totalPages={pageCount}
-          onPageChange={setPage}
-        />
+        {/* Pagination */}
+        {pageCount > 1 && (
+          <Pagination
+            currentPage={page}
+            totalPages={pageCount}
+            onPageChange={setPage}
+          />
+        )}
       </div>
 
       {/* Dialogs */}
@@ -249,24 +307,32 @@ const RequestManagement: React.FC = () => {
         onClose={() => setOpenView(false)}
         row={viewing}
         onAccept={() => {
-          if (viewing) approve(viewing);
+          if (viewing) setApproving(viewing);
+          setOpenView(false);
+          setOpenApprove(true);
         }}
-        onReject={() => setOpenView(false)}
+        onReject={() => {
+          if (viewing) setDeleting(viewing);
+          setOpenView(false);
+          setOpenDelete(true);
+        }}
       />
 
       <ConfirmApproveDialog
         open={openApprove}
         onClose={() => setOpenApprove(false)}
-        onConfirm={() => {
-          if (approving) approve(approving);
+        request={approving}
+        onConfirm={(reviewNote) => {
+          if (approving) approve(approving, reviewNote);
         }}
       />
 
       <ConfirmDeleteDialog
         open={openDelete}
         onClose={() => setOpenDelete(false)}
-        onConfirm={() => {
-          if (deleting) remove(deleting);
+        request={deleting}
+        onConfirm={(reviewNote) => {
+          if (deleting) reject(deleting, reviewNote);
         }}
       />
     </div>
