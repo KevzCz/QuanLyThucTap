@@ -1,42 +1,89 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useAuth } from "../../../contexts/UseAuth";
 import Modal from "../../../util/Modal";
-import type { ChatUser, ChatConversation, ChatRequest } from "../../PDT/chat/ChatTypes";
+import type { ChatUser, ChatConversation } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
+import { chatAPI } from "../../../services/chatApi";
+
+type UserRole = "phong-dao-tao" | "ban-chu-nhiem" | "giang-vien" | "sinh-vien";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onCreateConversation?: (conversation: ChatConversation) => void;
-  onSendRequest?: (request: ChatRequest) => void;
 }
 
-// Mock users that GV can send requests to (their students, BCN, and PDT)
-const MOCK_USERS: ChatUser[] = [
-  // PDT - can send requests to
-  { id: "PDT_ROLE", name: "Phòng Đào Tạo", role: "phong-dao-tao", isOnline: true },
-  
-  // BCN of their internship subject
-  { id: "BCN001", name: "PGS. Nguyễn Văn A", role: "ban-chu-nhiem", isOnline: true },
-  
-  // Their students
-  { id: "SV001", name: "Nguyễn Thị B", role: "sinh-vien", isOnline: true },
-  { id: "SV002", name: "Trần Văn C", role: "sinh-vien", isOnline: false },
-  { id: "SV003", name: "Lê Thị D", role: "sinh-vien", isOnline: true },
-  { id: "SV004", name: "Phạm Văn E", role: "sinh-vien", isOnline: true },
-  { id: "SV005", name: "Hoàng Thị F", role: "sinh-vien", isOnline: false },
-  { id: "SV006", name: "Võ Văn G", role: "sinh-vien", isOnline: true },
-  { id: "SV007", name: "Đặng Thị H", role: "sinh-vien", isOnline: true },
-  { id: "SV008", name: "Bùi Văn I", role: "sinh-vien", isOnline: false },
-];
-
-const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation, onSendRequest }) => {
+const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation }) => {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
-  const [selectedRole, setSelectedRole] = useState<"all" | "phong-dao-tao" | "ban-chu-nhiem" | "sinh-vien">("all");
+  const [selectedRole, setSelectedRole] = useState<"all" | UserRole>("all");
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [message, setMessage] = useState("");
+  const [availableUsers, setAvailableUsers] = useState<ChatUser[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loading, setLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [error, setError] = useState("");
+
+  // Current user as GV
+  const currentUser: ChatUser = {
+    id: user?.id || "GV001",
+    name: user?.name || "Giảng Viên",
+    role: "giang-vien" as const,
+    isOnline: true
+  };
+
+  // Load available users when dialog opens
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (!open) return;
+      
+      try {
+        setLoading(true);
+        setError("");
+        
+        // Load users from all roles that GV can interact with
+        const [bcnUsers, svUsers] = await Promise.all([
+          chatAPI.getAvailableUsers("ban-chu-nhiem"),
+          chatAPI.getAvailableUsers("sinh-vien")
+        ]);
+
+        const allUsers: ChatUser[] = [
+          // Add PDT as a single role (not individual users)
+          {
+            id: "phong-dao-tao",
+            name: "Phòng Đào Tạo",
+            role: "phong-dao-tao" as UserRole,
+            isOnline: true
+          },
+          ...bcnUsers.map((u) => ({
+            id: u.userId,
+            name: u.name,
+            role: u.role as UserRole,
+            isOnline: u.isOnline
+          })),
+          ...svUsers.map((u) => ({
+            id: u.userId,
+            name: u.name,
+            role: u.role as UserRole,
+            isOnline: u.isOnline
+          }))
+        ];
+
+        setAvailableUsers(allUsers);
+      } catch (err) {
+        console.error('Error loading users:', err);
+        setError('Không thể tải danh sách người dùng');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, [open]);
 
   const filteredUsers = useMemo(() => {
-    let users = MOCK_USERS;
+    let users = availableUsers;
     
     if (selectedRole !== "all") {
       users = users.filter(user => user.role === selectedRole);
@@ -51,45 +98,62 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
     }
     
     return users;
-  }, [query, selectedRole]);
+  }, [query, selectedRole, availableUsers]);
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!selectedUser) return;
 
-    if (selectedUser.role === "sinh-vien") {
-      // Direct conversation with student
-      const newConversation: ChatConversation = {
-        id: `conv_${Date.now()}`,
-        participants: [
-          { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
-          selectedUser
-        ],
-        updatedAt: new Date().toISOString(),
-        unreadCount: 0,
-        isActive: true,
-      };
+    try {
+      setLoading(true);
+      setError("");
 
-      onCreateConversation?.(newConversation);
-    } else {
-      // Send request to BCN or PDT
-      const chatRequest: ChatRequest = {
-        id: `req_${Date.now()}`,
-        fromUser: { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
-        toUser: selectedUser,
-        message: message.trim() || "Xin chào, tôi cần hỗ trợ về môn thực tập.",
-        timestamp: new Date().toISOString(),
-        status: "pending",
-        isAssigned: selectedUser.role === "phong-dao-tao" ? false : undefined,
-      };
+      if (selectedUser.role === "sinh-vien") {
+        // Create direct conversation with student
+        const apiConv = await chatAPI.createConversation({
+          participantIds: [currentUser.id, selectedUser.id],
+          conversationType: 'direct'
+        });
 
-      onSendRequest?.(chatRequest);
+        const newConversation: ChatConversation = {
+          id: apiConv.conversationId,
+          participants: apiConv.participants.map((p: { userId: string; name: string; role: string }) => ({
+            id: p.userId,
+            name: p.name,
+            role: p.role as UserRole,
+            isOnline: true
+          })),
+          updatedAt: apiConv.updatedAt,
+          unreadCount: 0,
+          isActive: true
+        };
+
+        onCreateConversation?.(newConversation);
+      } else {
+        // Send request to BCN or PDT
+        const requestMessage = message.trim() || "Xin chào, tôi cần hỗ trợ về môn thực tập.";
+        
+        await chatAPI.createChatRequest({
+          toUserId: selectedUser.id,
+          message: requestMessage,
+          subject: "Yêu cầu hỗ trợ"
+        });
+
+        // Request created successfully - socket events will handle the refresh automatically
+        // No need to call onSendRequest
+      }
+
+      // Close dialog and reset state
+      onClose();
+      setSelectedUser(null);
+      setQuery("");
+      setSelectedRole("all");
+      setMessage("");
+    } catch (err) {
+      console.error('Error creating chat/request:', err);
+      setError('Không thể tạo cuộc trò chuyện hoặc gửi yêu cầu');
+    } finally {
+      setLoading(false);
     }
-
-    onClose();
-    setSelectedUser(null);
-    setQuery("");
-    setSelectedRole("all");
-    setMessage("");
   };
 
   const isRequestMode = selectedUser?.role === "ban-chu-nhiem" || selectedUser?.role === "phong-dao-tao";

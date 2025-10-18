@@ -129,7 +129,7 @@ router.get("/requests", authMiddleware.authenticate, async (req, res) => {
 });
 
 // Create new chat request
-router.post("/requests", authMiddleware.authenticate, upload.array('attachments', 5), async (req, res) => {
+router.post("/requests", authMiddleware.authenticate, upload.any(), async (req, res) => {
   try {
     const { toUserId, message, subject, requestType, priority, relatedTo, relatedId, urgentReason } = req.body;
     const fromUserId = req.account.id;
@@ -143,10 +143,10 @@ router.post("/requests", authMiddleware.authenticate, upload.array('attachments'
     const fromUser = await getUserInfo(fromUserId);
     
     let toUser;
-    if (toUserId === 'PDT_ROLE') {
+    if (toUserId === 'PDT_ROLE' || toUserId === 'phong-dao-tao') {
       // Special handling for PDT role requests
       toUser = {
-        userId: 'PDT_ROLE',
+        userId: 'phong-dao-tao',
         name: 'Phòng Đào Tạo',
         role: 'phong-dao-tao',
         email: 'pdt@example.com'

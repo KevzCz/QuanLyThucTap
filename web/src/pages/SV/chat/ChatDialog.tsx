@@ -3,6 +3,7 @@ import Modal from "../../../util/Modal";
 import type { ChatConversation, ChatMessage, ChatUser } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import dayjs from "dayjs";
+import { chatAPI } from "../../../services/chatApi";
 
 interface Props {
   open: boolean;
@@ -11,47 +12,8 @@ interface Props {
   currentUser: ChatUser;
 }
 
-// Mock messages for SV conversation
-const MOCK_MESSAGES: ChatMessage[] = [
-  {
-    id: "msg1",
-    senderId: "SV001",
-    content: "Thầy ơi, em cần hỗ trợ về báo cáo thực tập tuần này ạ.",
-    timestamp: "2025-01-20T14:30:00",
-    type: "text",
-  },
-  {
-    id: "msg2",
-    senderId: "GV002",
-    content: "Chào em! Thầy sẽ hỗ trợ em. Em gặp khó khăn gì cụ thể trong báo cáo?",
-    timestamp: "2025-01-20T14:32:00",
-    type: "text",
-  },
-  {
-    id: "msg3",
-    senderId: "SV001",
-    content: "Em không biết viết phần đánh giá kết quả công việc như thế nào cho đúng ạ.",
-    timestamp: "2025-01-20T14:35:00",
-    type: "text",
-  },
-  {
-    id: "msg4",
-    senderId: "GV002",
-    content: "Em cần mô tả cụ thể công việc đã làm, kết quả đạt được, và những khó khăn gặp phải. Thầy sẽ gửi em mẫu báo cáo để tham khảo.",
-    timestamp: "2025-01-20T14:37:00",
-    type: "text",
-  },
-  {
-    id: "msg5",
-    senderId: "SV001",
-    content: "Cảm ơn thầy ạ! Em sẽ tham khảo và hoàn thiện báo cáo.",
-    timestamp: "2025-01-20T14:40:00",
-    type: "text",
-  },
-];
-
 const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -65,19 +27,77 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
+  // Load messages when conversation changes
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!conversation?.id) return;
+
+      try {
+        const response = await chatAPI.getMessages(conversation.id);
+        
+        // Transform API messages to local format
+        const transformedMessages: ChatMessage[] = response.map(msg => ({
+          id: msg.messageId,
+          senderId: msg.senderId,
+          content: msg.content,
+          timestamp: msg.createdAt,
+          type: msg.type as "text" | "file" | "system",
+        }));
+        
+        setMessages(transformedMessages);
+      } catch (error) {
+        console.error("Error loading messages:", error);
+      }
+    };
+
+    loadMessages();
+  }, [conversation?.id]);
+
+  const handleSendMessage = async () => {
     if (!newMessage.trim() || !conversation) return;
 
-    const message: ChatMessage = {
-      id: `msg_${Date.now()}`,
+    const messageContent = newMessage.trim();
+    setNewMessage(""); // Clear input immediately for better UX
+
+    // Create optimistic message for UI
+    const optimisticMessage: ChatMessage = {
+      id: `temp_${Date.now()}`,
       senderId: currentUser.id,
-      content: newMessage.trim(),
+      content: messageContent,
       timestamp: new Date().toISOString(),
       type: "text",
     };
 
-    setMessages(prev => [...prev, message]);
-    setNewMessage("");
+    // Add optimistic message to UI
+    setMessages(prev => [...prev, optimisticMessage]);
+
+    try {
+      const response = await chatAPI.sendMessage(conversation.id, {
+        content: messageContent,
+      });
+
+      // Replace optimistic message with actual message from server
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === optimisticMessage.id
+            ? {
+                id: response.messageId,
+                senderId: response.senderId,
+                content: response.content,
+                timestamp: response.createdAt,
+                type: response.type as "text" | "file" | "system",
+              }
+            : m
+        )
+      );
+    } catch (error) {
+      console.error("Error sending message:", error);
+      
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
+      setNewMessage(messageContent); // Restore message to input
+      alert("Không thể gửi tin nhắn. Vui lòng thử lại.");
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

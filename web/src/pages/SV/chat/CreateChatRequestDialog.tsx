@@ -1,34 +1,63 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Modal from "../../../util/Modal";
-import type { ChatUser, ChatRequest, UserRole } from "../../PDT/chat/ChatTypes";
+import type { ChatUser, UserRole } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
+import { chatAPI } from "../../../services/chatApi";
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  onSendRequest: (request: ChatRequest) => void;
 }
 
-// Mock users that SV can send requests to (their teacher, BCN, and PDT)
-const MOCK_USERS: ChatUser[] = [
-  // PDT - can send requests to
-  { id: "PDT_ROLE", name: "Phòng Đào Tạo", role: "phong-dao-tao", isOnline: true },
-  
-  // Their teacher
-  { id: "GV001", name: "ThS. Lê Văn A", role: "giang-vien", isOnline: true },
-  
-  // BCN of their internship subject
-  { id: "BCN001", name: "PGS. Nguyễn Văn B", role: "ban-chu-nhiem", isOnline: true },
-];
-
-const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onSendRequest }) => {
+const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose }) => {
   const [query, setQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<"all" | UserRole>("all");
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [message, setMessage] = useState("");
+  const [subject, setSubject] = useState("");
+  const [availableUsers, setAvailableUsers] = useState<ChatUser[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loading, setLoading] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [error, setError] = useState("");
+
+  // Load available users when dialog opens
+  useEffect(() => {
+    const loadUsers = async () => {
+      if (!open) return;
+      
+      try {
+        setLoading(true);
+        setError("");
+        const response = await chatAPI.getAvailableUsers();
+        
+        // Transform API users to local format and add PDT role entity
+        const transformedUsers: ChatUser[] = [
+          { id: "phong-dao-tao", name: "Phòng Đào Tạo", role: "phong-dao-tao", isOnline: true },
+          ...response
+            .filter(u => u.role !== "sinh-vien" && u.role !== "phong-dao-tao") // SV can't send to other students, and exclude individual PDT users
+            .map(u => ({
+              id: u.userId,
+              name: u.name,
+              role: u.role as UserRole,
+              isOnline: u.isOnline
+            }))
+        ];
+        
+        setAvailableUsers(transformedUsers);
+      } catch (err) {
+        console.error("Error loading users:", err);
+        setError("Không thể tải danh sách người dùng");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadUsers();
+  }, [open]);
 
   const filteredUsers = useMemo(() => {
-    let users = MOCK_USERS;
+    let users = availableUsers;
     
     if (selectedRole !== "all") {
       users = users.filter(user => user.role === selectedRole);
@@ -43,28 +72,33 @@ const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onSendRequest
     }
     
     return users;
-  }, [query, selectedRole]);
+  }, [query, selectedRole, availableUsers]);
 
-  const handleSendRequest = () => {
+  const handleSendRequest = async () => {
     if (!selectedUser || !message.trim()) return;
 
-    const chatRequest: ChatRequest = {
-      id: `req_${Date.now()}`,
-      fromUser: { id: "SV001", name: "Nguyễn Văn C", role: "sinh-vien", isOnline: true },
-      toUser: selectedUser,
-      message: message.trim(),
-      timestamp: new Date().toISOString(),
-      status: "pending",
-      isAssigned: selectedUser.role === "phong-dao-tao" ? false : undefined,
-    };
+    try {
+      setLoading(true);
+      
+      await chatAPI.createChatRequest({
+        toUserId: selectedUser.id,
+        message: message.trim(),
+        subject: subject.trim() || "Yêu cầu hỗ trợ"
+      });
 
-    onSendRequest(chatRequest);
-    
-    // Reset form
-    setSelectedUser(null);
-    setMessage("");
-    setQuery("");
-    setSelectedRole("all");
+      // Reset form and close - socket events will update the UI
+      setSelectedUser(null);
+      setMessage("");
+      setSubject("");
+      setQuery("");
+      setSelectedRole("all");
+      onClose();
+    } catch (err) {
+      console.error("Error sending chat request:", err);
+      alert("Không thể gửi yêu cầu. Vui lòng thử lại.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

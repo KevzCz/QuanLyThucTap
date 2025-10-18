@@ -139,7 +139,7 @@ class ChatAPI {
       });
     }
 
-    const response = await apiClient.request<{ success: boolean; data: ChatRequest }>('/chat/requests', {
+    const response = await apiClient.request<{ success: boolean; data: ChatRequest; message: string }>('/chat/requests', {
       method: 'POST',
       body: formData
     });

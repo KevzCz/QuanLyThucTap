@@ -1,84 +1,38 @@
-import React, { useState, useMemo } from "react";
-import type { ChatRequest, ChatConversation } from "../../PDT/chat/ChatTypes";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useAuth } from "../../../contexts/UseAuth";
+import type { ChatRequest, ChatConversation, ChatUser } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import ChatRequestDialog from "./ChatRequestDialog";
 import CreateChatDialog from "./CreateChatDialog";
 import ChatDialog from "./ChatDialog";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import { chatAPI } from "../../../services/chatApi";
+import type { 
+  ChatRequest as ApiChatRequest, 
+  ChatConversation as ApiChatConversation,
+  ChatUser as ApiChatUser
+} from "../../../services/chatApi";
+import { socketManager } from "../../../services/socketManager";
 
 dayjs.extend(relativeTime);
 
-// Mock data for GV
-const MOCK_REQUESTS: ChatRequest[] = [
-  {
-    id: "req1",
-    fromUser: { id: "PDT001", name: "TS. Lê Thị A", role: "phong-dao-tao", isOnline: true },
-    toUser: { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
-    message: "Cần thảo luận về chương trình thực tập mới và hướng dẫn sinh viên.",
-    timestamp: "2025-01-20T14:30:00",
-    status: "pending",
-  },
-  {
-    id: "req2",
-    fromUser: { id: "BCN001", name: "PGS. Trần Văn C", role: "ban-chu-nhiem", isOnline: false },
-    toUser: { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
-    message: "Anh cần cập nhật thông tin về tiến độ thực tập của sinh viên.",
-    timestamp: "2025-01-20T13:15:00",
-    status: "pending",
-  },
-  {
-    id: "req3",
-    fromUser: { id: "SV001", name: "Nguyễn Thị D", role: "sinh-vien", isOnline: true },
-    toUser: { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
-    message: "Thầy ơi, em cần hỗ trợ về báo cáo thực tập tuần này.",
-    timestamp: "2025-01-20T12:45:00",
-    status: "pending",
-  },
-];
-
-const MOCK_CONVERSATIONS: ChatConversation[] = [
-  {
-    id: "conv1",
-    participants: [
-      { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
-      { id: "SV002", name: "Lê Văn E", role: "sinh-vien", isOnline: true },
-    ],
-    lastMessage: {
-      id: "msg1",
-      senderId: "SV002",
-      content: "Em đã hoàn thành báo cáo, thầy xem giúp em.",
-      timestamp: "2025-01-20T15:20:00",
-      type: "text",
-    },
-    updatedAt: "2025-01-20T15:20:00",
-    unreadCount: 0,
-    isActive: true,
-  },
-  {
-    id: "conv2",
-    participants: [
-      { id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true },
-      { id: "BCN002", name: "TS. Phạm Thị F", role: "ban-chu-nhiem", isOnline: false },
-    ],
-    lastMessage: {
-      id: "msg2",
-      senderId: "BCN002",
-      content: "Báo cáo tổng kết đã được gửi theo yêu cầu.",
-      timestamp: "2025-01-20T11:30:00",
-      type: "text",
-    },
-    updatedAt: "2025-01-20T11:30:00",
-    unreadCount: 1,
-    isActive: true,
-  },
-];
+type UserRole = "phong-dao-tao" | "ban-chu-nhiem" | "giang-vien" | "sinh-vien";
 
 const ChatManagement: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"requests" | "conversations">("requests");
-  const [requests, setRequests] = useState<ChatRequest[]>(MOCK_REQUESTS);
-  const [conversations, setConversations] = useState<ChatConversation[]>(MOCK_CONVERSATIONS);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [requestType, setRequestType] = useState<"incoming" | "outgoing" | "all">("all");
+  const [requests, setRequests] = useState<ChatRequest[]>([]);
+  const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [query, setQuery] = useState("");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loadingRequests, setLoadingRequests] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [error, setError] = useState("");
 
   // Dialogs
   const [selectedRequest, setSelectedRequest] = useState<ChatRequest | null>(null);
@@ -86,6 +40,143 @@ const ChatManagement: React.FC = () => {
   const [openCreateChat, setOpenCreateChat] = useState(false);
   const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
   const [openChatDialog, setOpenChatDialog] = useState(false);
+
+  // Current user for GV role
+  const currentUser: ChatUser = {
+    id: user?.id || "GV001",
+    name: user?.name || "Giảng Viên",
+    role: "giang-vien" as const,
+    isOnline: true
+  };
+
+  // API transformation functions
+  const transformApiUserToLocal = useCallback((apiUser: ApiChatUser): ChatUser => ({
+    id: apiUser.userId,
+    name: apiUser.name,
+    role: apiUser.role as UserRole,
+    isOnline: apiUser.isOnline
+  }), []);
+
+  const transformApiConversationToLocal = useCallback((apiConv: ApiChatConversation): ChatConversation => ({
+    id: apiConv.conversationId,
+    participants: apiConv.participants.map((p) => ({
+      id: p.userId,
+      name: p.name,
+      role: p.role as UserRole,
+      isOnline: true,
+    })),
+    lastMessage: apiConv.lastMessage ? {
+      id: apiConv.lastMessage.messageId,
+      senderId: apiConv.lastMessage.senderId,
+      content: apiConv.lastMessage.content,
+      timestamp: apiConv.lastMessage.timestamp,
+      type: apiConv.lastMessage.type as "text" | "file" | "system"
+    } : undefined,
+    updatedAt: apiConv.updatedAt,
+    unreadCount: apiConv.unreadCount || 0,
+    isActive: apiConv.isActive ?? true
+  }), []);
+
+  const transformApiRequestToLocal = useCallback((apiReq: ApiChatRequest): ChatRequest => ({
+    id: apiReq.requestId,
+    fromUser: transformApiUserToLocal(apiReq.fromUser),
+    toUser: apiReq.toUser ? transformApiUserToLocal(apiReq.toUser) : undefined,
+    message: apiReq.message,
+    subject: apiReq.subject,
+    timestamp: apiReq.createdAt,
+    status: apiReq.status as "pending" | "accepted" | "declined" | "expired" | "cancelled",
+    assignedTo: apiReq.assignedTo ? {
+      id: apiReq.assignedTo.userId,
+      name: apiReq.assignedTo.name,
+      role: apiReq.assignedTo.role as UserRole,
+      isOnline: true
+    } : undefined,
+    isAssigned: apiReq.isAssigned
+  }), [transformApiUserToLocal]);
+
+  // Load requests and conversations from API
+  const loadRequests = useCallback(async (direction: "incoming" | "outgoing" | "all" = "incoming") => {
+    try {
+      setLoadingRequests(true);
+      setError("");
+      const apiRequests = await chatAPI.getChatRequests({ direction, status: 'pending' });
+      setRequests(apiRequests.map(transformApiRequestToLocal));
+    } catch (err) {
+      console.error('Error loading requests:', err);
+      setError('Không thể tải yêu cầu chat');
+    } finally {
+      setLoadingRequests(false);
+    }
+  }, [transformApiRequestToLocal]);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      setLoadingConversations(true);
+      setError("");
+      const apiConversations = await chatAPI.getConversations({ isActive: true });
+      setConversations(apiConversations.map(transformApiConversationToLocal));
+    } catch (err) {
+      console.error('Error loading conversations:', err);
+      setError('Không thể tải cuộc trò chuyện');
+    } finally {
+      setLoadingConversations(false);
+    }
+  }, [transformApiConversationToLocal]);
+
+  // Load initial data and set up socket connection
+  useEffect(() => {
+    loadRequests(requestType);
+    loadConversations();
+  }, [loadRequests, loadConversations, requestType]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // Connect to socket
+    socketManager.connect();
+    socketManager.authenticate({
+      id: user.id,
+      name: user.name,
+      role: user.role
+    });
+
+    // Listen for new chat requests
+    const handleNewRequest = (request: unknown) => {
+      const apiRequest = request as ApiChatRequest;
+      setRequests(prev => [transformApiRequestToLocal(apiRequest), ...prev]);
+    };
+
+    // Listen for new conversations
+    const handleNewConversation = (conversation: unknown) => {
+      const apiConversation = conversation as ApiChatConversation;
+      setConversations(prev => [transformApiConversationToLocal(apiConversation), ...prev]);
+    };
+
+    // Listen for new messages
+    const handleNewMessage = () => {
+      loadConversations();
+    };
+
+    // Listen for request updates
+    const handleRequestUpdate = (request: unknown) => {
+      const apiRequest = request as ApiChatRequest;
+      setRequests(prev => 
+        prev.map(r => r.id === apiRequest.requestId ? transformApiRequestToLocal(apiRequest) : r)
+      );
+    };
+
+    socketManager.on('newChatRequest', handleNewRequest);
+    socketManager.on('newConversation', handleNewConversation);
+    socketManager.on('newMessage', handleNewMessage);
+    socketManager.on('requestUpdated', handleRequestUpdate);
+
+    return () => {
+      socketManager.off('newChatRequest', handleNewRequest);
+      socketManager.off('newConversation', handleNewConversation);
+      socketManager.off('newMessage', handleNewMessage);
+      socketManager.off('requestUpdated', handleRequestUpdate);
+    };
+  }, [user, loadConversations, transformApiRequestToLocal, transformApiConversationToLocal]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -105,26 +196,27 @@ const ChatManagement: React.FC = () => {
     );
   }, [conversations, query]);
 
-  const handleAcceptRequest = (request: ChatRequest) => {
-    const newConversation: ChatConversation = {
-      id: `conv_${Date.now()}`,
-      participants: [request.toUser, request.fromUser],
-      updatedAt: new Date().toISOString(),
-      unreadCount: 0,
-      isActive: true,
-    };
-
-    setConversations(prev => [newConversation, ...prev]);
-    setRequests(prev => prev.filter(r => r.id !== request.id));
-    setOpenRequestDialog(false);
-    
-    setSelectedConversation(newConversation);
-    setOpenChatDialog(true);
+  const handleAcceptRequest = async (request: ChatRequest) => {
+    try {
+      await chatAPI.acceptChatRequest(request.id);
+      // Reload requests and conversations
+      await Promise.all([loadRequests(requestType), loadConversations()]);
+      setOpenRequestDialog(false);
+    } catch (err) {
+      console.error('Error accepting request:', err);
+      setError('Không thể chấp nhận yêu cầu');
+    }
   };
 
-  const handleDeclineRequest = (request: ChatRequest) => {
-    setRequests(prev => prev.filter(r => r.id !== request.id));
-    setOpenRequestDialog(false);
+  const handleDeclineRequest = async (request: ChatRequest) => {
+    try {
+      await chatAPI.declineChatRequest(request.id);
+      setRequests(prev => prev.filter(r => r.id !== request.id));
+      setOpenRequestDialog(false);
+    } catch (err) {
+      console.error('Error declining request:', err);
+      setError('Không thể từ chối yêu cầu');
+    }
   };
 
   const handleOpenConversation = (conversation: ChatConversation) => {
@@ -135,14 +227,16 @@ const ChatManagement: React.FC = () => {
     setOpenChatDialog(true);
   };
 
-  const handleSendChatRequest = (request: ChatRequest) => {
-    // In real app, this would send to server
-    alert(`Yêu cầu chat đã được gửi đến ${request.toUser.name}`);
+  const handleCreateConversation = (newConv: ChatConversation) => {
+    setConversations(prev => [newConv, ...prev]);
+    setSelectedConversation(newConv);
+    setOpenChatDialog(true);
     setOpenCreateChat(false);
   };
 
   const pendingCount = requests.filter(r => r.status === "pending").length;
   const unreadCount = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
+  const conversationCount = conversations.length;
 
   return (
     <div className="space-y-4">
@@ -167,7 +261,12 @@ const ChatManagement: React.FC = () => {
                 : "text-gray-600 hover:text-gray-900"
             }`}
           >
-            Cuộc trò chuyện ({unreadCount})
+            Cuộc trò chuyện ({conversationCount})
+            {unreadCount > 0 && (
+              <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full">
+                {unreadCount}
+              </span>
+            )}
           </button>
         </div>
 
@@ -209,59 +308,70 @@ const ChatManagement: React.FC = () => {
                 <div className="text-sm">Các yêu cầu chat mới sẽ hiển thị ở đây</div>
               </div>
             ) : (
-              filteredRequests.map((request) => (
-                <div key={request.id} className="p-4 hover:bg-gray-50 cursor-pointer"
-                     onClick={() => { setSelectedRequest(request); setOpenRequestDialog(true); }}>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-sm font-medium">
-                        {request.fromUser.name.charAt(0)}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-gray-900">{request.fromUser.name}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColor[request.fromUser.role]}`}>
-                          {roleLabel[request.fromUser.role]}
+              filteredRequests.map((request) => {
+                const isOwnRequest = request.fromUser.id === currentUser.id;
+                
+                return (
+                  <div key={request.id} className="p-4 hover:bg-gray-50 cursor-pointer"
+                       onClick={() => { setSelectedRequest(request); setOpenRequestDialog(true); }}>
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                        <span className="text-sm font-medium">
+                          {request.fromUser.name.charAt(0)}
                         </span>
-                        {request.fromUser.isOnline && (
-                          <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                        )}
                       </div>
-                      <p className="text-gray-600 text-sm line-clamp-2 mb-1">{request.message}</p>
-                      <div className="text-xs text-gray-500">
-                        {dayjs(request.timestamp).fromNow()}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-gray-900">{request.fromUser.name}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColor[request.fromUser.role]}`}>
+                            {roleLabel[request.fromUser.role]}
+                          </span>
+                          {isOwnRequest && (
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                              Yêu cầu của bạn
+                            </span>
+                          )}
+                          {request.fromUser.isOnline && (
+                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                          )}
+                        </div>
+                        <p className="text-gray-600 text-sm line-clamp-2 mb-1">{request.message}</p>
+                        <div className="text-xs text-gray-500">
+                          {dayjs(request.timestamp).fromNow()}
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeclineRequest(request);
-                        }}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded"
-                        title="Từ chối"
-                      >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4">
-                          <path fill="currentColor" d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAcceptRequest(request);
-                        }}
-                        className="p-1 text-green-600 hover:bg-green-50 rounded"
-                        title="Chấp nhận"
-                      >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4">
-                          <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19L21 7l-1.41-1.41z"/>
-                        </svg>
-                      </button>
+                      {!isOwnRequest && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeclineRequest(request);
+                            }}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            title="Từ chối"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4">
+                              <path fill="currentColor" d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12z"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAcceptRequest(request);
+                            }}
+                            className="p-1 text-green-600 hover:bg-green-50 rounded"
+                            title="Chấp nhận"
+                          >
+                            <svg viewBox="0 0 24 24" className="h-4 w-4">
+                              <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19L21 7l-1.41-1.41z"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         ) : (
@@ -330,19 +440,14 @@ const ChatManagement: React.FC = () => {
       <CreateChatDialog
         open={openCreateChat}
         onClose={() => setOpenCreateChat(false)}
-        onCreateConversation={(newConv) => {
-          setConversations(prev => [newConv, ...prev]);
-          setSelectedConversation(newConv);
-          setOpenChatDialog(true);
-        }}
-        onSendRequest={handleSendChatRequest}
+        onCreateConversation={handleCreateConversation}
       />
 
       <ChatDialog
         open={openChatDialog}
         onClose={() => setOpenChatDialog(false)}
         conversation={selectedConversation}
-        currentUser={{ id: "GV001", name: "ThS. Nguyễn Văn B", role: "giang-vien", isOnline: true }}
+        currentUser={currentUser}
       />
     </div>
   );
