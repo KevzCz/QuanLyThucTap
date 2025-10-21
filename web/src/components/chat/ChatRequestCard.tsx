@@ -9,7 +9,6 @@ interface ChatRequestCardProps {
   currentUserRole: string;
   onAccept?: (request: ChatRequest) => void;
   onDecline?: (request: ChatRequest) => void;
-  onAssign?: (request: ChatRequest) => void;
   onClick?: (request: ChatRequest) => void;
   showActions?: boolean;
 }
@@ -20,7 +19,6 @@ const ChatRequestCard: React.FC<ChatRequestCardProps> = ({
   currentUserRole,
   onAccept,
   onDecline,
-  onAssign,
   onClick,
   showActions = true
 }) => {
@@ -64,9 +62,9 @@ const ChatRequestCard: React.FC<ChatRequestCardProps> = ({
       };
     }
     
-    if (request.isAssigned && !isAssignedToMe) {
+    if (request.isAssigned && !isAssignedToMe && request.assignedTo) {
       return {
-        text: "Đã được phân công",
+        text: `Phân cho: ${request.assignedTo.name}`,
         className: "px-2 py-0.5 bg-gray-100 text-gray-800 rounded-full text-xs font-medium"
       };
     }
@@ -128,23 +126,6 @@ const ChatRequestCard: React.FC<ChatRequestCardProps> = ({
         {/* Actions */}
         {showActions && isIncoming && !isOwnRequest && request.status === 'pending' && (
           <div className="flex items-center gap-1 flex-shrink-0">
-            {/* PDT specific: Assign button */}
-            {currentUserRole === 'phong-dao-tao' && !request.isAssigned && onAssign && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAssign(request);
-                }}
-                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                title="Nhận xử lý"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4">
-                  <path fill="currentColor" d="M9 12l2 2 4-4"/>
-                  <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2"/>
-                </svg>
-              </button>
-            )}
-
             {/* Decline button */}
             {onDecline && (
               <button
@@ -161,8 +142,8 @@ const ChatRequestCard: React.FC<ChatRequestCardProps> = ({
               </button>
             )}
 
-            {/* Accept button */}
-            {onAccept && ((!request.isAssigned && currentUserRole !== 'phong-dao-tao') || isAssignedToMe) && (
+            {/* Accept button - PDT can accept unassigned OR requests assigned to them */}
+            {onAccept && (!request.isAssigned || isAssignedToMe) && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();

@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/UseAuth";
+import { useNotifications } from "../../contexts/UseNotifications";
+import NotificationListDialog from "../NotificationListDialog";
 
 const BellIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12 2a6 6 0 0 0-6 6v3.28l-1.62 3.24A1 1 0 0 0 5.28 16h13.44a1 1 0 0 0 .9-1.48L18 11.28V8a6 6 0 0 0-6-6zm0 20a3 3 0 0 0 2.995-2.824L15 19h-6a3 3 0 0 0 2.824 2.995L12 22z"/></svg>
@@ -78,6 +80,8 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
 const Header: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { unreadCount } = useNotifications();
+  const [showNotifications, setShowNotifications] = useState(false);
   const { breadcrumb, title } = getPageInfo(location.pathname);
 
   const handleLogout = async () => {
@@ -99,9 +103,27 @@ const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="h-9 w-9 rounded-md border border-gray-300 bg-white text-gray-700 flex items-center justify-center hover:bg-gray-50" title="Thông báo">
-            <BellIcon />
-          </button>
+          {/* Notification Button with Dropdown */}
+          <div className="relative">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative h-9 w-9 rounded-md border border-gray-300 bg-white text-gray-700 flex items-center justify-center hover:bg-gray-50" 
+              title="Thông báo"
+            >
+              <BellIcon />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notification Dropdown Panel */}
+            <NotificationListDialog 
+              open={showNotifications} 
+              onClose={() => setShowNotifications(false)} 
+            />
+          </div>
 
           <div className="relative">
             <span className="absolute left-3 top-2.5"><SearchIcon /></span>

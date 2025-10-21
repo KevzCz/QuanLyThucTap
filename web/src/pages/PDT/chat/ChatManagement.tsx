@@ -115,8 +115,6 @@ const transformApiConversationToLocal = (apiConv: ApiConversation): ChatConversa
 
 const ChatManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"requests" | "conversations">("requests");
-  const [requestType, setRequestType] = useState<"incoming" | "outgoing" | "all">("incoming");
-  const [assignmentFilter, setAssignmentFilter] = useState<"all" | "unassigned" | "assigned-to-me">("all");
   const [requests, setRequests] = useState<ChatRequest[]>([]);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [query, setQuery] = useState("");
@@ -141,24 +139,13 @@ const ChatManagement: React.FC = () => {
   const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
   const [openChatDialog, setOpenChatDialog] = useState(false);
 
-  const loadRequests = useCallback(async (direction: "incoming" | "outgoing" | "all" = "incoming") => {
+  const loadRequests = useCallback(async () => {
     try {
       setLoadingRequests(true);
       const apiRequestParams: Parameters<typeof chatAPI.getChatRequests>[0] = { 
         status: 'pending',
-        direction 
+        direction: 'all'
       };
-
-      // For incoming requests, we can also filter by assignment status on the server
-      if (direction === "incoming") {
-        if (assignmentFilter === "unassigned") {
-          apiRequestParams.isAssigned = false;
-        } else if (assignmentFilter === "assigned-to-me") {
-          // Let the server filter based on user role and assignment
-          apiRequestParams.isAssigned = true;
-        }
-        // For "all", we don't set isAssigned filter - let server handle it
-      }
 
       const apiRequests = await chatAPI.getChatRequests(apiRequestParams);
       // Since chatAPI returns ApiRequest[] from server, we need to transform each one
@@ -170,13 +157,27 @@ const ChatManagement: React.FC = () => {
     } finally {
       setLoadingRequests(false);
     }
-  }, [assignmentFilter]);
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      setLoadingConversations(true);
+      const apiConversations = await chatAPI.getConversations({ isActive: true });
+      const transformedConversations = (apiConversations as ApiConversation[])?.map(transformApiConversationToLocal) || [];
+      setConversations(transformedConversations);
+    } catch (error) {
+      console.error('Error loading conversations:', error);
+      setError('Không thể tải danh sách cuộc trò chuyện');
+    } finally {
+      setLoadingConversations(false);
+    }
+  }, []);
 
   // Load initial data
   useEffect(() => {
-    loadRequests(requestType);
+    loadRequests();
     loadConversations();
-  }, [requestType, assignmentFilter, loadRequests]);
+  }, [loadRequests, loadConversations]);
 
   // Set up Socket.io connection  
   useEffect(() => {
@@ -208,13 +209,27 @@ const ChatManagement: React.FC = () => {
         const request = args[0] as ApiRequest;
         const transformedRequest = transformApiRequestToLocal(request);
         console.log('🔄 Transformed updated request:', transformedRequest);
-        setRequests(prev => {
-          const updated = prev.map(r => 
-            r.id === request.requestId ? transformedRequest : r
-          );
-          console.log('🔄 Updated requests list:', updated.length, 'items');
-          return updated;
-        });
+        
+        // If request is accepted or declined, remove it from the list
+        if (transformedRequest.status === 'accepted' || transformedRequest.status === 'declined') {
+          setRequests(prev => prev.filter(r => r.id !== transformedRequest.id));
+        } else {
+          setRequests(prev => {
+            const exists = prev.find(r => r.id === transformedRequest.id);
+            if (exists) {
+              // Update existing request
+              const updated = prev.map(r => 
+                r.id === transformedRequest.id ? transformedRequest : r
+              );
+              console.log('🔄 Updated requests list:', updated.length, 'items');
+              return updated;
+            } else {
+              // Add new request (in case it was just assigned to this user)
+              console.log('🔄 Adding new request to list');
+              return [transformedRequest, ...prev];
+            }
+          });
+        }
       });
 
       // Listen for new conversations
@@ -224,74 +239,71 @@ const ChatManagement: React.FC = () => {
         setConversations(prev => [transformedConversation, ...prev]);
       });
 
+      // Listen for conversation updates (new messages)
+      socketManager.on('conversationUpdated', (...args: unknown[]) => {
+        const data = args[0] as { conversationId: string; lastMessage?: { messageId: string; senderId: string; content: string; timestamp: string; type: string }; updatedAt: string };
+        console.log('Conversation updated:', data.conversationId);
+        setConversations(prev => {
+          const updatedConversations = prev.map(conv => 
+            conv.id === data.conversationId 
+              ? { 
+                  ...conv, 
+                  lastMessage: data.lastMessage ? {
+                    id: data.lastMessage.messageId,
+                    senderId: data.lastMessage.senderId,
+                    content: data.lastMessage.content,
+                    timestamp: data.lastMessage.timestamp,
+                    type: data.lastMessage.type as "text" | "file" | "system"
+                  } : undefined,
+                  updatedAt: data.updatedAt,
+                  // Only increment unread count if the message is from someone else
+                  unreadCount: data.lastMessage && data.lastMessage.senderId !== user?.id 
+                    ? (conv.unreadCount || 0) + 1 
+                    : conv.unreadCount
+                }
+              : conv
+          );
+          
+          // Sort conversations by updatedAt (most recent first)
+          return updatedConversations.sort((a, b) => 
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
+        });
+      });
+
+      // Listen for conversation end
+      socketManager.on('conversationEnded', (...args: unknown[]) => {
+        const data = args[0] as { conversationId: string };
+        console.log('Conversation ended:', data.conversationId);
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === data.conversationId 
+              ? { ...conv, isActive: false }
+              : conv
+          )
+        );
+      });
+
       return () => {
         socketManager.off('newChatRequest');
         socketManager.off('newPDTRequest'); 
         socketManager.off('requestUpdated');
         socketManager.off('newConversation');
+        socketManager.off('conversationUpdated');
+        socketManager.off('conversationEnded');
       };
     }
-  }, [user]);
-
-  const loadConversations = async () => {
-    try {
-      setLoadingConversations(true);
-      const apiConversations = await chatAPI.getConversations({ isActive: true });
-      const transformedConversations = (apiConversations as ApiConversation[])?.map(transformApiConversationToLocal) || [];
-      setConversations(transformedConversations);
-    } catch (error) {
-      console.error('Error loading conversations:', error);
-      setError('Không thể tải danh sách cuộc trò chuyện');
-    } finally {
-      setLoadingConversations(false);
-    }
-  };
+  }, [user, user?.id]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
-    let filtered = requests;
-    
-    // Filter based on request type
-    if (requestType === "incoming") {
-      // Show only requests that are not own requests
-      filtered = filtered.filter(req => req.fromUser.id !== currentUser.id);
-      
-      // Apply assignment filter for incoming requests
-      if (assignmentFilter === "unassigned") {
-        filtered = filtered.filter(req => !req.isAssigned);
-      } else if (assignmentFilter === "assigned-to-me") {
-        filtered = filtered.filter(req => req.assignedTo?.id === currentUser.id);
-      } else {
-        // "all" - show unassigned OR assigned to current user (exclude assigned to others)
-        filtered = filtered.filter(req => 
-          !req.isAssigned || req.assignedTo?.id === currentUser.id
-        );
-      }
-    } else if (requestType === "outgoing") {
-      // Show only own requests
-      filtered = filtered.filter(req => req.fromUser.id === currentUser.id);
-    } else if (requestType === "all") {
-      // For "all" tab, show:
-      // 1. Own requests (outgoing)
-      // 2. Requests assigned to current user
-      // 3. Unassigned incoming requests (not from current user)
-      filtered = filtered.filter(req => 
-        req.fromUser.id === currentUser.id || // Own requests
-        req.assignedTo?.id === currentUser.id || // Assigned to me
-        (!req.isAssigned && req.fromUser.id !== currentUser.id) // Unassigned incoming
-      );
-    }
-    
-    if (q) {
-      filtered = filtered.filter(req => 
-        req.fromUser.name.toLowerCase().includes(q) ||
-        req.message.toLowerCase().includes(q) ||
-        (req.subject && req.subject.toLowerCase().includes(q))
-      );
-    }
-    
-    return filtered;
-  }, [requests, query, currentUser.id, requestType, assignmentFilter]);
+    if (!q) return requests;
+    return requests.filter(req => 
+      req.fromUser.name.toLowerCase().includes(q) ||
+      req.message.toLowerCase().includes(q) ||
+      (req.subject && req.subject.toLowerCase().includes(q))
+    );
+  }, [requests, query]);
 
   const filteredConversations = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -301,44 +313,6 @@ const ChatManagement: React.FC = () => {
       conv.lastMessage?.content.toLowerCase().includes(q)
     );
   }, [conversations, query]);
-
-  const handleBindRequest = async (request: ChatRequest) => {
-    try {
-      const result = await chatAPI.assignChatRequest(request.id, currentUser.id);
-      
-      // Use server response instead of local optimistic update
-      if (result.success && result.data) {
-        const updatedRequest = transformApiRequestToLocal(result.data as ApiRequest);
-        setRequests(prev => prev.map(r => 
-          r.id === request.id ? updatedRequest : r
-        ));
-      }
-      
-      // Close dialog if open
-      if (selectedRequest?.id === request.id) {
-        setOpenRequestDialog(false);
-        setSelectedRequest(null);
-      }
-
-      // Refresh all incoming requests to show proper assignment status
-      try {
-        const allIncoming = await chatAPI.getChatRequests({ direction: 'incoming', status: 'pending' });
-        const transformed = (allIncoming || []).map(transformApiRequestToLocal);
-        
-        setRequests(prev => {
-          // Keep outgoing requests (user's own requests), replace all incoming
-          const outgoing = prev.filter(r => r.fromUser.id === currentUser.id);
-          return [...transformed, ...outgoing];
-        });
-      } catch (e) {
-        console.warn('Failed to refresh requests after assign', e);
-      }
-      
-    } catch (error) {
-      console.error('Error assigning chat request:', error);
-      setError('Không thể phân công yêu cầu chat');
-    }
-  };
 
   const handleAcceptRequest = async (request: ChatRequest, responseMessage?: string) => {
     try {
@@ -419,7 +393,6 @@ const ChatManagement: React.FC = () => {
 
   const pendingCount = filteredRequests.filter(r => r.status === "pending").length;
   const totalConversations = conversations.length;
-  const assignedToMeCount = requests.filter(r => r.assignedTo?.id === currentUser.id).length;
 
   return (
     <div className="space-y-4">
@@ -442,7 +415,7 @@ const ChatManagement: React.FC = () => {
                   type="button"
                   onClick={() => {
                     setError(null);
-                    loadRequests(requestType);
+                    loadRequests();
                     loadConversations();
                   }}
                   className="bg-red-50 text-red-800 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
@@ -467,11 +440,6 @@ const ChatManagement: React.FC = () => {
             }`}
           >
             Yêu cầu chat ({pendingCount})
-            {assignedToMeCount > 0 && (
-              <span className="ml-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
-                {assignedToMeCount}
-              </span>
-            )}
           </button>
           <button
             onClick={() => setActiveTab("conversations")}
@@ -512,92 +480,6 @@ const ChatManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Request Type Filter - Only show when on requests tab */}
-      {activeTab === "requests" && (
-        <div className="space-y-2">
-          <div className="flex gap-2 bg-gray-50 p-2 rounded-lg">
-            <button
-              onClick={() => {
-                setRequestType("incoming");
-                loadRequests("incoming");
-              }}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                requestType === "incoming"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Đến ({requests.filter(r => r.fromUser.id !== user?.id).length})
-            </button>
-            <button
-              onClick={() => {
-                setRequestType("outgoing");
-                loadRequests("outgoing");
-              }}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                requestType === "outgoing"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Đi ({requests.filter(r => r.fromUser.id === user?.id).length})
-            </button>
-            <button
-              onClick={() => {
-                setRequestType("all");
-                loadRequests("all");
-              }}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                requestType === "all"
-                  ? "bg-white text-blue-600 shadow-sm"
-                  : "text-gray-600 hover:text-gray-900"
-              }`}
-            >
-              Tất cả ({requests.length})
-            </button>
-          </div>
-
-          {/* Assignment Filter - Only show for incoming requests */}
-          {requestType === "incoming" && (
-            <div className="flex gap-2 bg-blue-50 p-2 rounded-lg">
-              <span className="px-2 py-1.5 text-sm font-medium text-gray-700">
-                Trạng thái phân công:
-              </span>
-              <button
-                onClick={() => setAssignmentFilter("all")}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                  assignmentFilter === "all"
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Tất cả có thể xử lý
-              </button>
-              <button
-                onClick={() => setAssignmentFilter("unassigned")}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                  assignmentFilter === "unassigned"
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Chưa có ai nhận ({requests.filter(r => r.fromUser.id !== currentUser.id && !r.isAssigned).length})
-              </button>
-              <button
-                onClick={() => setAssignmentFilter("assigned-to-me")}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-                  assignmentFilter === "assigned-to-me"
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Đã nhận xử lý ({requests.filter(r => r.assignedTo?.id === currentUser.id).length})
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Content */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
         {activeTab === "requests" ? (
@@ -611,14 +493,7 @@ const ChatManagement: React.FC = () => {
               <div className="p-8 text-center text-gray-500">
                 <div className="text-4xl mb-2">💬</div>
                 <div className="font-medium">Không có yêu cầu chat nào</div>
-                <div className="text-sm">
-                  {requestType === "incoming" 
-                    ? "Các yêu cầu chat đến sẽ hiển thị ở đây"
-                    : requestType === "outgoing"
-                    ? "Các yêu cầu chat bạn gửi sẽ hiển thị ở đây"
-                    : "Các yêu cầu chat sẽ hiển thị ở đây"
-                  }
-                </div>
+                <div className="text-sm">Các yêu cầu chat sẽ hiển thị ở đây</div>
               </div>
             ) : (
               filteredRequests.map((request) => (
@@ -629,7 +504,6 @@ const ChatManagement: React.FC = () => {
                   currentUserRole="phong-dao-tao"
                   onAccept={handleAcceptRequest}
                   onDecline={handleDeclineRequest}
-                  onAssign={handleBindRequest}
                   onClick={(request) => {
                     setSelectedRequest(request);
                     setOpenRequestDialog(true);
@@ -704,7 +578,6 @@ const ChatManagement: React.FC = () => {
         request={selectedRequest}
         onAccept={handleAcceptRequest}
         onDecline={handleDeclineRequest}
-        onBind={handleBindRequest}
         onRevoke={handleRevokeRequest}
         currentUser={currentUser}
       />

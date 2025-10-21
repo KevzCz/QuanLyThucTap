@@ -77,6 +77,7 @@ const KhoaPageView: React.FC = () => {
     const loadPageData = async () => {
       try {
         setLoading(true);
+        setError(null);
         const audience = user?.role === "giang-vien" ? "giang-vien" : "sinh-vien";
         const response = await getPageStructure(subjectId, audience);
         
@@ -98,8 +99,10 @@ const KhoaPageView: React.FC = () => {
           initialExpanded[h.id] = true;
         });
         setExpanded(initialExpanded);
-        
-        setError(null);
+      } catch (err) {
+        console.error('Failed to load page data:', err);
+        setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu trang');
+        setData([]); // Set empty data on error
       } finally {
         setLoading(false);
       }

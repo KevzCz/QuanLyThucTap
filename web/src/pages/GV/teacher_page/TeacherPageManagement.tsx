@@ -286,16 +286,16 @@ const TeacherPageManagement: React.FC = () => {
     setData((prev) => prev.map((h) => (h.id === headerId ? { ...h, subs: h.subs.map((s) => (s.id === sub.id ? sub : s)).sort((a, b) => a.order - b.order) } : h)));
   const removeSub = async (headerId: string, subId: string) => {
     try {
-      const header = data.find(h => h.id === headerId);
-      if (header) {
-        await apiClient.request(`/pages/teacher/headers/${header._id || header.id}/subs/${subId}`, {
-          method: 'DELETE'
-        });
-        setData(prev => prev.map((h) => (h.id === headerId ? { ...h, subs: h.subs.filter((s) => s.id !== subId) } : h)));
-      }
+      // Use the MongoDB _id if available, otherwise use the frontend id
+      const sub = data.find(h => h.id === headerId)?.subs.find(s => s.id === subId);
+      const subMongoId = sub?._id || subId;
+      
+      await apiClient.deleteTeacherSubHeader(subMongoId);
+      setData(prev => prev.map((h) => (h.id === headerId ? { ...h, subs: h.subs.filter((s) => s.id !== subId) } : h)));
+      showSuccess('Đã xóa sub-header thành công');
     } catch (err) {
       console.error('Failed to delete sub-header:', err);
-      alert('Không thể xóa sub-header');
+      showError('Không thể xóa sub-header');
     }
   };
 

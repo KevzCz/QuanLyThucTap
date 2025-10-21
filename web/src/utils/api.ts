@@ -106,6 +106,67 @@ export interface LecturerManagedStudentsResponse {
   students: GVManagedStudentRaw[];
   error?: string;
 }
+
+/* Notification Types */
+export type NotificationType = 
+  | "chat-request"
+  | "chat-message"
+  | "request-accepted"
+  | "request-rejected"
+  | "report-reviewed"
+  | "student-assigned"
+  | "student-removed"
+  | "subject-assigned"
+  | "file-submitted"
+  | "deadline-reminder"
+  | "system"
+  | "other";
+
+export type NotificationPriority = "low" | "normal" | "high" | "urgent";
+
+export interface Notification {
+  _id: string;
+  recipient: string;
+  sender?: {
+    id: string;
+    name: string;
+    email: string;
+    role: Role;
+  };
+  type: NotificationType;
+  title: string;
+  message: string;
+  link?: string;
+  priority: NotificationPriority;
+  isRead: boolean;
+  readAt?: string;
+  metadata?: {
+    conversationId?: string;
+    requestId?: string;
+    reportId?: string;
+    subjectId?: string;
+    studentId?: string;
+    subHeaderId?: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PaginatedNotificationsResponse {
+  success: boolean;
+  notifications: Notification[];
+  pagination: {
+    page: number;
+    pages: number;
+    total: number;
+  };
+}
+
+export interface NotificationCountResponse {
+  success: boolean;
+  count: number;
+}
+
 class ApiClient {
   private baseURL: string;
   
@@ -911,6 +972,56 @@ class ApiClient {
       method: "PUT",
       body: JSON.stringify(data),
     });
+  }
+
+  /* Notification API methods */
+  getNotifications(params?: {
+    page?: number;
+    limit?: number;
+    isRead?: boolean;
+    type?: NotificationType | "all";
+  }) {
+    const qs = new URLSearchParams();
+    if (params) {
+      if (params.page != null) qs.append("page", String(params.page));
+      if (params.limit != null) qs.append("limit", String(params.limit));
+      if (params.isRead !== undefined) qs.append("isRead", String(params.isRead));
+      if (params.type && params.type !== "all") qs.append("type", params.type);
+    }
+    const endpoint = `/notifications${qs.toString() ? `?${qs.toString()}` : ""}`;
+    return this.request<PaginatedNotificationsResponse>(endpoint);
+  }
+
+  getUnreadNotificationCount() {
+    return this.request<NotificationCountResponse>("/notifications/unread-count");
+  }
+
+  markNotificationAsRead(notificationId: string) {
+    return this.request<{ success: boolean; notification: Notification }>(
+      `/notifications/${notificationId}/read`,
+      { method: "PUT" }
+    );
+  }
+
+  markAllNotificationsAsRead() {
+    return this.request<{ success: boolean; modifiedCount: number }>(
+      "/notifications/read-all",
+      { method: "PUT" }
+    );
+  }
+
+  deleteNotification(notificationId: string) {
+    return this.request<{ success: boolean; message: string }>(
+      `/notifications/${notificationId}`,
+      { method: "DELETE" }
+    );
+  }
+
+  deleteAllReadNotifications() {
+    return this.request<{ success: boolean; deletedCount: number }>(
+      "/notifications",
+      { method: "DELETE" }
+    );
   }
 }
 

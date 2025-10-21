@@ -8,9 +8,14 @@ import ChatMessage from "../models/ChatMessage.js";
 import ChatRequest from "../models/ChatRequest.js";
 import Account from "../models/Account.js";
 import authMiddleware from "../middleware/auth.js";
+import notificationService from "../services/notificationService.js";
 
 // Socket.io functions will be available through req.app.get('io')
 const getIO = (req) => req.app.get('io');
+
+// Throttling map for chat message notifications (key: conversationId:userId, value: timestamp)
+const messageNotificationThrottle = new Map();
+const THROTTLE_MINUTES = 5;
 
 const router = express.Router();
 
@@ -203,6 +208,24 @@ router.post("/requests", authMiddleware.authenticate, upload.any(), async (req, 
       io.emit('newPDTRequest', chatRequest);
     }
 
+    // Send notification for chat request
+    if (toUserId !== 'PDT_ROLE' && toUserId !== 'phong-dao-tao') {
+      await notificationService.createNotification({
+        recipient: toUserId,
+        sender: fromUserId,
+        type: 'chat-request',
+        title: 'Yêu cầu chat mới',
+        message: `${fromUser.name} đã gửi yêu cầu chat${subject ? `: ${subject}` : ''}`,
+        link: '/chat',
+        priority: priority === 'urgent' ? 'urgent' : 'normal',
+        metadata: {
+          requestId: chatRequest.requestId,
+          requestType: requestType || 'chat',
+          subject: subject || undefined
+        }
+      }, io);
+    }
+
     res.status(201).json({
       success: true,
       message: "Yêu cầu chat đã được gửi thành công",
@@ -273,6 +296,18 @@ router.post("/requests/:requestId/accept", authMiddleware.authenticate, async (r
 
     if (!canAccept) {
       return res.status(403).json({ success: false, message: "Không có quyền chấp nhận yêu cầu này" });
+    }
+
+    // Auto-assign to current PDT user if accepting an unassigned PDT request
+    if (req.account.role === 'phong-dao-tao' && 
+        request.toUser.role === 'phong-dao-tao' && 
+        !request.isAssigned) {
+      request.assignTo({
+        userId: req.account.id,
+        name: req.account.name,
+        role: req.account.role
+      });
+      console.log(`🔄 Auto-assigned request ${requestId} to PDT user ${req.account.name}`);
     }
 
     // Accept the request
@@ -360,6 +395,21 @@ router.post("/requests/:requestId/accept", authMiddleware.authenticate, async (r
     const pdtUserId = request.assignedTo?.userId || request.toUser.userId;
     io.to(`user_${request.fromUser.userId}`).emit('newConversation', conversation);
     io.to(`user_${pdtUserId}`).emit('newConversation', conversation);
+
+    // Send notification for request accepted
+    await notificationService.createNotification({
+      recipient: request.fromUser.userId,
+      sender: userId,
+      type: 'request-accepted',
+      title: 'Yêu cầu chat được chấp nhận',
+      message: `${request.acceptedBy.name} đã chấp nhận yêu cầu chat của bạn`,
+      link: `/chat?conversation=${conversationId}`,
+      priority: 'normal',
+      metadata: {
+        requestId: request.requestId,
+        conversationId: conversationId
+      }
+    }, io);
 
     res.json({
       success: true,
@@ -799,6 +849,36 @@ router.post("/conversations/:conversationId/messages", authMiddleware.authentica
         });
       }
     });
+
+    // Send notification to other participants (with throttling)
+    const now = Date.now();
+    for (const participant of conversation.participants) {
+      if (participant.userId !== userId) {
+        const throttleKey = `${conversationId}:${participant.userId}`;
+        const lastNotificationTime = messageNotificationThrottle.get(throttleKey) || 0;
+        const timeSinceLastNotification = (now - lastNotificationTime) / 1000 / 60; // in minutes
+
+        // Only send notification if more than THROTTLE_MINUTES have passed
+        if (timeSinceLastNotification >= THROTTLE_MINUTES) {
+          await notificationService.createNotification({
+            recipient: participant.userId,
+            sender: userId,
+            type: 'chat-message',
+            title: 'Tin nhắn mới',
+            message: `${req.account.name}: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+            link: `/chat?conversation=${conversationId}`,
+            priority: 'normal',
+            metadata: {
+              conversationId: conversationId,
+              messageId: message.messageId
+            }
+          }, io);
+
+          // Update throttle map
+          messageNotificationThrottle.set(throttleKey, now);
+        }
+      }
+    }
 
     res.status(201).json({
       success: true,

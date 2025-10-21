@@ -9,6 +9,7 @@ import GiangVien from "../models/GiangVien.js";
 import FileSubmission from "../models/FileSubmission.js";
 import SinhVien from "../models/SinhVien.js";
 import { authBCN, authenticate, authorize } from "../middleware/auth.js";
+import notificationService from "../services/notificationService.js";
 
 const router = express.Router();
 
@@ -39,7 +40,11 @@ router.get("/subjects/:subjectId", authenticate, async (req, res) => {
     }
 
     // Build audience filter
-    const audienceFilter = { internshipSubject: subject._id, isActive: true };
+    const audienceFilter = { 
+      internshipSubject: subject._id, 
+      isActive: true,
+      pageType: 'khoa' // Only show department pages, not teacher pages
+    };
     if (audience && audience !== "all") {
       audienceFilter.audience = { $in: [audience, "tat-ca"] };
     }
@@ -50,10 +55,20 @@ router.get("/subjects/:subjectId", authenticate, async (req, res) => {
       .lean();
 
     const headerIds = headers.map(h => h._id);
-    const subHeaders = await SubHeader.find({ 
+    
+    // Build sub-header filter with audience
+    const subHeaderFilter = { 
       pageHeader: { $in: headerIds }, 
       isActive: true 
-    }).sort({ order: 1 }).lean();
+    };
+    // Apply same audience filter to sub-headers
+    if (audience && audience !== "all") {
+      subHeaderFilter.audience = { $in: [audience, "tat-ca"] };
+    }
+    
+    const subHeaders = await SubHeader.find(subHeaderFilter)
+      .sort({ order: 1 })
+      .lean();
 
     // Group sub-headers by header
     const headerMap = headers.map(header => ({
@@ -252,6 +267,36 @@ router.post("/headers/:headerId/subs", ...authBCN, async (req, res) => {
     });
 
     await subHeader.save();
+
+    // Send notifications to students if it's thông báo or nộp-file type
+    if (kind === 'thong-bao' || kind === 'nop-file') {
+      const io = req.app.get('io');
+      const subject = await InternshipSubject.findById(header.internshipSubject);
+      
+      if (subject && subject.students && subject.students.length > 0) {
+        const notificationType = kind === 'thong-bao' ? 'Thông báo mới' : 'Yêu cầu nộp file mới';
+        const notificationMessage = kind === 'thong-bao' 
+          ? `Thông báo mới từ khoa: ${title}`
+          : `Yêu cầu nộp file mới: ${title}${endAt ? ` (Hạn: ${new Date(endAt).toLocaleDateString('vi-VN')})` : ''}`;
+        
+        // Send to all students in the subject
+        for (const studentId of subject.students) {
+          await notificationService.createNotification({
+            recipient: studentId,
+            sender: req.account._id,
+            type: kind === 'thong-bao' ? 'system' : 'file-submitted',
+            title: notificationType,
+            message: notificationMessage,
+            link: `/docs-dept/sub/${subHeader._id}`,
+            priority: kind === 'nop-file' ? 'high' : 'normal',
+            metadata: { 
+              subjectId: subject.id,
+              subHeaderId: subHeader._id.toString()
+            }
+          }, io);
+        }
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -835,6 +880,43 @@ router.post("/teacher/headers/:headerId/subs", authenticate, authorize(["giang-v
     });
 
     await subHeader.save();
+
+    // Send notifications to students managed by this teacher for thông báo or nộp-file
+    if ((kind === 'thong-bao' || kind === 'nop-file') && audience === 'sinh-vien') {
+      const io = req.app.get('io');
+      
+      // Get all students supervised by this teacher
+      const students = await SinhVien.find({ 
+        supervisor: lecturerProfile._id,
+        isActive: true 
+      }).select('account');
+
+      for (const student of students) {
+        let notificationMessage = `${lecturerProfile.fullName} đã đăng ${kind === 'thong-bao' ? 'thông báo' : 'yêu cầu nộp file'}: ${title}`;
+        
+        if (kind === 'nop-file' && endAt) {
+          const deadline = new Date(endAt);
+          notificationMessage += ` - Hạn: ${deadline.toLocaleDateString('vi-VN')}`;
+        }
+
+        await notificationService.createNotification({
+          recipient: student.account,
+          sender: req.account._id,
+          type: kind === 'thong-bao' ? 'system' : 'file-submitted',
+          title: kind === 'thong-bao' ? 'Thông báo mới từ giảng viên' : 'Yêu cầu nộp file mới',
+          message: notificationMessage,
+          link: `/teacher-page/${lecturerProfile._id}`,
+          priority: kind === 'nop-file' ? 'high' : 'normal',
+          metadata: {
+            subHeaderId: subHeader._id.toString(),
+            pageHeaderId: header._id.toString(),
+            instructorId: lecturerProfile._id.toString(),
+            kind,
+            deadline: endAt || undefined
+          }
+        }, io);
+      }
+    }
 
     res.status(201).json({
       success: true,

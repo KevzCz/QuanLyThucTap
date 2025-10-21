@@ -18,6 +18,8 @@ import studentRoutes from "./routes/students.js";
 import requestRoutes from "./routes/requests.js";
 import reportRoutes from "./routes/reports.js";
 import chatRoutes from "./routes/chat.js";
+import notificationRoutes from "./routes/notifications.js";
+import deadlineReminderService from "./services/deadlineReminderService.js";
 const app = express();
 const httpServer = createServer(app);
 
@@ -59,6 +61,9 @@ try {
   
   const collections = await mongoose.connection.db.listCollections().toArray();
   console.log('📋 Available collections:', collections.map(c => c.name));
+  
+  // Initialize deadline reminder service
+  deadlineReminderService.init(io);
 } catch (error) {
   console.error('❌ MongoDB connection error:', error);
   process.exit(1);
@@ -84,6 +89,7 @@ app.use("/api/students", studentRoutes);
 app.use("/api/requests", requestRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/chat", chatRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 // Add the teacher-specific page routes from pages.js
 import pagesRoutes from "./routes/pages.js";
@@ -162,6 +168,7 @@ io.on('connection', (socket) => {
 
       // Join user to their personal room
       socket.join(`user_${userData.id}`);
+      socket.join(userData.id); // Also join using just the ID for notifications
       
       // Join user to their role room
       if (userData.role) {
@@ -277,6 +284,18 @@ export const broadcastRequestUpdate = (request) => {
 // Get active users
 export const getActiveUsers = () => {
   return Array.from(activeUsers.values());
+};
+
+// Broadcast notification to specific user
+export const broadcastNotification = (userId, notification) => {
+  io.to(userId.toString()).emit('newNotification', notification);
+};
+
+// Broadcast notification to multiple users
+export const broadcastNotificationToMany = (userIds, notification) => {
+  userIds.forEach(userId => {
+    io.to(userId.toString()).emit('newNotification', notification);
+  });
 };
 
 /* Start server */

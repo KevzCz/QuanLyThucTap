@@ -87,8 +87,8 @@ const ChatManagement: React.FC = () => {
     try {
       setLoadingRequests(true);
       setError("");
-      // Students should see all requests (incoming from teachers AND their own outgoing requests)
-      const response = await chatAPI.getChatRequests({ direction: 'all' });
+      // Students should only see pending requests (not accepted/declined ones)
+      const response = await chatAPI.getChatRequests({ direction: 'all', status: 'pending' });
       const transformedRequests = response.map(transformApiRequestToLocal);
       setRequests(transformedRequests);
     } catch (err) {
@@ -119,44 +119,128 @@ const ChatManagement: React.FC = () => {
   useEffect(() => {
     loadRequests();
     loadConversations();
+  }, [loadRequests, loadConversations]);
+
+  // Socket connection and event listeners
+  useEffect(() => {
+    if (!user) return;
+
+    // Connect and authenticate socket
+    socketManager.connect();
+    socketManager.authenticate({
+      id: user.id,
+      name: user.name,
+      role: user.role
+    });
 
     // Setup socket listeners
     // Listen for new chat requests
-    socketManager.on('newChatRequest', (data) => {
+    const handleNewRequest = (...args: unknown[]) => {
+      const data = args[0] as ApiChatRequest;
       console.log('New chat request received:', data);
-      const transformedRequest = transformApiRequestToLocal(data as ApiChatRequest);
+      const transformedRequest = transformApiRequestToLocal(data);
       setRequests(prev => [transformedRequest, ...prev]);
-    });
+    };
 
     // Listen for new conversations
-    socketManager.on('newConversation', (data) => {
+    const handleNewConversation = (...args: unknown[]) => {
+      const data = args[0] as ApiChatConversation;
       console.log('New conversation created:', data);
-      const transformedConv = transformApiConversationToLocal(data as ApiChatConversation);
+      const transformedConv = transformApiConversationToLocal(data);
       setConversations(prev => [transformedConv, ...prev]);
-    });
+    };
 
-    // Listen for new messages
-    socketManager.on('newMessage', (data) => {
-      console.log('New message in conversation:', (data as { conversationId: string }).conversationId);
-      loadConversations();
-    });
+    // Listen for conversation updates (new messages)
+    const handleConversationUpdate = (...args: unknown[]) => {
+      const data = args[0] as { conversationId: string; lastMessage?: { messageId: string; senderId: string; content: string; timestamp: string; type: string }; updatedAt: string };
+      console.log('Conversation updated:', data.conversationId);
+      setConversations(prev => {
+        const updatedConversations = prev.map(conv => 
+          conv.id === data.conversationId 
+            ? { 
+                ...conv, 
+                lastMessage: data.lastMessage ? {
+                  id: data.lastMessage.messageId,
+                  senderId: data.lastMessage.senderId,
+                  content: data.lastMessage.content,
+                  timestamp: data.lastMessage.timestamp,
+                  type: data.lastMessage.type as "text" | "file" | "system"
+                } : undefined,
+                updatedAt: data.updatedAt,
+                // Only increment unread count if the message is from someone else
+                unreadCount: data.lastMessage && data.lastMessage.senderId !== user?.id 
+                  ? (conv.unreadCount || 0) + 1 
+                  : conv.unreadCount
+              }
+            : conv
+        );
+        
+        // Sort conversations by updatedAt (most recent first)
+        return updatedConversations.sort((a, b) => 
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+      });
+    };
+
+    // Listen for conversation end
+    const handleConversationEnd = (...args: unknown[]) => {
+      const data = args[0] as { conversationId: string };
+      console.log('Conversation ended:', data.conversationId);
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === data.conversationId 
+            ? { ...conv, isActive: false }
+            : conv
+        )
+      );
+    };
 
     // Listen for request updates
-    socketManager.on('requestUpdated', (data) => {
+    const handleRequestUpdate = (...args: unknown[]) => {
+      const data = args[0] as ApiChatRequest;
       console.log('Request updated:', data);
-      const transformedRequest = transformApiRequestToLocal(data as ApiChatRequest);
-      setRequests(prev => 
-        prev.map(r => r.id === transformedRequest.id ? transformedRequest : r)
-      );
-    });
+      const transformedRequest = transformApiRequestToLocal(data);
+      
+      // If request is accepted or declined, remove it from the list
+      if (transformedRequest.status === 'accepted' || transformedRequest.status === 'declined') {
+        console.log('Removing request from list:', transformedRequest.id);
+        setRequests(prev => prev.filter(r => r.id !== transformedRequest.id));
+        
+        // If accepted, automatically switch to conversations tab to see the new chat
+        if (transformedRequest.status === 'accepted') {
+          console.log('Request accepted, switching to conversations tab');
+          setActiveTab('conversations');
+          // Reload conversations to get the new one
+          loadConversations();
+        }
+      } else {
+        setRequests(prev => {
+          const exists = prev.find(r => r.id === transformedRequest.id);
+          if (exists) {
+            // Update existing request
+            return prev.map(r => r.id === transformedRequest.id ? transformedRequest : r);
+          } else {
+            // Add new request (in case it was just assigned to this user)
+            return [transformedRequest, ...prev];
+          }
+        });
+      }
+    };
+
+    socketManager.on('newChatRequest', handleNewRequest);
+    socketManager.on('newConversation', handleNewConversation);
+    socketManager.on('conversationUpdated', handleConversationUpdate);
+    socketManager.on('conversationEnded', handleConversationEnd);
+    socketManager.on('requestUpdated', handleRequestUpdate);
 
     return () => {
-      socketManager.off('newChatRequest');
-      socketManager.off('newConversation');
-      socketManager.off('newMessage');
-      socketManager.off('requestUpdated');
+      socketManager.off('newChatRequest', handleNewRequest);
+      socketManager.off('newConversation', handleNewConversation);
+      socketManager.off('conversationUpdated', handleConversationUpdate);
+      socketManager.off('conversationEnded', handleConversationEnd);
+      socketManager.off('requestUpdated', handleRequestUpdate);
     };
-  }, [loadRequests, loadConversations, transformApiRequestToLocal, transformApiConversationToLocal]);
+  }, [user, transformApiRequestToLocal, transformApiConversationToLocal, loadConversations, user?.id]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -420,6 +504,10 @@ const ChatManagement: React.FC = () => {
       <CreateChatRequestDialog
         open={openCreateChatRequest}
         onClose={() => setOpenCreateChatRequest(false)}
+        onRequestSent={(newRequest: ChatRequest) => {
+          // Add the new request to the list immediately
+          setRequests(prev => [newRequest, ...prev]);
+        }}
       />
 
       <ChatDialog

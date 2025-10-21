@@ -12,7 +12,6 @@ interface Props {
   request: ChatRequest | null;
   onAccept: (request: ChatRequest) => void;
   onDecline: (request: ChatRequest) => void;
-  onBind: (request: ChatRequest) => void;
   onRevoke?: (request: ChatRequest) => void;
   currentUser: ChatUser;
 }
@@ -23,7 +22,6 @@ const ChatRequestDialog: React.FC<Props> = ({
   request, 
   onAccept, 
   onDecline, 
-  onBind,
   onRevoke,
   currentUser 
 }) => {
@@ -49,19 +47,6 @@ const ChatRequestDialog: React.FC<Props> = ({
       onClose();
     } catch (error) {
       console.error('Error revoking request:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBind = async () => {
-    if (!request || isOwnRequest) return;
-    
-    try {
-      setLoading(true);
-      await onBind(request);
-    } catch (error) {
-      console.error('Error binding request:', error);
     } finally {
       setLoading(false);
     }
@@ -123,16 +108,7 @@ const ChatRequestDialog: React.FC<Props> = ({
         >
           {loading ? "Đang xử lý..." : "Từ chối"}
         </button>
-        {!request.isAssigned && (
-          <button
-            onClick={handleBind}
-            disabled={loading}
-            className="h-10 px-4 rounded-md bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? "Đang xử lý..." : "Nhận xử lý"}
-          </button>
-        )}
-        {(isAssignedToMe || !request.isAssigned) && (
+        {(!request.isAssigned || isAssignedToMe) && (
           <button
             onClick={handleAccept}
             disabled={loading}

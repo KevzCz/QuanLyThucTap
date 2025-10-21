@@ -152,31 +152,81 @@ const ChatManagement: React.FC = () => {
       setConversations(prev => [transformApiConversationToLocal(apiConversation), ...prev]);
     };
 
-    // Listen for new messages
-    const handleNewMessage = () => {
-      loadConversations();
+    // Listen for conversation updates (new messages)
+    const handleConversationUpdate = (...args: unknown[]) => {
+      const data = args[0] as { conversationId: string; lastMessage?: { messageId: string; senderId: string; content: string; timestamp: string; type: string }; updatedAt: string };
+      console.log('Conversation updated:', data.conversationId);
+      setConversations(prev => {
+        const updatedConversations = prev.map(conv => 
+          conv.id === data.conversationId 
+            ? { 
+                ...conv, 
+                lastMessage: data.lastMessage ? {
+                  id: data.lastMessage.messageId,
+                  senderId: data.lastMessage.senderId,
+                  content: data.lastMessage.content,
+                  timestamp: data.lastMessage.timestamp,
+                  type: data.lastMessage.type as "text" | "file" | "system"
+                } : undefined,
+                updatedAt: data.updatedAt,
+                // Only increment unread count if the message is from someone else
+                unreadCount: data.lastMessage && data.lastMessage.senderId !== user?.id 
+                  ? (conv.unreadCount || 0) + 1 
+                  : conv.unreadCount
+              }
+            : conv
+        );
+        
+        // Sort conversations by updatedAt (most recent first)
+        return updatedConversations.sort((a, b) => 
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+      });
+    };
+
+    // Listen for conversation end
+    const handleConversationEnd = (...args: unknown[]) => {
+      const data = args[0] as { conversationId: string };
+      console.log('Conversation ended:', data.conversationId);
+      setConversations(prev => 
+        prev.map(conv => 
+          conv.id === data.conversationId 
+            ? { ...conv, isActive: false }
+            : conv
+        )
+      );
     };
 
     // Listen for request updates
     const handleRequestUpdate = (request: unknown) => {
       const apiRequest = request as ApiChatRequest;
-      setRequests(prev => 
-        prev.map(r => r.id === apiRequest.requestId ? transformApiRequestToLocal(apiRequest) : r)
-      );
+      const transformedRequest = transformApiRequestToLocal(apiRequest);
+      setRequests(prev => {
+        const exists = prev.find(r => r.id === transformedRequest.id);
+        if (exists) {
+          // Update existing request
+          return prev.map(r => r.id === transformedRequest.id ? transformedRequest : r);
+        } else {
+          // Add new request (in case it was just assigned to this user)
+          return [transformedRequest, ...prev];
+        }
+      });
     };
 
     socketManager.on('newChatRequest', handleNewRequest);
     socketManager.on('newConversation', handleNewConversation);
-    socketManager.on('newMessage', handleNewMessage);
+    socketManager.on('conversationUpdated', handleConversationUpdate);
+    socketManager.on('conversationEnded', handleConversationEnd);
     socketManager.on('requestUpdated', handleRequestUpdate);
 
     return () => {
       socketManager.off('newChatRequest', handleNewRequest);
       socketManager.off('newConversation', handleNewConversation);
-      socketManager.off('newMessage', handleNewMessage);
+      socketManager.off('conversationUpdated', handleConversationUpdate);
+      socketManager.off('conversationEnded', handleConversationEnd);
       socketManager.off('requestUpdated', handleRequestUpdate);
     };
-  }, [user, loadConversations, transformApiRequestToLocal, transformApiConversationToLocal]);
+  }, [user, transformApiRequestToLocal, transformApiConversationToLocal, user?.id]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();

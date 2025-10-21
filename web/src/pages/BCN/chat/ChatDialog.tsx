@@ -3,6 +3,7 @@ import Modal from "../../../util/Modal";
 import type { ChatConversation, ChatMessage, ChatUser } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import { chatAPI } from "../../../services/chatApi";
+import { socketManager } from "../../../services/socketManager";
 import dayjs from "dayjs";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
@@ -68,6 +69,41 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
     };
 
     loadMessages();
+  }, [conversation?.id]);
+
+  // Listen for real-time messages via Socket.io
+  useEffect(() => {
+    if (!conversation?.id) return;
+
+    // Join the conversation room
+    socketManager.joinConversation(conversation.id);
+
+    // Listen for new messages
+    const handleNewMessage = (...args: unknown[]) => {
+      const message = args[0] as ChatMessage & { messageId?: string; createdAt?: string };
+      // Only add message if it's for this conversation
+      if (message) {
+        const transformedMessage = {
+          ...message,
+          id: message.messageId || message.id,
+          timestamp: message.createdAt || message.timestamp
+        };
+        setMessages(prev => {
+          // Avoid duplicates
+          if (prev.some(m => m.id === transformedMessage.id)) {
+            return prev;
+          }
+          return [...prev, transformedMessage];
+        });
+      }
+    };
+
+    socketManager.on('newMessage', handleNewMessage);
+
+    return () => {
+      socketManager.off('newMessage', handleNewMessage);
+      socketManager.leaveConversation(conversation.id);
+    };
   }, [conversation?.id]);
 
   const handleSendMessage = async () => {

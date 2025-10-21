@@ -1,15 +1,18 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Modal from "../../../util/Modal";
-import type { ChatUser, UserRole } from "../../PDT/chat/ChatTypes";
+import type { ChatUser, UserRole, ChatRequest } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import { chatAPI } from "../../../services/chatApi";
+import { useAuth } from "../../../contexts/UseAuth";
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  onRequestSent?: (request: ChatRequest) => void;
 }
 
-const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose }) => {
+const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onRequestSent }) => {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<"all" | UserRole>("all");
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
@@ -75,18 +78,45 @@ const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose }) => {
   }, [query, selectedRole, availableUsers]);
 
   const handleSendRequest = async () => {
-    if (!selectedUser || !message.trim()) return;
+    if (!selectedUser || !message.trim() || !user) return;
 
     try {
       setLoading(true);
       
-      await chatAPI.createChatRequest({
+      const response = await chatAPI.createChatRequest({
         toUserId: selectedUser.id,
         message: message.trim(),
         subject: subject.trim() || "Yêu cầu hỗ trợ"
       });
 
-      // Reset form and close - socket events will update the UI
+      // Create the request object to show immediately in the UI
+      const newRequest: ChatRequest = {
+        id: response.requestId,
+        fromUser: {
+          id: user.id,
+          name: user.name,
+          role: user.role as UserRole,
+          isOnline: true
+        },
+        toUser: {
+          id: selectedUser.id,
+          name: selectedUser.name,
+          role: selectedUser.role,
+          isOnline: selectedUser.isOnline
+        },
+        message: message.trim(),
+        subject: subject.trim() || "Yêu cầu hỗ trợ",
+        timestamp: new Date().toISOString(),
+        status: "pending",
+        isAssigned: false
+      };
+
+      // Notify parent to add the request immediately
+      if (onRequestSent) {
+        onRequestSent(newRequest);
+      }
+
+      // Reset form and close
       setSelectedUser(null);
       setMessage("");
       setSubject("");

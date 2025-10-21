@@ -6,6 +6,7 @@ import SubHeader from '../models/SubHeader.js';
 import FileSubmission from '../models/FileSubmission.js';
 import GiangVien from '../models/GiangVien.js';
 import InternshipSubject from '../models/InternshipSubject.js';
+import notificationService from '../services/notificationService.js';
 
 const router = express.Router();
 

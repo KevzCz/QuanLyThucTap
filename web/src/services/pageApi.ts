@@ -59,7 +59,7 @@ export const getPageStructure = async (subjectId: string, audience?: string): Pr
     return response;
   } catch (error) {
     // If subject not found, return empty structure
-    if (error instanceof Error && error.message.includes('404')) {
+    if (error instanceof Error && (error.message.includes('404') || error.message.includes('Không tìm thấy'))) {
       return {
         subject: {
           id: subjectId,

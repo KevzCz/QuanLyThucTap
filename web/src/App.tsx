@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import AuthProvider from "./contexts/AuthProvider";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import { useAuth } from "./contexts/UseAuth";
 import DashboardLayout from "./components/Layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
@@ -121,11 +122,13 @@ const AppRoutes: React.FC = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <ToastProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
-      </ToastProvider>
+      <NotificationProvider>
+        <ToastProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </ToastProvider>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

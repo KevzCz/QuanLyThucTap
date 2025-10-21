@@ -4,7 +4,8 @@ import Account from "../models/Account.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
 import GiangVien from "../models/GiangVien.js";
 import SinhVien from "../models/SinhVien.js";
-import { authPDT, authBCN, authPDTOrBCN, authenticate } from "../middleware/auth.js";
+import { authenticate, authorize, authPDT, authBCN } from "../middleware/auth.js";
+import notificationService from "../services/notificationService.js";
 
 const router = express.Router();
 
@@ -364,6 +365,19 @@ router.post("/:id/lecturers", ...authBCN, async (req, res) => {
     await subject.populate('lecturers', 'id name email');
     await subject.populate('students', 'id name email');
 
+    // Send notification to lecturer
+    const io = req.app.get('io');
+    await notificationService.createNotification({
+      recipient: lecturer._id,
+      sender: req.account._id,
+      type: 'subject-assigned',
+      title: 'Được phân công môn thực tập',
+      message: `Bạn đã được phân công vào môn thực tập "${subject.title}"`,
+      link: `/teacher-page`,
+      priority: 'high',
+      metadata: { subjectId: subject.id }
+    }, io);
+
     res.json({ success: true, subject });
   } catch (error) {
     console.error("Add lecturer error:", error);
@@ -496,6 +510,38 @@ router.post("/:id/students", ...authBCN, async (req, res) => {
     await subject.populate('manager', 'id name email');
     await subject.populate('lecturers', 'id name email'); 
     await subject.populate('students', 'id name email');
+
+    // Send notifications
+    const io = req.app.get('io');
+    
+    // Notify student about joining subject
+    await notificationService.createNotification({
+      recipient: student._id,
+      sender: req.account._id,
+      type: 'subject-assigned',
+      title: 'Đã tham gia môn thực tập',
+      message: `Bạn đã được phân công vào môn thực tập "${subject.title}"`,
+      link: `/my-internship`,
+      priority: 'high',
+      metadata: { subjectId: subject.id }
+    }, io);
+
+    // Notify supervisor if assigned
+    if (supervisor) {
+      await notificationService.createNotification({
+        recipient: supervisor._id,
+        sender: req.account._id,
+        type: 'student-assigned',
+        title: 'Sinh viên mới được phân công',
+        message: `Sinh viên ${student.name} (${student.id}) đã được phân công cho bạn hướng dẫn`,
+        link: `/teacher-students`,
+        priority: 'high',
+        metadata: { 
+          subjectId: subject.id,
+          studentId: student.id
+        }
+      }, io);
+    }
 
     res.json({ success: true, subject });
   } catch (error) {
@@ -636,6 +682,41 @@ router.put("/:id/students/:studentId/supervisor", ...authBCN, async (req, res) =
       })
     );
 
+    // Send notifications
+    const io = req.app.get('io');
+    
+    if (supervisor) {
+      // Notify new supervisor
+      await notificationService.createNotification({
+        recipient: supervisor._id,
+        sender: req.account._id,
+        type: 'student-assigned',
+        title: 'Sinh viên mới được phân công',
+        message: `Sinh viên ${student.name} (${student.id}) đã được phân công cho bạn hướng dẫn`,
+        link: `/teacher-students`,
+        priority: 'high',
+        metadata: { 
+          subjectId: subject.id,
+          studentId: student.id
+        }
+      }, io);
+
+      // Notify student about supervisor assignment
+      await notificationService.createNotification({
+        recipient: student._id,
+        sender: req.account._id,
+        type: 'student-assigned',
+        title: 'Giảng viên hướng dẫn',
+        message: `Bạn đã được phân công giảng viên hướng dẫn: ${supervisor.name}`,
+        link: `/my-internship`,
+        priority: 'high',
+        metadata: { 
+          subjectId: subject.id,
+          supervisorId: supervisor.id
+        }
+      }, io);
+    }
+
     res.json({
       success: true,
       subject: {
@@ -689,6 +770,50 @@ router.get("/:id/available-students", ...authBCN, async (req, res) => {
     res.json({ success: true, students });
   } catch (error) {
     console.error("Get available students error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Get student's assigned instructor and subject (Student only)
+router.get("/student/assigned-instructor", authenticate, async (req, res) => {
+  try {
+    if (req.account.role !== 'sinh-vien') {
+      return res.status(403).json({ error: 'Chỉ sinh viên mới có thể truy cập' });
+    }
+
+    // Find student profile with their assigned subject and supervisor
+    const studentProfile = await SinhVien.findOne({ account: req.account._id })
+      .populate('internshipSubject', 'id title')
+      .populate('supervisor', 'id name email')
+      .lean();
+
+    if (!studentProfile) {
+      return res.json({
+        success: true,
+        instructor: null,
+        subject: null,
+        message: "Chưa có thông tin sinh viên"
+      });
+    }
+
+    // Prepare response
+    const response = {
+      success: true,
+      instructor: studentProfile.supervisor ? {
+        id: studentProfile.supervisor.id,
+        name: studentProfile.supervisor.name,
+        email: studentProfile.supervisor.email
+      } : null,
+      subject: studentProfile.internshipSubject ? {
+        id: studentProfile.internshipSubject.id,
+        title: studentProfile.internshipSubject.title
+      } : null,
+      message: studentProfile.supervisor ? "Đã có giảng viên hướng dẫn" : "Chưa được phân công giảng viên"
+    };
+
+    res.json(response);
+  } catch (error) {
+    console.error("Get student assigned instructor error:", error);
     res.status(400).json({ error: error.message });
   }
 });

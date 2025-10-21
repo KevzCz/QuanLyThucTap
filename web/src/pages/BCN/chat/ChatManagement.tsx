@@ -21,7 +21,6 @@ dayjs.extend(relativeTime);
 const ChatManagement: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"requests" | "conversations">("requests");
-  const [requestType, setRequestType] = useState<"incoming" | "outgoing" | "all">("incoming");
   const [requests, setRequests] = useState<ChatRequest[]>([]);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [query, setQuery] = useState("");
@@ -45,7 +44,7 @@ const ChatManagement: React.FC = () => {
   };
 
   // API transformation functions
-  const transformApiConversationToLocal = (apiConv: ApiChatConversation): ChatConversation => ({
+  const transformApiConversationToLocal = useCallback((apiConv: ApiChatConversation): ChatConversation => ({
     id: apiConv.conversationId,
     participants: apiConv.participants.map((p) => ({
       id: p.userId,
@@ -64,9 +63,9 @@ const ChatManagement: React.FC = () => {
     updatedAt: apiConv.updatedAt,
     unreadCount: apiConv.unreadCount || 0,
     isActive: apiConv.isActive ?? true
-  });
+  }), []);
 
-  const transformApiRequestToLocal = (apiReq: ApiChatRequest): ChatRequest => ({
+  const transformApiRequestToLocal = useCallback((apiReq: ApiChatRequest): ChatRequest => ({
     id: apiReq.requestId,
     fromUser: {
       id: apiReq.fromUser.userId,
@@ -91,15 +90,15 @@ const ChatManagement: React.FC = () => {
       isOnline: true
     } : undefined,
     isAssigned: apiReq.isAssigned
-  });
+  }), []);
 
   // Load requests and conversations from API
-  const loadRequests = useCallback(async (direction: "incoming" | "outgoing" | "all" = "incoming") => {
+  const loadRequests = useCallback(async () => {
     try {
       setLoadingRequests(true);
       const apiRequests = await chatAPI.getChatRequests({ 
         status: 'pending',
-        direction 
+        direction: 'all'
       });
       const transformedRequests = (apiRequests as ApiChatRequest[])?.map(transformApiRequestToLocal) || [];
       setRequests(transformedRequests);
@@ -109,7 +108,7 @@ const ChatManagement: React.FC = () => {
     } finally {
       setLoadingRequests(false);
     }
-  }, []);
+  }, [transformApiRequestToLocal]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -123,13 +122,13 @@ const ChatManagement: React.FC = () => {
     } finally {
       setLoadingConversations(false);
     }
-  }, []);
+  }, [transformApiConversationToLocal]);
 
   // Load initial data and set up socket connection
   useEffect(() => {
-    loadRequests(requestType);
+    loadRequests();
     loadConversations();
-  }, [loadRequests, loadConversations, requestType]);
+  }, [loadRequests, loadConversations]);
 
   useEffect(() => {
     if (user) {
@@ -141,40 +140,95 @@ const ChatManagement: React.FC = () => {
       });
 
       // Listen for new requests
-      socketManager.on('newChatRequest', (...args: unknown[]) => {
+      const handleNewRequest = (...args: unknown[]) => {
         const request = args[0] as ApiChatRequest;
         const transformedRequest = transformApiRequestToLocal(request);
         setRequests(prev => [transformedRequest, ...prev]);
-      });
+      };
 
       // Listen for request updates (assignment, status changes)
-      socketManager.on('requestUpdated', (...args: unknown[]) => {
+      const handleRequestUpdate = (...args: unknown[]) => {
         const request = args[0] as ApiChatRequest;
         const transformedRequest = transformApiRequestToLocal(request);
-        setRequests(prev => prev.map(r => 
-          r.id === request.requestId ? transformedRequest : r
-        ));
-      });
+        setRequests(prev => {
+          const exists = prev.find(r => r.id === transformedRequest.id);
+          if (exists) {
+            // Update existing request
+            return prev.map(r => r.id === transformedRequest.id ? transformedRequest : r);
+          } else {
+            // Add new request (in case it was just assigned to this user)
+            return [transformedRequest, ...prev];
+          }
+        });
+      };
 
-      // Listen for conversation updates
-      socketManager.on('conversationUpdated', (...args: unknown[]) => {
-        const data = args[0] as { conversationId: string; lastMessage: unknown; updatedAt: string };
+      // Listen for new conversations
+      const handleNewConversation = (...args: unknown[]) => {
+        const conversation = args[0] as ApiChatConversation;
+        const transformedConversation = transformApiConversationToLocal(conversation);
+        setConversations(prev => [transformedConversation, ...prev]);
+      };
+
+      // Listen for conversation updates (new messages)
+      const handleConversationUpdate = (...args: unknown[]) => {
+        const data = args[0] as { conversationId: string; lastMessage?: { messageId: string; senderId: string; content: string; timestamp: string; type: string }; updatedAt: string };
+        console.log('Conversation updated:', data.conversationId);
+        setConversations(prev => {
+          const updatedConversations = prev.map(conv => 
+            conv.id === data.conversationId 
+              ? { 
+                  ...conv, 
+                  lastMessage: data.lastMessage ? {
+                    id: data.lastMessage.messageId,
+                    senderId: data.lastMessage.senderId,
+                    content: data.lastMessage.content,
+                    timestamp: data.lastMessage.timestamp,
+                    type: data.lastMessage.type as "text" | "file" | "system"
+                  } : undefined,
+                  updatedAt: data.updatedAt,
+                  // Only increment unread count if the message is from someone else
+                  unreadCount: data.lastMessage && data.lastMessage.senderId !== user?.id 
+                    ? (conv.unreadCount || 0) + 1 
+                    : conv.unreadCount
+                }
+              : conv
+          );
+          
+          // Sort conversations by updatedAt (most recent first)
+          return updatedConversations.sort((a, b) => 
+            new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          );
+        });
+      };
+
+      // Listen for conversation end
+      const handleConversationEnd = (...args: unknown[]) => {
+        const data = args[0] as { conversationId: string };
+        console.log('Conversation ended:', data.conversationId);
         setConversations(prev => 
           prev.map(conv => 
             conv.id === data.conversationId 
-              ? { ...conv, updatedAt: data.updatedAt }
+              ? { ...conv, isActive: false }
               : conv
           )
         );
-      });
+      };
+
+      socketManager.on('newChatRequest', handleNewRequest);
+      socketManager.on('requestUpdated', handleRequestUpdate);
+      socketManager.on('newConversation', handleNewConversation);
+      socketManager.on('conversationUpdated', handleConversationUpdate);
+      socketManager.on('conversationEnded', handleConversationEnd);
 
       return () => {
-        socketManager.off('newChatRequest');
-        socketManager.off('requestUpdated');
-        socketManager.off('conversationUpdated');
+        socketManager.off('newChatRequest', handleNewRequest);
+        socketManager.off('requestUpdated', handleRequestUpdate);
+        socketManager.off('newConversation', handleNewConversation);
+        socketManager.off('conversationUpdated', handleConversationUpdate);
+        socketManager.off('conversationEnded', handleConversationEnd);
       };
     }
-  }, [user]);
+  }, [user, transformApiRequestToLocal, transformApiConversationToLocal, user?.id]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -333,51 +387,6 @@ const ChatManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Request Type Filter - Only show when on requests tab */}
-      {activeTab === "requests" && (
-        <div className="flex gap-2 bg-gray-50 p-2 rounded-lg">
-          <button
-            onClick={() => {
-              setRequestType("incoming");
-              loadRequests("incoming");
-            }}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-              requestType === "incoming"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Đến ({requests.filter(r => r.fromUser.id !== user?.id).length})
-          </button>
-          <button
-            onClick={() => {
-              setRequestType("outgoing");
-              loadRequests("outgoing");
-            }}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-              requestType === "outgoing"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Đi ({requests.filter(r => r.fromUser.id === user?.id).length})
-          </button>
-          <button
-            onClick={() => {
-              setRequestType("all");
-              loadRequests("all");
-            }}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition ${
-              requestType === "all"
-                ? "bg-white text-blue-600 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            Tất cả ({requests.length})
-          </button>
-        </div>
-      )}
-
       {/* Content */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
         {activeTab === "requests" ? (
@@ -391,14 +400,7 @@ const ChatManagement: React.FC = () => {
               <div className="p-8 text-center text-gray-500">
                 <div className="text-4xl mb-2">💬</div>
                 <div className="font-medium">Không có yêu cầu chat nào</div>
-                <div className="text-sm">
-                  {requestType === "incoming" 
-                    ? "Các yêu cầu chat đến sẽ hiển thị ở đây"
-                    : requestType === "outgoing"
-                    ? "Các yêu cầu chat bạn gửi sẽ hiển thị ở đây"
-                    : "Các yêu cầu chat sẽ hiển thị ở đây"
-                  }
-                </div>
+                <div className="text-sm">Các yêu cầu chat sẽ hiển thị ở đây</div>
               </div>
             ) : (
               filteredRequests.map((request) => (
