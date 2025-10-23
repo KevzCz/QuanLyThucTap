@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader, SubmittedFile } from "./TeacherPageViewTypes";
+import { useToast } from "../../../components/UI/Toast";
 import { 
   getSubHeader, 
   getSubmissions, 
@@ -13,6 +14,7 @@ const TeacherSubViewUpload: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [sub, setSub] = useState<SubHeader | null>(state?.sub || null);
@@ -28,6 +30,7 @@ const TeacherSubViewUpload: React.FC = () => {
     if (subId) {
       loadData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subId]);
 
   const loadData = async () => {
@@ -125,10 +128,10 @@ const TeacherSubViewUpload: React.FC = () => {
         inputRef.current.value = '';
       }
 
-      alert('Nộp bài thành công!');
+      showSuccess('Nộp bài thành công!');
     } catch (error) {
       console.error('File upload error:', error);
-      alert('Không thể nộp bài. Vui lòng thử lại.');
+      showError('Không thể nộp bài. Vui lòng thử lại.');
     } finally {
       setUploading(false);
     }
@@ -140,9 +143,10 @@ const TeacherSubViewUpload: React.FC = () => {
     try {
       await deleteSubmission(id);
       await loadData();
+      showSuccess('Đã xóa bài thành công!');
     } catch (error) {
       console.error('Failed to delete submission:', error);
-      alert('Không thể xóa bài');
+      showError('Không thể xóa bài');
     }
   };
 

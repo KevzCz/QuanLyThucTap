@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Modal from "../../../util/Modal";
 import type { InternshipSubject } from "./InternshipSubjectTypes";
 import { apiClient } from "../../../utils/api";
+import LoadingButton from "../../../components/UI/LoadingButton";
 
 interface Props {
   open: boolean;
@@ -119,19 +120,22 @@ const CreateInternshipSubjectDialog: React.FC<Props> = ({ open, onClose, onCreat
       actions={
         <>
           <button 
-            className="h-10 px-4 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50" 
+            className="h-10 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-all font-medium disabled:opacity-50" 
             onClick={onClose}
             disabled={loading}
           >
             Hủy
           </button>
-          <button 
-            className="h-10 px-5 rounded-md bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50" 
+          <LoadingButton
             onClick={submit}
-            disabled={loading || !title.trim() || !managerId}
+            loading={loading}
+            loadingText="Đang tạo..."
+            disabled={!title.trim() || !managerId}
+            variant="primary"
+            className="bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500 disabled:bg-emerald-300 shadow-sm hover:shadow"
           >
-            {loading ? "Đang tạo..." : "Thêm"}
-          </button>
+            Thêm
+          </LoadingButton>
         </>
       }
     >

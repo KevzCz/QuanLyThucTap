@@ -22,9 +22,10 @@ import {
 } from "../../../services/pageApi";
 import { apiClient } from "../../../utils/api";
 import dayjs from "dayjs";
-import { Icons } from "../../../components/UI/Icons";
 import { useToast } from "../../../components/UI/Toast";
 import PageLayout from "../../../components/UI/PageLayout";
+import { useDebounce } from "../../../hooks/useDebounce";
+import EmptyState from "../../../components/UI/EmptyState";
 
 const htmlToTextWithBreaks = (html: string) => {
   let s = html || "";
@@ -55,6 +56,7 @@ const KhoaPageManagement: React.FC = () => {
   const { showSuccess, showError } = useToast();
   const [subject, setSubject] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const [data, setData] = useState<HeaderBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +79,7 @@ const KhoaPageManagement: React.FC = () => {
   // Load BCN managed subject and page data
   useEffect(() => {
     loadManagedSubject();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadManagedSubject = async () => {
@@ -143,12 +146,12 @@ const KhoaPageManagement: React.FC = () => {
 
   // filter
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return data;
     return data
       .map((h) => ({ ...h, subs: h.subs.filter((s) => s.title.toLowerCase().includes(q)) }))
       .filter((h) => h.title.toLowerCase().includes(q) || h.subs.length > 0);
-  }, [data, query]);
+  }, [data, debouncedQuery]);
 
   // CRUD: headers
   const addHeader = async (h: Omit<HeaderBlock, 'id' | 'subs' | 'order'>) => {
@@ -189,9 +192,10 @@ const KhoaPageManagement: React.FC = () => {
       });
       
       setData(prev => prev.map(x => x.id === h.id ? h : x).sort((a, b) => a.order - b.order));
+      showSuccess('Đã cập nhật header thành công');
     } catch (err) {
       console.error('Failed to update header:', err);
-      alert('Không thể cập nhật header');
+      showError('Không thể cập nhật header');
     }
   };
 
@@ -201,10 +205,11 @@ const KhoaPageManagement: React.FC = () => {
       if (header) {
         await deletePageHeader(header._id || header.id);
         setData(prev => prev.filter(x => x.id !== id));
+        showSuccess('Đã xóa header thành công');
       }
     } catch (err) {
       console.error('Failed to delete header:', err);
-      alert('Không thể xóa header');
+      showError('Không thể xóa header');
     }
   };
 
@@ -240,9 +245,10 @@ const KhoaPageManagement: React.FC = () => {
         { ...h, subs: [...h.subs, transformedSub].sort((a, b) => a.order - b.order) } : 
         h
       ));
+      showSuccess('Đã tạo sub-header thành công');
     } catch (err) {
       console.error('Failed to create sub-header:', err);
-      alert('Không thể tạo sub-header');
+      showError('Không thể tạo sub-header');
     }
   };
 
@@ -264,9 +270,10 @@ const KhoaPageManagement: React.FC = () => {
         { ...h, subs: h.subs.map(s => s.id === sub.id ? sub : s).sort((a, b) => a.order - b.order) } : 
         h
       ));
+      showSuccess('Đã cập nhật sub-header thành công');
     } catch (err) {
       console.error('Failed to update sub-header:', err);
-      alert('Không thể cập nhật sub-header');
+      showError('Không thể cập nhật sub-header');
     }
   };
 
@@ -281,10 +288,11 @@ const KhoaPageManagement: React.FC = () => {
           { ...h, subs: h.subs.filter(s => s.id !== subId) } : 
           h
         ));
+        showSuccess('Đã xóa sub-header thành công');
       }
     } catch (err) {
       console.error('Failed to delete sub-header:', err);
-      alert('Không thể xóa sub-header');
+      showError('Không thể xóa sub-header');
     }
   };
 
@@ -354,9 +362,10 @@ const KhoaPageManagement: React.FC = () => {
       // Send to backend
       const headerIds = newData.map(h => h._id || h.id);
       await reorderHeaders(subject.id, headerIds);
+      showSuccess('Đã thay đổi thứ tự header thành công');
     } catch (err) {
       console.error('Failed to reorder headers:', err);
-      alert('Không thể thay đổi thứ tự header');
+      showError('Không thể thay đổi thứ tự header');
       // Reload data on error
       await loadPageData(subject.id);
     } finally {
@@ -440,9 +449,10 @@ const KhoaPageManagement: React.FC = () => {
       // Send to backend
       const subHeaderIds = sourceSubs.map(s => s._id || s.id);
       await reorderSubHeaders(header._id || header.id, subHeaderIds);
+      showSuccess('Đã thay đổi thứ tự sub-header thành công');
     } catch (err) {
       console.error('Failed to reorder sub-headers:', err);
-      alert('Không thể thay đổi thứ tự sub-header');
+      showError('Không thể thay đổi thứ tự sub-header');
       // Reload data on error
       await loadPageData(subject.id);
     } finally {
@@ -466,7 +476,7 @@ const KhoaPageManagement: React.FC = () => {
       primaryAction={{
         label: "Tạo header",
         onClick: () => setOpenCreateHeader(true),
-        icon: <Icons.add size="sm" />
+        icon: <span>➕</span>
       }}
     >
       <div className="space-y-4">
@@ -519,9 +529,7 @@ const KhoaPageManagement: React.FC = () => {
                     className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors" 
                     title="Kéo để sắp xếp lại thứ tự"
                   >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                    </svg>
+                    <span>⋮⋮</span>
                   </div>
                   
                   <ChevronButton open={open} onClick={() => setExpanded((m) => ({ ...m, [h.id]: !open }))} />
@@ -571,9 +579,7 @@ const KhoaPageManagement: React.FC = () => {
                     >
                       {/* Enhanced drag handle for sub-headers */}
                       <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors mr-2" title="Kéo để sắp xếp lại thứ tự">
-                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                        </svg>
+                        <span>⋮⋮</span>
                       </div>
                       
                       <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -581,11 +587,11 @@ const KhoaPageManagement: React.FC = () => {
                       {s.kind === "thong-bao" ? (
                         <span className="shrink-0 text-blue-600" title="Thông báo">🔔</span>
                       ) : s.kind === "nop-file" ? (
-                        <span className="shrink-0 text-gray-700" title="Nộp file">🗂️</span>
+                        <span className="shrink-0 text-orange-600" title="Nộp file">📤</span>
                       ) : s.kind === "file" ? (
                         <span className="shrink-0 text-green-600" title="File tải xuống">📎</span>
                       ) : (
-                        <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục"> • </span>
+                        <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục">•</span>
                       )}
 
                       {/* label */}
@@ -648,6 +654,37 @@ const KhoaPageManagement: React.FC = () => {
             </div>
           );
           })}
+          
+          {filtered.length === 0 && !loading && (
+            <div className="py-12">
+              <EmptyState
+                icon={data.length === 0 ? "📄" : "🔍"}
+                title={data.length === 0 ? "Chưa có nội dung trang" : "Không tìm thấy kết quả"}
+                description={
+                  data.length === 0
+                    ? "Tạo header đầu tiên để bắt đầu quản lý nội dung trang khoa."
+                    : "Thử thay đổi từ khóa tìm kiếm."
+                }
+                action={
+                  data.length === 0
+                    ? {
+                        label: "Tạo header",
+                        onClick: () => setOpenCreateHeader(true),
+                        icon: "➕"
+                      }
+                    : undefined
+                }
+                secondaryAction={
+                  data.length > 0
+                    ? {
+                        label: "Xóa tìm kiếm",
+                        onClick: () => setQuery(""),
+                      }
+                    : undefined
+                }
+              />
+            </div>
+          )}
         </div>
 
         {/* Dialogs */}
@@ -673,6 +710,7 @@ const KhoaPageManagement: React.FC = () => {
           open={!!editSub} 
           headerId={editSub?.headerId} 
           sub={editSub?.sub} 
+          header={editSub ? data.find(h => h.id === editSub.headerId) : undefined}
           onClose={() => setEditSub(null)} 
           onSave={(hid, s) => { saveSub(hid, s); setEditSub(null); }} 
           onDelete={(hid, sid) => { removeSub(hid, sid); setEditSub(null); }} 

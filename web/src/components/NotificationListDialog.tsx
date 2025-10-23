@@ -68,7 +68,7 @@ const NotificationListDialog: React.FC<Props> = ({ open, onClose }) => {
       urgent: "border-l-red-500 bg-red-50",
       high: "border-l-orange-500 bg-orange-50",
       normal: "border-l-blue-500 bg-blue-50",
-      low: "border-l-gray-500 bg-gray-50"
+      low: "border-l-gray-400 bg-gray-50"
     };
     return colors[priority] || colors.normal;
   };
@@ -92,22 +92,31 @@ const NotificationListDialog: React.FC<Props> = ({ open, onClose }) => {
 
   return (
     <>
-      {/* Backdrop */}
-      <div className="fixed inset-0 z-30" onClick={onClose} />
+      {/* Light Backdrop - only slightly darkens background */}
+      <div 
+        className="fixed inset-0 z-30 bg-black/5" 
+        onClick={onClose} 
+      />
       
-      {/* Dropdown Panel */}
-      <div className="absolute top-full right-0 mt-2 w-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-40 max-h-[600px] flex flex-col">
+      {/* Dropdown Panel - positioned as a dropdown, not modal */}
+      <div className="absolute top-full right-0 mt-2 w-[420px] bg-white rounded-xl shadow-2xl border border-gray-200 z-40 max-h-[640px] flex flex-col overflow-hidden animate-in slide-in-from-top-2 duration-200">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b">
+        <div className="flex items-center justify-between p-5 border-b bg-gradient-to-br from-blue-50 to-white">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Thông báo</h2>
+            <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+              <span className="text-2xl">🔔</span>
+              Thông báo
+            </h2>
             {unreadCount > 0 && (
-              <p className="text-sm text-gray-500">{unreadCount} chưa đọc</p>
+              <p className="text-sm text-blue-600 font-medium mt-0.5">
+                {unreadCount} thông báo chưa đọc
+              </p>
             )}
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full p-2 transition-all"
+            aria-label="Đóng"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -115,44 +124,57 @@ const NotificationListDialog: React.FC<Props> = ({ open, onClose }) => {
           </button>
         </div>
 
-        {/* Filters */}
-        <div className="p-3 border-b bg-gray-50 space-y-2">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilter("all")}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition ${
-                filter === "all"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              Tất cả
-            </button>
-            <button
-              onClick={() => setFilter("unread")}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition ${
-                filter === "unread"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-100"
-              }`}
-            >
-              Chưa đọc
-            </button>
+        {/* Filters & Actions */}
+        <div className="px-5 py-3 border-b bg-gray-50">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFilter("all")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                  filter === "all"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                }`}
+              >
+                Tất cả
+              </button>
+              <button
+                onClick={() => setFilter("unread")}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all relative ${
+                  filter === "unread"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                }`}
+              >
+                Chưa đọc
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
 
           {unreadCount > 0 && (
-            <div className="flex gap-2">
+            <div className="flex gap-3">
               <button
                 onClick={() => markAllAsRead()}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 hover:underline"
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
                 Đánh dấu tất cả đã đọc
               </button>
-              <span className="text-gray-300">|</span>
+              <span className="text-gray-300">•</span>
               <button
                 onClick={() => deleteAllRead()}
-                className="text-sm text-red-600 hover:text-red-700 font-medium"
+                className="text-sm text-red-600 hover:text-red-700 font-medium flex items-center gap-1 hover:underline"
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
                 Xóa đã đọc
               </button>
             </div>
@@ -160,61 +182,91 @@ const NotificationListDialog: React.FC<Props> = ({ open, onClose }) => {
         </div>
 
         {/* Notification List */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {isLoading ? (
-            <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="flex flex-col items-center justify-center h-40 text-gray-500">
+              <div className="relative">
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-100"></div>
+                <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent absolute inset-0"></div>
+              </div>
+              <p className="mt-4 text-sm font-medium">Đang tải thông báo...</p>
             </div>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-32 text-gray-500">
-              <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <p className="text-sm">Không có thông báo</p>
+            <div className="flex flex-col items-center justify-center h-40 text-gray-500 px-4">
+              <div className="bg-gray-100 rounded-full p-4 mb-3">
+                <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <p className="text-base font-medium text-gray-700">Không có thông báo</p>
+              <p className="text-sm text-gray-500 mt-1">Bạn đã xem hết tất cả thông báo</p>
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="divide-y divide-gray-100">
               {notifications.map((notification) => (
                 <div
                   key={notification._id}
                   onClick={() => handleNotificationClick(notification)}
-                  className={`p-4 border-l-4 transition cursor-pointer hover:bg-gray-50 ${
+                  className={`p-4 border-l-4 transition-all cursor-pointer hover:shadow-md hover:-translate-y-0.5 group ${
                     getPriorityColor(notification.priority)
-                  } ${!notification.isRead ? "bg-opacity-30" : "bg-opacity-0"}`}
+                  } ${!notification.isRead ? "bg-opacity-40 hover:bg-opacity-50" : "bg-opacity-10 hover:bg-opacity-20"}`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 text-2xl">
+                    {/* Icon */}
+                    <div className="flex-shrink-0 text-3xl group-hover:scale-110 transition-transform">
                       {getNotificationIcon(notification.type)}
                     </div>
+                    
+                    {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <h4 className={`text-sm font-medium ${
+                        <h4 className={`text-sm font-semibold leading-snug ${
                           notification.isRead ? "text-gray-700" : "text-gray-900"
                         }`}>
                           {notification.title}
                         </h4>
                         {!notification.isRead && (
-                          <span className="flex-shrink-0 w-2 h-2 bg-blue-600 rounded-full mt-1"></span>
+                          <span className="flex-shrink-0 w-2.5 h-2.5 bg-blue-600 rounded-full mt-1 animate-pulse"></span>
                         )}
                       </div>
-                      <p className={`text-sm mb-2 ${
+                      
+                      <p className={`text-sm leading-relaxed mb-2 ${
                         notification.isRead ? "text-gray-500" : "text-gray-700"
                       }`}>
                         {notification.message}
                       </p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-gray-400">
+                      
+                      {/* Footer */}
+                      <div className="flex items-center justify-between mt-3">
+                        <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
                           {formatTimestamp(notification.createdAt)}
                         </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteNotification(notification._id);
-                          }}
-                          className="text-xs text-red-500 hover:text-red-700"
-                        >
-                          Xóa
-                        </button>
+                        
+                        <div className="flex items-center gap-2">
+                          {notification.link && (
+                            <span className="text-xs text-blue-600 font-medium flex items-center gap-1">
+                              Xem chi tiết
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </span>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(notification._id);
+                            }}
+                            className="text-xs text-gray-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-all"
+                            aria-label="Xóa thông báo"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>

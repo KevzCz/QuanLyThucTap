@@ -10,6 +10,8 @@ import { useAuth } from "../../../contexts/UseAuth";
 import { chatAPI } from "../../../services/chatApi";
 import type { ChatRequest as ApiChatRequest, ChatConversation as ApiChatConversation, ChatUser as ApiChatUser } from "../../../services/chatApi";
 import { socketManager } from "../../../services/socketManager";
+import { useToast } from "../../../components/UI/Toast";
+import EmptyState from "../../../components/UI/EmptyState";
 
 dayjs.extend(relativeTime);
 
@@ -17,15 +19,13 @@ type UserRole = "phong-dao-tao" | "ban-chu-nhiem" | "giang-vien" | "sinh-vien";
 
 const ChatManagement: React.FC = () => {
   const { user } = useAuth();
+  const { showError } = useToast();
   const [activeTab, setActiveTab] = useState<"requests" | "conversations">("requests");
   const [requests, setRequests] = useState<ChatRequest[]>([]);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [query, setQuery] = useState("");
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingRequests, setLoadingRequests] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingConversations, setLoadingConversations] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState("");
 
   // Dialogs
@@ -269,7 +269,7 @@ const ChatManagement: React.FC = () => {
       setActiveTab("conversations");
     } catch (err) {
       console.error("Error accepting request:", err);
-      alert("Không thể chấp nhận yêu cầu. Vui lòng thử lại.");
+      showError("Không thể chấp nhận yêu cầu. Vui lòng thử lại.");
     }
   };
 
@@ -282,7 +282,7 @@ const ChatManagement: React.FC = () => {
       setOpenRequestDialog(false);
     } catch (err) {
       console.error("Error declining request:", err);
-      alert("Không thể từ chối yêu cầu. Vui lòng thử lại.");
+      showError("Không thể từ chối yêu cầu. Vui lòng thử lại.");
     }
   };
 
@@ -359,14 +359,35 @@ const ChatManagement: React.FC = () => {
 
       {/* Content */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+        {/* Error message */}
+        {error && (
+          <div className="p-4 bg-red-50 border-b border-red-200">
+            <div className="text-sm text-red-800">{error}</div>
+          </div>
+        )}
+
         {activeTab === "requests" ? (
           <div className="divide-y divide-gray-100">
-            {filteredRequests.length === 0 ? (
+            {loadingRequests ? (
               <div className="p-8 text-center text-gray-500">
-                <div className="text-4xl mb-2">💬</div>
-                <div className="font-medium">Không có yêu cầu chat nào</div>
-                <div className="text-sm">Các yêu cầu chat sẽ hiển thị ở đây</div>
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                <div>Đang tải yêu cầu...</div>
               </div>
+            ) : filteredRequests.length === 0 ? (
+              <EmptyState
+                icon={requests.length === 0 ? "💬" : "🔍"}
+                title={requests.length === 0 ? "Không có yêu cầu chat nào" : "Không tìm thấy yêu cầu"}
+                description={
+                  requests.length === 0
+                    ? "Các yêu cầu chat sẽ hiển thị ở đây"
+                    : "Thử tìm kiếm với từ khóa khác"
+                }
+                action={
+                  requests.length === 0
+                    ? { label: "Tạo yêu cầu mới", onClick: () => setOpenCreateChatRequest(true) }
+                    : undefined
+                }
+              />
             ) : (
               filteredRequests.map((request) => {
                 const isOwnRequest = request.fromUser.id === currentUser.id;
@@ -440,12 +461,26 @@ const ChatManagement: React.FC = () => {
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {filteredConversations.length === 0 ? (
+            {loadingConversations ? (
               <div className="p-8 text-center text-gray-500">
-                <div className="text-4xl mb-2">💬</div>
-                <div className="font-medium">Chưa có cuộc trò chuyện nào</div>
-                <div className="text-sm">Gửi yêu cầu hỗ trợ hoặc chấp nhận yêu cầu chat</div>
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                <div>Đang tải cuộc trò chuyện...</div>
               </div>
+            ) : filteredConversations.length === 0 ? (
+              <EmptyState
+                icon={conversations.length === 0 ? "💬" : "🔍"}
+                title={conversations.length === 0 ? "Chưa có cuộc trò chuyện nào" : "Không tìm thấy cuộc trò chuyện"}
+                description={
+                  conversations.length === 0
+                    ? "Gửi yêu cầu hỗ trợ hoặc chấp nhận yêu cầu chat"
+                    : "Thử tìm kiếm với từ khóa khác"
+                }
+                action={
+                  conversations.length === 0
+                    ? { label: "Tạo yêu cầu mới", onClick: () => setOpenCreateChatRequest(true) }
+                    : undefined
+                }
+              />
             ) : (
               filteredConversations.map((conversation) => (
                 <div key={conversation.id} className="p-4 hover:bg-gray-50 cursor-pointer"

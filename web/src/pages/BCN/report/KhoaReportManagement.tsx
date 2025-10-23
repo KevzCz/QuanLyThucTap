@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useAuth } from "../../../contexts/UseAuth";
 import { apiClient } from "../../../utils/api";
 import SearchInput from "../../../components/UI/SearchInput";
 import Pagination from "../../../components/UI/Pagination";
@@ -7,6 +6,8 @@ import ViewKhoaReportDialog from "./ViewKhoaReportDialog";
 import ReviewReportDialog from "./ReviewReportDialog";
 import { useToast } from "../../../components/UI/Toast";
 import dayjs from "dayjs";
+import { useDebounce } from "../../../hooks/useDebounce";
+import EmptyState from "../../../components/UI/EmptyState";
 
 export interface KhoaReport {
   _id: string;
@@ -66,8 +67,6 @@ const StatusColors = {
 };
 
 const KhoaReportManagement: React.FC = () => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { user } = useAuth();
   const { showSuccess, showError } = useToast();
   
   const [reports, setReports] = useState<KhoaReport[]>([]);
@@ -80,6 +79,7 @@ const KhoaReportManagement: React.FC = () => {
 
   // Filters and pagination
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const [statusFilter, setStatusFilter] = useState<"all" | KhoaReport["status"]>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | KhoaReport["reportType"]>("all");
   const [instructorFilter, setInstructorFilter] = useState("");
@@ -126,7 +126,7 @@ const KhoaReportManagement: React.FC = () => {
   };
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     return reports.filter((report) => {
       const byStatus = statusFilter === "all" || report.status === statusFilter;
       const byType = typeFilter === "all" || report.reportType === typeFilter;
@@ -137,7 +137,7 @@ const KhoaReportManagement: React.FC = () => {
         report.instructor.name.toLowerCase().includes(q);
       return byStatus && byType && byInstructor && byQuery;
     });
-  }, [reports, statusFilter, typeFilter, instructorFilter, query]);
+  }, [reports, statusFilter, typeFilter, instructorFilter, debouncedQuery]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -343,8 +343,16 @@ const handleReviewReport = async (reportId: string, status: "reviewed" | "approv
             ))}
             {current.length === 0 && (
               <tr>
-                <td className="px-4 py-10 text-center text-gray-500" colSpan={6}>
-                  {reports.length === 0 ? "Chưa có báo cáo nào." : "Không có báo cáo phù hợp."}
+                <td colSpan={6} className="px-4 py-2">
+                  <EmptyState
+                    icon={reports.length === 0 ? "📋" : "🔍"}
+                    title={reports.length === 0 ? "Chưa có báo cáo nào" : "Không tìm thấy báo cáo"}
+                    description={
+                      reports.length === 0
+                        ? "Các báo cáo từ giảng viên sẽ xuất hiện ở đây"
+                        : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
+                    }
+                  />
                 </td>
               </tr>
             )}

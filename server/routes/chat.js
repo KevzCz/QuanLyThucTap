@@ -210,20 +210,24 @@ router.post("/requests", authMiddleware.authenticate, upload.any(), async (req, 
 
     // Send notification for chat request
     if (toUserId !== 'PDT_ROLE' && toUserId !== 'phong-dao-tao') {
-      await notificationService.createNotification({
-        recipient: toUserId,
-        sender: fromUserId,
-        type: 'chat-request',
-        title: 'Yêu cầu chat mới',
-        message: `${fromUser.name} đã gửi yêu cầu chat${subject ? `: ${subject}` : ''}`,
-        link: '/chat',
-        priority: priority === 'urgent' ? 'urgent' : 'normal',
-        metadata: {
-          requestId: chatRequest.requestId,
-          requestType: requestType || 'chat',
-          subject: subject || undefined
-        }
-      }, io);
+      // Get the Account ObjectId for the recipient
+      const toAccount = await Account.findOne({ id: toUserId }).select('_id');
+      if (toAccount) {
+        await notificationService.createNotification({
+          recipient: toAccount._id,
+          sender: req.account._id,
+          type: 'chat-request',
+          title: 'Yêu cầu chat mới',
+          message: `${fromUser.name} đã gửi yêu cầu chat${subject ? `: ${subject}` : ''}`,
+          link: '/chat',
+          priority: priority === 'urgent' ? 'urgent' : 'normal',
+          metadata: {
+            requestId: chatRequest.requestId,
+            requestType: requestType || 'chat',
+            subject: subject || undefined
+          }
+        }, io);
+      }
     }
 
     res.status(201).json({
@@ -397,19 +401,22 @@ router.post("/requests/:requestId/accept", authMiddleware.authenticate, async (r
     io.to(`user_${pdtUserId}`).emit('newConversation', conversation);
 
     // Send notification for request accepted
-    await notificationService.createNotification({
-      recipient: request.fromUser.userId,
-      sender: userId,
-      type: 'request-accepted',
-      title: 'Yêu cầu chat được chấp nhận',
-      message: `${request.acceptedBy.name} đã chấp nhận yêu cầu chat của bạn`,
-      link: `/chat?conversation=${conversationId}`,
-      priority: 'normal',
-      metadata: {
-        requestId: request.requestId,
-        conversationId: conversationId
-      }
-    }, io);
+    const fromAccount = await Account.findOne({ id: request.fromUser.userId }).select('_id');
+    if (fromAccount) {
+      await notificationService.createNotification({
+        recipient: fromAccount._id,
+        sender: req.account._id,
+        type: 'request-accepted',
+        title: 'Yêu cầu chat được chấp nhận',
+        message: `${request.acceptedBy.name} đã chấp nhận yêu cầu chat của bạn`,
+        link: `/chat?conversation=${conversationId}`,
+        priority: 'normal',
+        metadata: {
+          requestId: request.requestId,
+          conversationId: conversationId
+        }
+      }, io);
+    }
 
     res.json({
       success: true,
@@ -860,22 +867,26 @@ router.post("/conversations/:conversationId/messages", authMiddleware.authentica
 
         // Only send notification if more than THROTTLE_MINUTES have passed
         if (timeSinceLastNotification >= THROTTLE_MINUTES) {
-          await notificationService.createNotification({
-            recipient: participant.userId,
-            sender: userId,
-            type: 'chat-message',
-            title: 'Tin nhắn mới',
-            message: `${req.account.name}: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
-            link: `/chat?conversation=${conversationId}`,
-            priority: 'normal',
-            metadata: {
-              conversationId: conversationId,
-              messageId: message.messageId
-            }
-          }, io);
+          // Get participant Account ObjectId
+          const participantAccount = await Account.findOne({ id: participant.userId }).select('_id');
+          if (participantAccount) {
+            await notificationService.createNotification({
+              recipient: participantAccount._id,
+              sender: req.account._id,
+              type: 'chat-message',
+              title: 'Tin nhắn mới',
+              message: `${req.account.name}: ${content.substring(0, 50)}${content.length > 50 ? '...' : ''}`,
+              link: `/chat?conversation=${conversationId}`,
+              priority: 'normal',
+              metadata: {
+                conversationId: conversationId,
+                messageId: message.messageId
+              }
+            }, io);
 
-          // Update throttle map
-          messageNotificationThrottle.set(throttleKey, now);
+            // Update throttle map
+            messageNotificationThrottle.set(throttleKey, now);
+          }
         }
       }
     }

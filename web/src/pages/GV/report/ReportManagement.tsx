@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useAuth } from "../../../contexts/UseAuth";
 import { apiClient } from "../../../utils/api";
 import SearchInput from "../../../components/UI/SearchInput";
 import Pagination from "../../../components/UI/Pagination";
@@ -9,6 +8,8 @@ import EditReportDialog from "./EditReportDialog";
 import DeleteReportDialog from "./DeleteReportDialog";
 import { useToast } from "../../../components/UI/Toast";
 import dayjs from "dayjs";
+import { useDebounce } from "../../../hooks/useDebounce";
+import EmptyState from "../../../components/UI/EmptyState";
 
 export interface TeacherReport {
   _id: string;
@@ -73,8 +74,6 @@ const StatusColors = {
 };
 
 const ReportManagement: React.FC = () => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { user } = useAuth();
   const { showSuccess, showError } = useToast();
   
   const [reports, setReports] = useState<TeacherReport[]>([]);
@@ -89,6 +88,7 @@ const ReportManagement: React.FC = () => {
 
   // Filters and pagination
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const [statusFilter, setStatusFilter] = useState<"all" | TeacherReport["status"]>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | TeacherReport["reportType"]>("all");
   const [page, setPage] = useState(1);
@@ -132,7 +132,7 @@ const ReportManagement: React.FC = () => {
   };
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     return reports.filter((report) => {
       const byStatus = statusFilter === "all" || report.status === statusFilter;
       const byType = typeFilter === "all" || report.reportType === typeFilter;
@@ -141,7 +141,7 @@ const ReportManagement: React.FC = () => {
         report.content.toLowerCase().includes(q);
       return byStatus && byType && byQuery;
     });
-  }, [reports, statusFilter, typeFilter, query]);
+  }, [reports, statusFilter, typeFilter, debouncedQuery]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -391,15 +391,44 @@ setReports(prev => prev.map(r =>
                 </td>
               </tr>
             ))}
-            {current.length === 0 && (
-              <tr>
-                <td className="px-4 py-10 text-center text-gray-500" colSpan={5}>
-                  {reports.length === 0 ? "Chưa có báo cáo nào." : "Không có báo cáo phù hợp."}
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
+
+        {current.length === 0 && !loading && (
+          <div className="py-12">
+            <EmptyState
+              icon={reports.length === 0 ? "📋" : "🔍"}
+              title={reports.length === 0 ? "Chưa có báo cáo" : "Không tìm thấy báo cáo"}
+              description={
+                reports.length === 0
+                  ? "Tạo báo cáo đầu tiên để ghi nhận hoạt động hướng dẫn."
+                  : "Thử thay đổi từ khóa tìm kiếm hoặc bộ lọc."
+              }
+              action={
+                reports.length === 0 && currentLecturer
+                  ? {
+                      label: "Tạo báo cáo",
+                      onClick: () => setOpenCreate(true),
+                      icon: "➕"
+                    }
+                  : undefined
+              }
+              secondaryAction={
+                reports.length > 0
+                  ? {
+                      label: "Xóa bộ lọc",
+                      onClick: () => {
+                        setQuery("");
+                        setStatusFilter("all");
+                        setTypeFilter("all");
+                        setPage(1);
+                      },
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        )}
 
         <Pagination
           currentPage={page}

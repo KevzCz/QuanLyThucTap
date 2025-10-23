@@ -1,4 +1,5 @@
 import Notification from "../models/Notification.js";
+import Account from "../models/Account.js";
 
 /**
  * Service for creating and managing notifications
@@ -35,7 +36,11 @@ class NotificationService {
 
       // Emit real-time notification if socket.io is available
       if (io) {
-        io.to(data.recipient.toString()).emit('newNotification', notification);
+        // Get the recipient's string ID for Socket.IO room
+        const recipientAccount = await Account.findById(data.recipient).select('id');
+        if (recipientAccount) {
+          io.to(recipientAccount.id).emit('newNotification', notification);
+        }
       }
 
       return notification;

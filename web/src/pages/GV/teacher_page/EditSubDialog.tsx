@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import Modal from "../../../util/Modal";
 import type { SubHeader } from "./TeacherPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
+import LoadingButton from "../../../components/UI/LoadingButton";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -13,11 +15,13 @@ interface Props {
 }
 
 const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, onDelete }) => {
+  const { showWarning } = useToast();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [order, setOrder] = useState(1);
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!sub) return;
@@ -28,16 +32,26 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
     setEndAt(sub.endAt || "");
   }, [sub, open]);
 
-  const save = () => {
+  const save = async () => {
     if (!headerId || !sub) return;
-    onSave(headerId, {
-      ...sub,
-      title: (sub.kind === "van-ban" || sub.kind === "thuong") ? title : title,
-      content: (sub.kind === "van-ban" || sub.kind === "thuong") ? title : content,
-      order,
-      startAt: sub.kind === "nop-file" ? startAt : undefined,
-      endAt: sub.kind === "nop-file" ? endAt : undefined,
-    });
+    if (!title.trim()) {
+      showWarning("Vui lòng nhập tiêu đề");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      await onSave(headerId, {
+        ...sub,
+        title: (sub.kind === "van-ban" || sub.kind === "thuong") ? title : title,
+        content: (sub.kind === "van-ban" || sub.kind === "thuong") ? title : content,
+        order,
+        startAt: sub.kind === "nop-file" ? startAt : undefined,
+        endAt: sub.kind === "nop-file" ? endAt : undefined,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -49,15 +63,28 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
       actions={
         <>
           {!!sub && headerId && (
-            <button className="mr-auto h-10 px-4 rounded-md text-rose-600 hover:bg-rose-50"
-                    onClick={() => onDelete(headerId, sub.id)}>
+            <button 
+              className="mr-auto h-10 px-4 rounded-md text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+              onClick={() => onDelete(headerId, sub.id)}
+              disabled={isSubmitting}
+            >
               Xóa
             </button>
           )}
-          <button className="h-10 px-4 rounded-md text-gray-700 border border-gray-300 hover:bg-gray-50"
-                  onClick={onClose}>Hủy</button>
-          <button className="h-10 px-5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-                  onClick={save}>Lưu</button>
+          <button 
+            className="h-10 px-4 rounded-md text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
+            Hủy
+          </button>
+          <LoadingButton 
+            onClick={save}
+            loading={isSubmitting}
+            variant="primary"
+          >
+            Lưu
+          </LoadingButton>
         </>
       }
     >

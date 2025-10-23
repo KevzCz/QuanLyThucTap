@@ -134,6 +134,37 @@ router.post("/subjects/:subjectId/headers", ...authBCN, async (req, res) => {
   }
 });
 
+// Get single header (BCN only)
+router.get("/headers/:headerId", ...authBCN, async (req, res) => {
+  try {
+    const { headerId } = req.params;
+
+    const header = await PageHeader.findById(headerId)
+      .populate('internshipSubject', 'id title');
+
+    if (!header) {
+      return res.status(404).json({ error: "Không tìm thấy header" });
+    }
+
+    // Verify BCN manages this subject
+    const bcnProfile = await BanChuNhiem.findOne({ 
+      account: req.account._id,
+      internshipSubject: header.internshipSubject._id 
+    });
+    if (!bcnProfile) {
+      return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
+    }
+
+    res.json({
+      success: true,
+      header
+    });
+  } catch (error) {
+    console.error("Get header error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // Update page header (BCN only)
 router.put("/headers/:headerId", ...authBCN, async (req, res) => {
   try {
@@ -253,13 +284,19 @@ router.post("/headers/:headerId/subs", ...authBCN, async (req, res) => {
       finalOrder = highestOrder ? highestOrder.order + 1 : 1;
     }
 
+    // Implement audience inheritance: if header has specific audience, sub-header must inherit it
+    let finalAudience = audience || "tat-ca";
+    if (header.audience !== "tat-ca") {
+      finalAudience = header.audience; // Force inheritance
+    }
+
     const subHeader = new SubHeader({
       pageHeader: header._id,
       title,
       content: content || "",
       order: finalOrder,
       kind: kind || "thuong",
-      audience: audience || "tat-ca",
+      audience: finalAudience,
       startAt: startAt ? new Date(startAt) : null,
       endAt: endAt ? new Date(endAt) : null,
       fileUrl,
@@ -268,32 +305,57 @@ router.post("/headers/:headerId/subs", ...authBCN, async (req, res) => {
 
     await subHeader.save();
 
-    // Send notifications to students if it's thông báo or nộp-file type
+    // Send notifications based on audience settings
     if (kind === 'thong-bao' || kind === 'nop-file') {
       const io = req.app.get('io');
-      const subject = await InternshipSubject.findById(header.internshipSubject);
+      const subject = await InternshipSubject.findById(header.internshipSubject)
+        .populate('students', '_id')
+        .populate('lecturers', '_id');
       
-      if (subject && subject.students && subject.students.length > 0) {
+      if (subject) {
         const notificationType = kind === 'thong-bao' ? 'Thông báo mới' : 'Yêu cầu nộp file mới';
         const notificationMessage = kind === 'thong-bao' 
           ? `Thông báo mới từ khoa: ${title}`
           : `Yêu cầu nộp file mới: ${title}${endAt ? ` (Hạn: ${new Date(endAt).toLocaleDateString('vi-VN')})` : ''}`;
         
-        // Send to all students in the subject
-        for (const studentId of subject.students) {
-          await notificationService.createNotification({
-            recipient: studentId,
-            sender: req.account._id,
-            type: kind === 'thong-bao' ? 'system' : 'file-submitted',
-            title: notificationType,
-            message: notificationMessage,
-            link: `/docs-dept/sub/${subHeader._id}`,
-            priority: kind === 'nop-file' ? 'high' : 'normal',
-            metadata: { 
-              subjectId: subject.id,
-              subHeaderId: subHeader._id.toString()
-            }
-          }, io);
+        // Send to students if audience includes them
+        if ((finalAudience === 'tat-ca' || finalAudience === 'sinh-vien') && subject.students && subject.students.length > 0) {
+          for (const studentId of subject.students) {
+            await notificationService.createNotification({
+              recipient: studentId,
+              sender: req.account._id,
+              type: kind === 'thong-bao' ? 'system' : 'file-submitted',
+              title: notificationType,
+              message: notificationMessage,
+              link: `/docs-dept/sub/${subHeader._id}`,
+              priority: kind === 'nop-file' ? 'high' : 'normal',
+              metadata: { 
+                subjectId: subject.id,
+                subHeaderId: subHeader._id.toString(),
+                audience: finalAudience
+              }
+            }, io);
+          }
+        }
+
+        // Send to lecturers if audience includes them
+        if ((finalAudience === 'tat-ca' || finalAudience === 'giang-vien') && subject.lecturers && subject.lecturers.length > 0) {
+          for (const lecturerId of subject.lecturers) {
+            await notificationService.createNotification({
+              recipient: lecturerId,
+              sender: req.account._id,
+              type: 'system',
+              title: notificationType,
+              message: notificationMessage,
+              link: `/docs-dept/sub/${subHeader._id}`,
+              priority: 'normal',
+              metadata: { 
+                subjectId: subject.id,
+                subHeaderId: subHeader._id.toString(),
+                audience: finalAudience
+              }
+            }, io);
+          }
         }
       }
     }
@@ -337,7 +399,16 @@ router.put("/subs/:subId", ...authBCN, async (req, res) => {
     if (title !== undefined) subHeader.title = title;
     if (content !== undefined) subHeader.content = content;
     if (order !== undefined) subHeader.order = order;
-    if (audience) subHeader.audience = audience;
+    
+    // Implement audience inheritance: if header has specific audience, sub-header must inherit it
+    if (audience) {
+      if (subHeader.pageHeader.audience !== "tat-ca") {
+        subHeader.audience = subHeader.pageHeader.audience; // Force inheritance
+      } else {
+        subHeader.audience = audience; // Allow change only if header is "tat-ca"
+      }
+    }
+    
     if (startAt !== undefined) subHeader.startAt = startAt ? new Date(startAt) : null;
     if (endAt !== undefined) subHeader.endAt = endAt ? new Date(endAt) : null;
     if (fileUrl !== undefined) subHeader.fileUrl = fileUrl;
@@ -885,9 +956,9 @@ router.post("/teacher/headers/:headerId/subs", authenticate, authorize(["giang-v
     if ((kind === 'thong-bao' || kind === 'nop-file') && audience === 'sinh-vien') {
       const io = req.app.get('io');
       
-      // Get all students supervised by this teacher
+      // Get all students supervised by this teacher (using account ID, not GiangVien ID)
       const students = await SinhVien.find({ 
-        supervisor: lecturerProfile._id,
+        supervisor: lecturerProfile.account,
         isActive: true 
       }).select('account');
 
@@ -1258,6 +1329,47 @@ router.post("/subs/:subId/submissions", authenticate, async (req, res) => {
     await submission.save();
     await submission.populate('submitter', 'id name email');
 
+    // Notify relevant parties about file submission
+    try {
+      const io = req.app.get('io');
+      
+      // Populate to get the full header information
+      await subHeader.populate({
+        path: 'pageHeader',
+        populate: [
+          { path: 'internshipSubject' },
+          { path: 'instructor' }
+        ]
+      });
+
+      // If it's a teacher page (pageType === 'teacher'), notify the teacher
+      if (subHeader.pageHeader.pageType === 'teacher' && subHeader.pageHeader.instructor) {
+        await notificationService.notifyFileSubmitted(
+          subHeader.pageHeader.instructor,
+          req.account.name,
+          subHeader._id.toString(),
+          io
+        );
+      }
+      
+      // If it's a department page (pageType === 'khoa'), notify the BCN
+      if (subHeader.pageHeader.pageType === 'khoa' && subHeader.pageHeader.internshipSubject) {
+        const bcnProfile = await BanChuNhiem.findOne({ 
+          internshipSubject: subHeader.pageHeader.internshipSubject._id 
+        });
+        if (bcnProfile) {
+          await notificationService.notifyFileSubmitted(
+            bcnProfile.account,
+            req.account.name,
+            subHeader._id.toString(),
+            io
+          );
+        }
+      }
+    } catch (notifError) {
+      console.error('Error sending file submission notification:', notifError);
+    }
+
     res.status(201).json({
       success: true,
       submission
@@ -1305,6 +1417,26 @@ router.put("/submissions/:submissionId", ...authBCN, async (req, res) => {
     await submission.save();
     await submission.populate('submitter', 'id name email');
     await submission.populate('reviewedBy', 'id name email');
+
+    // Notify student about submission review
+    try {
+      const io = req.app.get('io');
+      await notificationService.createNotification({
+        recipient: submission.submitter._id,
+        sender: req.account._id,
+        type: 'file-submitted',
+        title: 'Bài nộp đã được xem xét',
+        message: `Bài nộp "${submission.fileName}" của bạn đã được ${status === 'accepted' ? 'chấp nhận' : status === 'rejected' ? 'từ chối' : 'xem xét'}${reviewNote ? ': ' + reviewNote : ''}`,
+        link: `/khoa-page`,
+        priority: 'normal',
+        metadata: { 
+          submissionId: submission._id.toString(),
+          subHeaderId: submission.subHeader._id.toString() 
+        }
+      }, io);
+    } catch (notifError) {
+      console.error('Error sending submission review notification:', notifError);
+    }
 
     res.json({
       success: true,

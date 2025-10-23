@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import Modal from "../../../util/Modal";
 import type { Role, Status, Account } from "./AccountTypes";
 import { roleLabel } from "./AccountTypes";
+import { useToast } from "../../../components/UI/Toast";
+import LoadingButton from "../../../components/UI/LoadingButton";
 
 interface Props {
   open: boolean;
@@ -10,6 +12,7 @@ interface Props {
 }
 
 const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
+  const { showWarning } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("phong-dao-tao");
@@ -35,23 +38,23 @@ const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
 
   const submit = async () => {
     if (!name.trim()) {
-      alert("Vui lòng nhập tên");
+      showWarning("Vui lòng nhập tên");
       return;
     }
     if (!email.trim()) {
-      alert("Vui lòng nhập email");
+      showWarning("Vui lòng nhập email");
       return;
     }
     if (!password.trim()) {
-      alert("Vui lòng nhập mật khẩu");
+      showWarning("Vui lòng nhập mật khẩu");
       return;
     }
     if (password !== confirmPassword) {
-      alert("Mật khẩu xác nhận không khớp");
+      showWarning("Mật khẩu xác nhận không khớp");
       return;
     }
     if (password.length < 6) {
-      alert("Mật khẩu phải có ít nhất 6 ký tự");
+      showWarning("Mật khẩu phải có ít nhất 6 ký tự");
       return;
     }
 
@@ -83,13 +86,13 @@ const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
           >
             Hủy
           </button>
-          <button 
-            className="h-10 px-5 rounded-md bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50" 
+          <LoadingButton
             onClick={submit}
-            disabled={isSubmitting}
+            loading={isSubmitting}
+            variant="primary"
           >
-            {isSubmitting ? "Đang thêm..." : "Thêm"}
-          </button>
+            Thêm
+          </LoadingButton>
         </>
       }
     >

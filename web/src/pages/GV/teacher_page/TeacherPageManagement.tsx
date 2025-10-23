@@ -1,10 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { HeaderBlock, SubHeader, TeacherPageStructure } from "./TeacherPageTypes";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import SearchInput from "../../../components/UI/SearchInput";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import SubjectPill from "../../../components/UI/SubjectPill";
 import ChevronButton from "../../../components/UI/ChevronButton";
 import PageToolbar from "../../../components/UI/PageToolbar";
 import CreateHeaderDialog from "../teacher_page/CreateHeaderDialog";
@@ -16,8 +12,6 @@ import dayjs from "dayjs";
 
 // Add missing API functions
 import { apiClient } from "../../../utils/api";
-import { useAuth } from "../../../contexts/UseAuth";
-import { Icons } from "../../../components/UI/Icons";
 import { useToast } from "../../../components/UI/Toast";
 import PageLayout from "../../../components/UI/PageLayout";
 
@@ -49,8 +43,6 @@ const AudienceText = {
 const TeacherPageManagement: React.FC = () => {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { user } = useAuth();
   const [teacherData, setTeacherData] = useState<TeacherPageStructure | null>(null);
   const [query, setQuery] = useState("");
   const [data, setData] = useState<HeaderBlock[]>([]);
@@ -222,10 +214,11 @@ const TeacherPageManagement: React.FC = () => {
           method: 'DELETE'
         });
         setData(prev => prev.filter(x => x.id !== id));
+        showSuccess('Đã xóa header thành công');
       }
     } catch (err) {
       console.error('Failed to delete header:', err);
-      alert('Không thể xóa header');
+      showError('Không thể xóa header');
     }
   };
 
@@ -276,9 +269,10 @@ const TeacherPageManagement: React.FC = () => {
             : h
         )
       );
+      showSuccess('Đã tạo sub-header thành công');
     } catch (err) {
       console.error('Failed to create sub-header:', err);
-      alert('Không thể tạo sub-header');
+      showError('Không thể tạo sub-header');
     }
   };
 
@@ -367,9 +361,10 @@ const TeacherPageManagement: React.FC = () => {
       // Create a simple reorder endpoint call
       const headerIds = newData.map(h => h._id || h.id);
       await apiClient.reorderTeacherHeaders(teacherData.subject.id, headerIds);
+      showSuccess('Đã thay đổi thứ tự header thành công');
     } catch (err) {
       console.error('Failed to reorder headers:', err);
-      alert('Không thể thay đổi thứ tự header');
+      showError('Không thể thay đổi thứ tự header');
       await loadTeacherPageData();
     } finally {
       setDraggedHeader(null);
@@ -455,9 +450,10 @@ const TeacherPageManagement: React.FC = () => {
       // Create a simple reorder endpoint call
       const subHeaderIds = sourceSubs.map(s => s._id || s.id);
       await apiClient.reorderTeacherSubHeaders(header._id || header.id, subHeaderIds);
+      showSuccess('Đã thay đổi thứ tự sub-header thành công');
     } catch (err) {
       console.error('Failed to reorder sub-headers:', err);
-      alert('Không thể thay đổi thứ tự sub-header');
+      showError('Không thể thay đổi thứ tự sub-header');
       await loadTeacherPageData();
     } finally {
       setDraggedSub(null);
@@ -528,7 +524,7 @@ const TeacherPageManagement: React.FC = () => {
       primaryAction={{
         label: "Tạo header",
         onClick: () => setOpenCreateHeader(true),
-        icon: <Icons.add size="sm" />
+        icon: <span>➕</span>
       }}
     >
       {/* Content */}
@@ -559,7 +555,7 @@ const TeacherPageManagement: React.FC = () => {
                 className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors" 
                 title="Kéo để sắp xếp lại thứ tự"
               >
-                <Icons.file size="sm" />
+                <span>⋮⋮</span>
               </div>
               
               <ChevronButton open={open} onClick={() => setExpanded((m) => ({ ...m, [h.id]: !open }))} />
@@ -572,17 +568,17 @@ const TeacherPageManagement: React.FC = () => {
               </span>
               
               <button className="ml-2 h-8 w-8 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors" title="Sửa header" onClick={() => setEditHeader(h)}>
-                <Icons.edit size="sm" />
+                <span>✏️</span>
               </button>
               <button className="h-8 w-8 grid place-items-center rounded-md bg-cyan-600 text-white hover:bg-cyan-700 transition-colors" title="Thêm sub-header" onClick={() => setCreateUnder(h)}>
-                <Icons.add size="sm" />
+                <span>➕</span>
               </button>
               <button
                 className="h-8 w-8 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors"
                 title="Xóa header"
                 onClick={() => setConfirmDelHeader(h)}
               >
-                <Icons.delete size="sm" />
+                <span>🗑️</span>
               </button>
             </div>
 
@@ -612,19 +608,19 @@ const TeacherPageManagement: React.FC = () => {
                       >
                       {/* Drag handle */}
                       <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors mr-2">
-                        <Icons.file size="sm" />
+                        <span>⋮⋮</span>
                       </div>
                       
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         {/* Unified content type icons */}
                         {s.kind === "thong-bao" ? (
-                          <span className="shrink-0 text-blue-600" title="Thông báo">{Icons.notification}</span>
+                          <span className="shrink-0 text-blue-600" title="Thông báo">🔔</span>
                         ) : s.kind === "nop-file" ? (
-                          <span className="shrink-0 text-gray-700" title="Nộp file">{Icons.upload}</span>
+                          <span className="shrink-0 text-orange-600" title="Nộp file">📤</span>
                         ) : s.kind === "file" ? (
-                          <span className="shrink-0 text-green-600" title="File tải xuống">{Icons.download}</span>
+                          <span className="shrink-0 text-green-600" title="File tải xuống">📎</span>
                         ) : (
-                          <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục">{Icons.document}</span>
+                          <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục">•</span>
                         )}
 
                         {/* label */}
@@ -670,14 +666,14 @@ const TeacherPageManagement: React.FC = () => {
                           title="Sửa sub-header"
                           onClick={() => setEditSub({ headerId: h.id, sub: s })}
                         >
-                          <Icons.edit size="sm" />
+                          <span>✏️</span>
                         </button>
                         <button
                           className="h-7 w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors"
                           title="Xóa"
                           onClick={() => setConfirmDelSub({ header: h, sub: s })}
                         >
-                          <Icons.delete size="sm" />
+                          <span>🗑️</span>
                         </button>
                       </div>
                     </div>

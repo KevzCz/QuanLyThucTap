@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader, SubmittedFile } from "./KhoaPageViewTypes";
+import { useToast } from "../../../components/UI/Toast";
 import { 
   getSubHeader, 
   getSubmissions, 
@@ -16,6 +17,7 @@ const KhoaSubViewUpload: React.FC = () => {
   const { subId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [sub, setSub] = useState<SubHeader | null>(state?.sub || null);
@@ -31,6 +33,7 @@ const KhoaSubViewUpload: React.FC = () => {
     if (subId) {
       loadData();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subId]);
 
   const loadData = async () => {
@@ -134,10 +137,10 @@ const KhoaSubViewUpload: React.FC = () => {
         inputRef.current.value = '';
       }
 
-      alert('Nộp file thành công!');
+      showSuccess('Nộp file thành công!');
     } catch (error) {
       console.error('File upload error:', error);
-      alert('Không thể nộp file. Vui lòng thử lại.');
+      showError('Không thể nộp file. Vui lòng thử lại.');
     } finally {
       setUploading(false);
     }
@@ -150,9 +153,10 @@ const KhoaSubViewUpload: React.FC = () => {
     try {
       await deleteSubmission(id);
       await loadData();
+      showSuccess('Đã xóa file thành công!');
     } catch (error) {
       console.error('Failed to delete submission:', error);
-      alert('Không thể xóa file');
+      showError('Không thể xóa file');
     }
   };
 

@@ -1,6 +1,7 @@
 import React from "react";
 import Modal from "../../../util/Modal";
 import type { KhoaReport } from "./KhoaReportManagement";
+import { resolveFileHref } from "../../../utils/fileLinks";
 import dayjs from "dayjs";
 
 interface Props {
@@ -168,7 +169,7 @@ const ViewKhoaReportDialog: React.FC<Props> = ({ open, onClose, report }) => {
                       </div>
                     </div>
                     <a
-                      href={file.fileUrl}
+                      href={resolveFileHref(file.fileUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"

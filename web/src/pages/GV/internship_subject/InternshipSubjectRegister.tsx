@@ -5,6 +5,7 @@ import RegisterSubjectDialog from "./RegisterSubjectDialog";
 import AlreadyRegisteredDialog from "./AlreadyRegisteredDialog";
 import dayjs from "dayjs";
 import { apiClient } from "../../../utils/api";
+import { useToast } from "../../../components/UI/Toast";
 
 const StatusChip: React.FC<{ status: 'open' | 'full' | 'closed' | 'locked' }> = ({ status }) => {
   const statusMap = {
@@ -22,6 +23,7 @@ const StatusChip: React.FC<{ status: 'open' | 'full' | 'closed' | 'locked' }> = 
 };
 
 const InternshipSubjectRegister: React.FC = () => {
+  const { showWarning, showSuccess, showError } = useToast();
   const [subjects, setSubjects] = useState<InternshipSubject[]>([]);
   const [teacherRegistration, setTeacherRegistration] = useState<TeacherRegistration | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,7 +97,7 @@ const InternshipSubjectRegister: React.FC = () => {
     } else {
       // Check if subject is open for registration
       if (subject.status !== "open") {
-        alert('Môn thực tập này đã đóng đăng ký');
+        showWarning('Môn thực tập này đã đóng đăng ký');
         return;
       }
       
@@ -127,10 +129,10 @@ const InternshipSubjectRegister: React.FC = () => {
         )
       );
 
-      alert("Đăng ký thành công! Bạn đã tham gia giảng dạy môn thực tập.");
+      showSuccess("Đăng ký thành công! Bạn đã tham gia giảng dạy môn thực tập.");
     } catch (error) {
       console.error("Registration error:", error);
-      alert(error instanceof Error ? error.message : "Đăng ký thất bại");
+      showError(error instanceof Error ? error.message : "Đăng ký thất bại");
     }
   };
 

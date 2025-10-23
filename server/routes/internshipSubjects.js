@@ -127,6 +127,23 @@ router.post("/", ...authPDT, async (req, res) => {
       { upsert: true }
     );
 
+    // Send notification to BCN about new subject assignment
+    try {
+      const io = req.app.get('io');
+      await notificationService.createNotification({
+        recipient: manager._id,
+        sender: req.account._id,
+        type: 'subject-assigned',
+        title: 'Được phân công quản lý môn thực tập',
+        message: `Bạn đã được phân công quản lý môn thực tập "${subject.title}"`,
+        link: `/bcn/internship-subject`,
+        priority: 'high',
+        metadata: { subjectId: subject.id }
+      }, io);
+    } catch (notifError) {
+      console.error('Error sending subject assignment notification:', notifError);
+    }
+
     res.status(201).json({
       success: true,
       subject
@@ -157,6 +174,8 @@ router.put("/:id", ...authPDT, async (req, res) => {
     }
 
     // Update basic fields
+    const originalStatus = subject.status;
+    
     if (title) subject.title = title;
     if (description !== undefined) subject.description = description;
     if (duration) subject.duration = duration;
@@ -165,12 +184,17 @@ router.put("/:id", ...authPDT, async (req, res) => {
     if (maxStudents) subject.maxStudents = maxStudents;
     if (status) subject.status = status;
 
+    let newManager = null;
+    let oldManager = null;
+
     // Update manager if changed
     if (managerId && managerId !== subject.manager.toString()) {
-      const newManager = await Account.findOne({ id: managerId, role: "ban-chu-nhiem" });
+      newManager = await Account.findOne({ id: managerId, role: "ban-chu-nhiem" });
       if (!newManager) {
         return res.status(400).json({ error: "Không tìm thấy ban chủ nhiệm mới" });
       }
+
+      oldManager = await Account.findById(subject.manager);
 
       // Update old manager
       await BanChuNhiem.findOneAndUpdate(
@@ -189,6 +213,65 @@ router.put("/:id", ...authPDT, async (req, res) => {
 
     await subject.save();
     await subject.populate('manager', 'id name email');
+
+    // Send notifications for changes
+    try {
+      const io = req.app.get('io');
+      
+      // Notify about manager change
+      if (newManager && oldManager) {
+        // Notify old manager about removal
+        await notificationService.createNotification({
+          recipient: oldManager._id,
+          sender: req.account._id,
+          type: 'system',
+          title: 'Không còn quản lý môn thực tập',
+          message: `Bạn đã không còn quản lý môn thực tập "${subject.title}"`,
+          link: `/bcn/internship-subject`,
+          priority: 'normal',
+          metadata: { subjectId: subject.id }
+        }, io);
+
+        // Notify new manager about assignment
+        await notificationService.createNotification({
+          recipient: newManager._id,
+          sender: req.account._id,
+          type: 'subject-assigned',
+          title: 'Được phân công quản lý môn thực tập',
+          message: `Bạn đã được phân công quản lý môn thực tập "${subject.title}"`,
+          link: `/bcn/internship-subject`,
+          priority: 'high',
+          metadata: { subjectId: subject.id }
+        }, io);
+      }
+      
+      // Notify about status change
+      if (status && status !== originalStatus) {
+        const statusText = status === 'locked' ? 'đã đóng' : 'đã mở';
+        
+        // Notify all participants (BCN, lecturers, students)
+        const participants = [subject.manager, ...subject.lecturers, ...subject.students];
+        
+        for (const participantId of participants) {
+          await notificationService.createNotification({
+            recipient: participantId,
+            sender: req.account._id,
+            type: 'system',
+            title: 'Trạng thái môn thực tập thay đổi',
+            message: `Môn thực tập "${subject.title}" ${statusText}`,
+            link: `/internship-subjects/${subject.id}`,
+            priority: 'normal',
+            metadata: { 
+              subjectId: subject.id,
+              oldStatus: originalStatus,
+              newStatus: status
+            }
+          }, io);
+        }
+      }
+    } catch (notifError) {
+      console.error('Error sending subject update notification:', notifError);
+    }
 
     res.json({
       success: true,
@@ -425,6 +508,23 @@ router.delete("/:id/lecturers/:lecturerId", ...authBCN, async (req, res) => {
       { supervisor: null }
     );
 
+    // Send notification to lecturer about removal
+    try {
+      const io = req.app.get('io');
+      await notificationService.createNotification({
+        recipient: lecturer._id,
+        sender: req.account._id,
+        type: 'student-removed',
+        title: 'Không còn tham gia môn thực tập',
+        message: `Bạn đã không còn tham gia giảng dạy môn thực tập "${subject.title}"`,
+        link: `/teacher-page`,
+        priority: 'normal',
+        metadata: { subjectId: subject.id }
+      }, io);
+    } catch (notifError) {
+      console.error('Error sending lecturer removal notification:', notifError);
+    }
+
     res.json({ success: true, message: "Đã xóa giảng viên khỏi môn thực tập" });
   } catch (error) {
     console.error("Remove lecturer error:", error);
@@ -589,6 +689,23 @@ router.delete("/:id/students/:studentId", ...authBCN, async (req, res) => {
       { managedStudents: student._id },
       { $pull: { managedStudents: student._id } }
     );
+
+    // Send notification to student about removal
+    try {
+      const io = req.app.get('io');
+      await notificationService.createNotification({
+        recipient: student._id,
+        sender: req.account._id,
+        type: 'student-removed',
+        title: 'Không còn tham gia môn thực tập',
+        message: `Bạn đã không còn tham gia môn thực tập "${subject.title}"`,
+        link: `/my-internship`,
+        priority: 'high',
+        metadata: { subjectId: subject.id }
+      }, io);
+    } catch (notifError) {
+      console.error('Error sending student removal notification:', notifError);
+    }
 
     res.json({ success: true, message: "Đã xóa sinh viên khỏi môn thực tập" });
   } catch (error) {
@@ -917,6 +1034,45 @@ router.post("/student/register", authenticate, async (req, res) => {
       { upsert: true }
     );
 
+    // Send notifications
+    try {
+      const io = req.app.get('io');
+      
+      // Notify BCN about new student registration
+      const bcnProfile = await BanChuNhiem.findOne({ 
+        internshipSubject: subject._id 
+      });
+      
+      if (bcnProfile) {
+        await notificationService.createNotification({
+          recipient: bcnProfile.account,
+          sender: req.account._id,
+          type: 'system',
+          title: 'Sinh viên đăng ký môn thực tập',
+          message: `Sinh viên ${req.account.name} (${req.account.id}) đã đăng ký môn thực tập "${subject.title}"`,
+          link: `/bcn/internship-subject`,
+          priority: 'normal',
+          metadata: { 
+            subjectId: subject.id,
+            studentId: req.account.id
+          }
+        }, io);
+      }
+      
+      // Notify student about successful registration
+      await notificationService.createNotification({
+        recipient: req.account._id,
+        type: 'system',
+        title: 'Đăng ký thành công',
+        message: `Bạn đã đăng ký thành công môn thực tập "${subject.title}"`,
+        link: `/my-internship`,
+        priority: 'high',
+        metadata: { subjectId: subject.id }
+      }, io);
+    } catch (notifError) {
+      console.error('Error sending student registration notification:', notifError);
+    }
+
     const registration = {
       studentId: req.account.id,
       subjectId: subject.id,
@@ -1023,6 +1179,45 @@ router.post("/teacher/register", authenticate, async (req, res) => {
       },
       { upsert: true }
     );
+
+    // Send notifications
+    try {
+      const io = req.app.get('io');
+      
+      // Notify BCN about new teacher registration
+      const bcnProfile = await BanChuNhiem.findOne({ 
+        internshipSubject: subject._id 
+      });
+      
+      if (bcnProfile) {
+        await notificationService.createNotification({
+          recipient: bcnProfile.account,
+          sender: req.account._id,
+          type: 'system',
+          title: 'Giảng viên đăng ký môn thực tập',
+          message: `Giảng viên ${req.account.name} (${req.account.id}) đã đăng ký tham gia giảng dạy môn thực tập "${subject.title}"`,
+          link: `/bcn/internship-subject`,
+          priority: 'normal',
+          metadata: { 
+            subjectId: subject.id,
+            teacherId: req.account.id
+          }
+        }, io);
+      }
+      
+      // Notify teacher about successful registration
+      await notificationService.createNotification({
+        recipient: req.account._id,
+        type: 'system',
+        title: 'Đăng ký giảng dạy thành công',
+        message: `Bạn đã đăng ký thành công tham gia giảng dạy môn thực tập "${subject.title}"`,
+        link: `/teacher-page`,
+        priority: 'high',
+        metadata: { subjectId: subject.id }
+      }, io);
+    } catch (notifError) {
+      console.error('Error sending teacher registration notification:', notifError);
+    }
 
     const registration = {
       teacherId: req.account.id,

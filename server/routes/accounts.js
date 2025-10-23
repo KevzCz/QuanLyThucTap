@@ -1,6 +1,7 @@
 import express from "express";
 import Account from "../models/Account.js";
 import { authenticate, authPDT } from "../middleware/auth.js";
+import notificationService from "../services/notificationService.js";
 
 const router = express.Router();
 
@@ -79,6 +80,23 @@ router.post("/", ...authPDT, async (req, res) => {
 
     await account.save();
 
+    // Notify the account user about their account creation
+    try {
+      const io = req.app.get('io');
+      await notificationService.createNotification({
+        recipient: account._id,
+        sender: req.account._id,
+        type: 'system',
+        title: 'Tài khoản được tạo thành công',
+        message: `Tài khoản của bạn đã được tạo với vai trò ${role === 'phong-dao-tao' ? 'Phòng Đào Tạo' : role === 'ban-chu-nhiem' ? 'Ban Chủ Nhiệm' : role === 'giang-vien' ? 'Giảng viên' : 'Sinh viên'}`,
+        link: '/profile',
+        priority: 'high',
+        metadata: { accountId: account.id }
+      }, io);
+    } catch (notifError) {
+      console.error('Error sending account creation notification:', notifError);
+    }
+
     res.status(201).json({
       success: true,
       account: {
@@ -114,6 +132,9 @@ router.put("/:id", ...authPDT, async (req, res) => {
     }
 
     // Update fields
+    const originalStatus = account.status;
+    const originalRole = account.role;
+    
     if (name) account.name = name;
     if (email) account.email = email;
     if (role) account.role = role;
@@ -121,6 +142,56 @@ router.put("/:id", ...authPDT, async (req, res) => {
     if (password) account.password = password; // Will be hashed by pre-save hook
 
     await account.save();
+
+    // Notify user about important account changes
+    try {
+      const io = req.app.get('io');
+      
+      // Notify about status change
+      if (status && status !== originalStatus) {
+        const statusText = status === 'locked' ? 'bị khóa' : 'được kích hoạt';
+        await notificationService.createNotification({
+          recipient: account._id,
+          sender: req.account._id,
+          type: 'system',
+          title: 'Trạng thái tài khoản thay đổi',
+          message: `Tài khoản của bạn đã ${statusText}`,
+          link: '/profile',
+          priority: status === 'locked' ? 'urgent' : 'high',
+          metadata: { 
+            accountId: account.id,
+            oldStatus: originalStatus,
+            newStatus: status
+          }
+        }, io);
+      }
+      
+      // Notify about role change
+      if (role && role !== originalRole) {
+        const roleNames = {
+          'phong-dao-tao': 'Phòng Đào Tạo',
+          'ban-chu-nhiem': 'Ban Chủ Nhiệm', 
+          'giang-vien': 'Giảng viên',
+          'sinh-vien': 'Sinh viên'
+        };
+        await notificationService.createNotification({
+          recipient: account._id,
+          sender: req.account._id,
+          type: 'system',
+          title: 'Vai trò tài khoản thay đổi',
+          message: `Vai trò của bạn đã được thay đổi thành ${roleNames[role] || role}`,
+          link: '/profile',
+          priority: 'high',
+          metadata: { 
+            accountId: account.id,
+            oldRole: originalRole,
+            newRole: role
+          }
+        }, io);
+      }
+    } catch (notifError) {
+      console.error('Error sending account update notification:', notifError);
+    }
 
     res.json({
       success: true,

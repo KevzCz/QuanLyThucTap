@@ -3,6 +3,7 @@ import Report from "../models/Report.js";
 import GiangVien from "../models/GiangVien.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
 import { authenticate, authGV, authBCN } from "../middleware/auth.js";
+import notificationService from "../services/notificationService.js";
 
 const router = express.Router();
 
@@ -170,6 +171,34 @@ const submitHandler = async (req, res) => {
     await report.populate("instructor", "id name email");
     await report.populate("internshipSubject", "id title");
 
+    // Notify BCN about new report submission
+    try {
+      const io = req.app.get('io');
+      const lecturerProfile = await GiangVien.findOne({ account: req.account._id })
+        .populate('internshipSubject');
+      
+      if (lecturerProfile && lecturerProfile.internshipSubject) {
+        const bcnProfile = await BanChuNhiem.findOne({ 
+          internshipSubject: lecturerProfile.internshipSubject._id 
+        });
+        
+        if (bcnProfile) {
+          await notificationService.createNotification({
+            recipient: bcnProfile.account,
+            sender: req.account._id,
+            type: 'system',
+            title: 'Báo cáo mới từ giảng viên',
+            message: `${req.account.name} đã gửi báo cáo: ${report.title}`,
+            link: `/bcn/report`,
+            priority: 'normal',
+            metadata: { reportId: report._id.toString() }
+          }, io);
+        }
+      }
+    } catch (notifError) {
+      console.error('Error sending notification:', notifError);
+    }
+
     res.json({
       success: true,
       report, // now includes updatedAt and other fields
@@ -307,6 +336,19 @@ router.put("/bcn/:id/review", ...authBCN, async (req, res) => {
     await report.save();
     await report.populate('instructor', 'id name email');
     await report.populate('reviewedBy', 'id name email');
+
+    // Notify lecturer about report review
+    try {
+      const io = req.app.get('io');
+      await notificationService.notifyReportReviewed(
+        report.instructor._id,
+        report._id.toString(),
+        status,
+        io
+      );
+    } catch (notifError) {
+      console.error('Error sending notification:', notifError);
+    }
 
     res.json({
       success: true,

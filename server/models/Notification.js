@@ -27,6 +27,14 @@ const NotificationSchema = new mongoose.Schema(
         "subject-assigned",
         "file-submitted",
         "deadline-reminder",
+        "milestone-added",
+        "milestone-updated",
+        "grade-updated",
+        "work-type-changed",
+        "grade-submitted",
+        "grade-reviewed",
+        "grade-approved",
+        "grade-rejected",
         "system",
         "other"
       ],
@@ -66,7 +74,11 @@ const NotificationSchema = new mongoose.Schema(
       reportId: String,
       subjectId: String,
       studentId: String,
-      subHeaderId: String
+      subHeaderId: String,
+      gradeId: String,
+      milestoneTitle: String,
+      milestoneType: String,
+      workType: String
     }
   },
   { 

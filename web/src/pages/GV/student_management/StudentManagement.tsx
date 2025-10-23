@@ -7,6 +7,8 @@ import GVRequestsDialog from "../student_management/GVRequestsDialog";
 import { apiClient } from "../../../utils/api";
 import SearchInput from "../../../components/UI/SearchInput";
 import Pagination from "../../../components/UI/Pagination";
+import { useDebounce } from "../../../hooks/useDebounce";
+import EmptyState from "../../../components/UI/EmptyState";
 
 export type GVStudentStatus = "duoc-huong-dan" | "chua-duoc-huong-dan" | "dang-lam-do-an" | "dang-thuc-tap" | "hoan-thanh";
 
@@ -20,13 +22,6 @@ export interface GVStudent {
     title: string;
   };
   year: number;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-interface OutboxItem {
-  id: string;
-  kind: "add-single" | "add-bulk" | "remove-single";
-  payload: unknown;
 }
 
 const StatusChip: React.FC<{ v: GVStudentStatus }> = ({ v }) => {
@@ -59,6 +54,7 @@ const StudentManagement: React.FC = () => {
 
   // Filters
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const [statusFilter, setStatusFilter] = useState<"all" | GVStudentStatus>("all");
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -115,13 +111,13 @@ const StudentManagement: React.FC = () => {
 
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     return students.filter((r) => {
       const byStatus = statusFilter === "all" ? true : r.status === statusFilter;
       const byQuery = !q || r.name.toLowerCase().includes(q) || r.id.toLowerCase().includes(q);
       return byStatus && byQuery;
     });
-  }, [students, statusFilter, query]);
+  }, [students, statusFilter, debouncedQuery]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -329,13 +325,43 @@ const StudentManagement: React.FC = () => {
                 </td>
               </tr>
             ))}
-            {current.length === 0 && (
-              <tr><td className="px-4 py-10 text-center text-gray-500" colSpan={4}>
-                {students.length === 0 ? "Chưa có sinh viên nào." : "Không có sinh viên phù hợp."}
-              </td></tr>
-            )}
           </tbody>
         </table>
+
+        {current.length === 0 && !loading && (
+          <div className="py-8">
+            <EmptyState
+              icon={students.length === 0 ? "👥" : "🔍"}
+              title={students.length === 0 ? "Chưa có sinh viên" : "Không tìm thấy sinh viên"}
+              description={
+                students.length === 0
+                  ? "Chưa có sinh viên nào trong danh sách hướng dẫn của bạn."
+                  : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm."
+              }
+              action={
+                students.length === 0 && currentLecturer
+                  ? {
+                      label: "Thêm sinh viên",
+                      onClick: () => setOpenAdd(true),
+                      icon: "➕"
+                    }
+                  : undefined
+              }
+              secondaryAction={
+                students.length > 0
+                  ? {
+                      label: "Xóa bộ lọc",
+                      onClick: () => {
+                        setQuery("");
+                        setStatusFilter("all");
+                        setPage(1);
+                      },
+                    }
+                  : undefined
+              }
+            />
+          </div>
+        )}
 
         <Pagination
           currentPage={page}

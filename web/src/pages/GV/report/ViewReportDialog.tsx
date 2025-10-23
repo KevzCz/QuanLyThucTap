@@ -1,6 +1,7 @@
 import React from "react";
 import Modal from "../../../util/Modal";
 import type { TeacherReport } from "./ReportManagement";
+import { resolveFileHref } from "../../../utils/fileLinks";
 import dayjs from "dayjs";
 
 interface Props {
@@ -158,7 +159,7 @@ const ViewReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) 
                       </div>
                     </div>
                     <a
-                      href={file.fileUrl}
+                      href={resolveFileHref(file.fileUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"

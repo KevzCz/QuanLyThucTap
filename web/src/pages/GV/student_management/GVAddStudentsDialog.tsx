@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Modal from "../../../util/Modal";
 import FileDrop from "../../BCN/internship_subject/_FileDrop";
 import { apiClient } from "../../../utils/api";
+import { useToast } from "../../../components/UI/Toast";
 
 interface RowLite { id: string; name: string }
 
@@ -33,6 +34,7 @@ const GVAddStudentsDialog: React.FC<Props> = ({
   onParsed, 
   onRequestSingle 
 }) => {
+  const { showWarning } = useToast();
   const [svId, setSvId] = useState("");
   const [svName, setSvName] = useState("");
   const [availableStudents, setAvailableStudents] = useState<AvailableStudent[]>([]);
@@ -50,6 +52,7 @@ const GVAddStudentsDialog: React.FC<Props> = ({
       setError("");
       setValidationError("");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, subjectId]);
 
   const loadAvailableStudents = async () => {
@@ -276,13 +279,13 @@ const GVAddStudentsDialog: React.FC<Props> = ({
                 });
                 
                 if (invalidRows.length > 0) {
-                  alert(`Một số sinh viên không hợp lệ:\n${invalidRows.join('\n')}\n\nChỉ ${validRows.length} sinh viên hợp lệ sẽ được xử lý.`);
+                  showWarning(`Một số sinh viên không hợp lệ:\n${invalidRows.join('\n')}\n\nChỉ ${validRows.length} sinh viên hợp lệ sẽ được xử lý.`);
                 }
                 
                 if (validRows.length > 0) {
                   onParsed(validRows);
                 } else {
-                  alert('Không có sinh viên hợp lệ nào để xử lý');
+                  showWarning('Không có sinh viên hợp lệ nào để xử lý');
                 }
               }} />
             </div>

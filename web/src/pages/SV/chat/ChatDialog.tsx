@@ -5,6 +5,7 @@ import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import { socketManager } from "../../../services/socketManager";
 import dayjs from "dayjs";
 import { chatAPI } from "../../../services/chatApi";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -14,6 +15,7 @@ interface Props {
 }
 
 const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser }) => {
+  const { showError } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -95,44 +97,17 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
     const messageContent = newMessage.trim();
     setNewMessage(""); // Clear input immediately for better UX
 
-    // Create optimistic message for UI
-    const optimisticMessage: ChatMessage = {
-      id: `temp_${Date.now()}`,
-      senderId: currentUser.id,
-      content: messageContent,
-      timestamp: new Date().toISOString(),
-      type: "text",
-    };
-
-    // Add optimistic message to UI
-    setMessages(prev => [...prev, optimisticMessage]);
-
     try {
-      const response = await chatAPI.sendMessage(conversation.id, {
+      await chatAPI.sendMessage(conversation.id, {
         content: messageContent,
       });
 
-      // Replace optimistic message with actual message from server
-      setMessages(prev =>
-        prev.map(m =>
-          m.id === optimisticMessage.id
-            ? {
-                id: response.messageId,
-                senderId: response.senderId,
-                content: response.content,
-                timestamp: response.createdAt,
-                type: response.type as "text" | "file" | "system",
-              }
-            : m
-        )
-      );
+      // Note: We don't manually add the message here
+      // The Socket.IO 'newMessage' listener will add it automatically
     } catch (error) {
       console.error("Error sending message:", error);
-      
-      // Remove optimistic message on error
-      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
       setNewMessage(messageContent); // Restore message to input
-      alert("Không thể gửi tin nhắn. Vui lòng thử lại.");
+      showError("Không thể gửi tin nhắn. Vui lòng thử lại.");
     }
   };
 

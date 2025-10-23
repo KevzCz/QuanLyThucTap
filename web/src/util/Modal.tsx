@@ -61,16 +61,42 @@ const Modal: React.FC<ModalProps> = ({ open, title, onClose, children, actions, 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className={`relative w-full ${widthClass ?? "max-w-2xl"}`}>
-        <div className="rounded-2xl bg-white shadow-xl ring-1 ring-black/5 max-h-[calc(100vh-2rem)] flex flex-col">
-          <div className="px-5 py-3 border-b bg-gray-50 flex-shrink-0">
-            <h3 className="text-base font-semibold text-gray-900">{title}</h3>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+      {/* Enhanced backdrop with blur effect */}
+      <div 
+        className="absolute inset-0 bg-gradient-to-br from-gray-900/60 via-gray-900/50 to-gray-900/60 backdrop-blur-sm" 
+        onClick={onClose}
+      />
+      
+      {/* Modal container with slide-up animation */}
+      <div className={`relative w-full ${widthClass ?? "max-w-2xl"} animate-in slide-in-from-bottom-4 duration-300`}>
+        <div className="rounded-2xl bg-white shadow-2xl ring-1 ring-gray-900/10 max-h-[calc(100vh-2rem)] flex flex-col overflow-hidden">
+          {/* Enhanced header with gradient and close button */}
+          <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-white to-gray-50 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                {title}
+              </h3>
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                aria-label="Close dialog"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
-          <div className="p-5 flex-1 min-h-0 overflow-y-auto">{children}</div>
+          
+          {/* Content area with custom scrollbar */}
+          <div className="p-6 flex-1 min-h-0 overflow-y-auto [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400">
+            {children}
+          </div>
+          
+          {/* Enhanced footer with better spacing */}
           {actions && (
-            <div className="px-5 py-3 bg-gray-50 border-t flex justify-end gap-2 flex-shrink-0">
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3 flex-shrink-0">
               {actions}
             </div>
           )}

@@ -1,10 +1,11 @@
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader } from "./TeacherPageTypes";
 import dayjs from "dayjs";
 import RichTextEditor from "../../../util/RichTextEditor";
 import { apiClient } from "../../../utils/api";
 import { resolveFileHref } from "../../../utils/fileLinks";
+import { useToast } from "../../../components/UI/Toast";
 
 interface FileSubmission {
   _id: string;
@@ -33,8 +34,7 @@ const TeacherSubUpload: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const { showSuccess, showError } = useToast();
 
   const [sub, setSub] = useState<SubHeader | null>(null);
   const [html, setHtml] = useState<string>("");
@@ -69,6 +69,7 @@ const TeacherSubUpload: React.FC = () => {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subId]);
 
   const loadData = async () => {
@@ -115,17 +116,12 @@ const TeacherSubUpload: React.FC = () => {
       });
       setEditing(false);
       
-      // Show success message
-      const successMsg = document.createElement('div');
-      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-      successMsg.textContent = 'Đã lưu thay đổi thành công!';
-      document.body.appendChild(successMsg);
-      setTimeout(() => successMsg.remove(), 3000);
+      showSuccess('Đã lưu thay đổi thành công!');
       
       await loadData();
     } catch (error) {
       console.error('Failed to save:', error);
-      alert('Không thể lưu thay đổi');
+      showError('Không thể lưu thay đổi');
     }
   };
 
@@ -140,7 +136,7 @@ const TeacherSubUpload: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error('Failed to update status:', error);
-      alert('Không thể cập nhật trạng thái');
+      showError('Không thể cập nhật trạng thái');
     }
   };
 
@@ -185,8 +181,6 @@ const TeacherSubUpload: React.FC = () => {
   const end = sub.endAt ? dayjs(sub.endAt) : null;
   const isActive = (!start || now.isAfter(start)) && (!end || now.isBefore(end));
   const notStarted = start && now.isBefore(start);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const ended = end && now.isAfter(end);
 
   return (
     <div className="space-y-4">
@@ -401,7 +395,7 @@ const TeacherSubUpload: React.FC = () => {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <a
-                                    href={submission.fileUrl}
+                                    href={resolveFileHref(submission.fileUrl)}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="block font-medium text-blue-600 hover:underline truncate"

@@ -3,11 +3,13 @@ import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader } from "./TeacherPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
 import { apiClient } from "../../../utils/api";
+import { useToast } from "../../../components/UI/Toast";
 
 const TeacherSubRegular: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useToast();
 
   const [sub, setSub] = useState<SubHeader | null>(null);
   const [editing, setEditing] = useState(false);
@@ -17,6 +19,7 @@ const TeacherSubRegular: React.FC = () => {
 
   useEffect(() => {
     loadSubHeader();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subId]);
 
   const loadSubHeader = async () => {
@@ -68,18 +71,13 @@ const TeacherSubRegular: React.FC = () => {
       await apiClient.updateTeacherSubHeader(sub._id || sub.id, updateData);
       setEditing(false);
       
-      // Show success message
-      const successMsg = document.createElement('div');
-      successMsg.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
-      successMsg.textContent = 'Đã lưu thay đổi thành công!';
-      document.body.appendChild(successMsg);
-      setTimeout(() => successMsg.remove(), 3000);
+      showSuccess('Đã lưu thay đổi thành công!');
       
       // Reload to get updated data
       await loadSubHeader();
     } catch (error) {
       console.error('Failed to save:', error);
-      alert('Không thể lưu thay đổi: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      showError('Không thể lưu thay đổi: ' + (error instanceof Error ? error.message : 'Lỗi không xác định'));
     }
   };
 

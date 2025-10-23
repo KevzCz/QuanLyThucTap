@@ -8,6 +8,7 @@ import { getPageStructure } from "../../../services/pageApi";
 import { useAuth } from "../../../contexts/UseAuth";
 import { apiClient } from "../../../utils/api";
 import dayjs from "dayjs";
+import { useDebounce } from "../../../hooks/useDebounce";
 
 const htmlToTextWithBreaks = (html: string) => {
   let s = html || "";
@@ -26,6 +27,7 @@ const KhoaPageView: React.FC = () => {
   const { user } = useAuth();
   const [subjectId, setSubjectId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const [data, setData] = useState<HeaderBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,13 +114,13 @@ const KhoaPageView: React.FC = () => {
   }, [subjectId, user?.role]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return data.filter(h => h.audience === "tat-ca" || h.audience === "sinh-vien");
     return data
       .filter(h => h.audience === "tat-ca" || h.audience === "sinh-vien")
       .map((h) => ({ ...h, subs: h.subs.filter((s) => s.title.toLowerCase().includes(q) && (s.audience === "tat-ca" || s.audience === "sinh-vien")) }))
       .filter((h) => h.title.toLowerCase().includes(q) || h.subs.length > 0);
-  }, [data, query]);
+  }, [data, debouncedQuery]);
 
   const handleSubClick = (h: HeaderBlock, s: SubHeader) => {
     if (s.kind === "file" && s.fileUrl) {

@@ -2,6 +2,8 @@ import React, { useRef, useState } from "react";
 import Modal from "../../../util/Modal";
 import type { HeaderBlock, SubHeader, SubKind } from "./TeacherPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
+import LoadingButton from "../../../components/UI/LoadingButton";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -11,10 +13,9 @@ interface Props {
 }
 
 const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) => {
+  const { showWarning } = useToast();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [order, setOrder] = useState(1);
   const [kind, setKind] = useState<SubKind>("thuong");
   // Remove audience state - always use "sinh-vien"
   const [startAt, setStartAt] = useState("");
@@ -22,17 +23,10 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
   const [fileUrl, setFileUrl] = useState("");
   const [fileName, setFileName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate next available order when header changes
-  React.useEffect(() => {
-    if (header && header.subs && header.subs.length > 0) {
-      const maxOrder = Math.max(...header.subs.map(sub => sub.order || 0));
-      setOrder(maxOrder + 1);
-    } else {
-      setOrder(1);
-    }
-  }, [header]);
+
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -53,44 +47,47 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
     }
   };
 
-  const submit = () => {
+  const submit = async () => {
     if (!header) return;
     
     if (!title.trim()) {
-      alert("Vui lòng nhập tên sub-header");
+      showWarning("Vui lòng nhập tên sub-header");
       return;
     }
     
-    onCreate(header.id, {
-      title: (kind === "van-ban" || kind === "thuong") ? title.trim() : title.trim(),
-      content: (kind === "van-ban" || kind === "thuong") ? title : content,
-      kind,
-      audience: "sinh-vien", // Always sinh-vien for teacher pages
-      startAt: kind === "nop-file" ? startAt : undefined,
-      endAt: kind === "nop-file" ? endAt : undefined,
-      fileUrl: kind === "file" ? fileUrl : undefined,
-      fileName: kind === "file" ? fileName : undefined,
-    });
-    
-    // Reset form
-    setTitle("");
-    setContent("");
-    setOrder(1);
-    setKind("thuong");
-    setStartAt("");
-    setEndAt("");
-    setFileUrl("");
-    setFileName("");
-    setSelectedFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    setIsSubmitting(true);
+    try {
+      onCreate(header.id, {
+        title: (kind === "van-ban" || kind === "thuong") ? title.trim() : title.trim(),
+        content: (kind === "van-ban" || kind === "thuong") ? title : content,
+        kind,
+        audience: "sinh-vien", // Always sinh-vien for teacher pages
+        startAt: kind === "nop-file" ? startAt : undefined,
+        endAt: kind === "nop-file" ? endAt : undefined,
+        fileUrl: kind === "file" ? fileUrl : undefined,
+        fileName: kind === "file" ? fileName : undefined,
+      });
+      
+      // Reset form
+      setTitle("");
+      setContent("");
+      setKind("thuong");
+      setStartAt("");
+      setEndAt("");
+      setFileUrl("");
+      setFileName("");
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleClose = () => {
     setTitle("");
     setContent("");
-    setOrder(1);
     setKind("thuong");
     setStartAt("");
     setEndAt("");
@@ -111,12 +108,22 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
       widthClass="max-w-2xl"
       actions={
         <>
-          <button className="h-10 px-4 rounded-md text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors" onClick={handleClose}>
+          <button 
+            className="h-10 px-4 rounded-md text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50" 
+            onClick={handleClose}
+            disabled={isSubmitting}
+          >
             Hủy
           </button>
-          <button className="h-10 px-5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors" onClick={submit}>
+          <LoadingButton
+            loading={isSubmitting}
+            loadingText="Đang tạo..."
+            onClick={submit}
+            variant="primary"
+            icon="➕"
+          >
             Tạo sub-header
-          </button>
+          </LoadingButton>
         </>
       }
     >

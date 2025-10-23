@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import Modal from "../../../util/Modal";
 import type { HeaderBlock } from "./TeacherPageTypes";
+import LoadingButton from "../../../components/UI/LoadingButton";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -9,26 +11,41 @@ interface Props {
 }
 
 const CreateHeaderDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
+  const { showWarning } = useToast();
   const [title, setTitle] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const submit = () => {
+  const submit = async () => {
     if (!title.trim()) {
-      alert("Vui lòng nhập tên header");
+      showWarning("Vui lòng nhập tên header");
       return;
     }
     
-    onCreate({ 
-      id: `h_${Date.now()}`,
-      title: title.trim()
-    });
-    
-    // Reset form
-    setTitle("");
+    setIsSubmitting(true);
+    try {
+      onCreate({ 
+        id: `h_${Date.now()}`,
+        title: title.trim(),
+        audience: 'tat-ca'
+      });
+      
+      // Reset form
+      setTitle("");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
     setTitle("");
     onClose();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      submit();
+    }
   };
 
   return (
@@ -39,12 +56,22 @@ const CreateHeaderDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
       widthClass="max-w-lg"
       actions={
         <>
-          <button className="h-10 px-4 rounded-md text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors" onClick={handleClose}>
+          <button 
+            className="h-10 px-4 rounded-md text-gray-600 border border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50" 
+            onClick={handleClose}
+            disabled={isSubmitting}
+          >
             Hủy
           </button>
-          <button className="h-10 px-5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors" onClick={submit}>
+          <LoadingButton
+            loading={isSubmitting}
+            loadingText="Đang tạo..."
+            onClick={submit}
+            variant="primary"
+            icon="➕"
+          >
             Tạo header
-          </button>
+          </LoadingButton>
         </>
       }
     >
@@ -57,7 +84,9 @@ const CreateHeaderDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
             className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" 
             value={title} 
             onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Ví dụ: Thông báo từ giảng viên"
+            disabled={isSubmitting}
             autoFocus
           />
         </div>

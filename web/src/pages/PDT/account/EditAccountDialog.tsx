@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import Modal from "../../../util/Modal";
 import type { Account, Role, Status } from "./AccountTypes";
 import { roleLabel } from "./AccountTypes";
+import { useToast } from "../../../components/UI/Toast";
+import LoadingButton from "../../../components/UI/LoadingButton";
 
 interface Props {
   open: boolean;
@@ -11,6 +13,7 @@ interface Props {
 }
 
 const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) => {
+  const { showWarning } = useToast();
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>("phong-dao-tao");
   const [status, setStatus] = useState<Status>("open");
@@ -32,11 +35,11 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
     if (!account) return;
     
     if (!name.trim()) {
-      alert("Vui lòng nhập tên");
+      showWarning("Vui lòng nhập tên");
       return;
     }
     if (!email.trim()) {
-      alert("Vui lòng nhập email");
+      showWarning("Vui lòng nhập email");
       return;
     }
 
@@ -52,7 +55,8 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
       
       if (password.trim()) {
         if (password.length < 6) {
-          alert("Mật khẩu phải có ít nhất 6 ký tự");
+          showWarning("Mật khẩu phải có ít nhất 6 ký tự");
+          setIsSubmitting(false);
           return;
         }
         updates.password = password;
@@ -71,19 +75,20 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
       actions={
         <>
           <button 
-            className="h-10 px-4 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50" 
+            className="h-10 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-all font-medium" 
             onClick={onClose}
             disabled={isSubmitting}
           >
             Hủy
           </button>
-          <button 
-            className="h-10 px-5 rounded-md bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50" 
+          <LoadingButton
             onClick={submit}
-            disabled={isSubmitting}
+            loading={isSubmitting}
+            variant="primary"
+            className="shadow-sm hover:shadow"
           >
-            {isSubmitting ? "Đang lưu..." : "Lưu"}
-          </button>
+            Lưu
+          </LoadingButton>
         </>
       }
     >

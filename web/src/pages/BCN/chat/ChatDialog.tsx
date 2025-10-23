@@ -112,20 +112,8 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
     const messageContent = newMessage.trim();
     setNewMessage(""); // Clear input immediately for better UX
 
-    // Create optimistic message for UI
-    const optimisticMessage: ChatMessage = {
-      id: `temp_${Date.now()}`,
-      senderId: currentUser.id,
-      content: messageContent,
-      timestamp: new Date().toISOString(),
-      type: "text",
-    };
-
-    // Add optimistic message to UI
-    setMessages(prev => [...prev, optimisticMessage]);
-
     try {
-      // Send message to server
+      // Send message to server - Socket.IO will broadcast it back to all participants
       const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversation.id}/messages`, {
         method: 'POST',
         headers: {
@@ -138,31 +126,16 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
         })
       });
 
-      if (response.ok) {
-        const responseData = await response.json();
-        // Replace optimistic message with server response
-        if (responseData.success && responseData.data) {
-          const serverMessage = {
-            ...responseData.data,
-            id: responseData.data.messageId || responseData.data.id,
-            timestamp: responseData.data.createdAt || responseData.data.timestamp
-          };
-          setMessages(prev => 
-            prev.map(msg => msg.id === optimisticMessage.id ? serverMessage : msg)
-          );
-        }
-      } else {
+      if (!response.ok) {
         console.error('Failed to send message');
-        // Remove optimistic message on failure
-        setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
-        // Restore message content to input
+        // Restore message content to input on failure
         setNewMessage(messageContent);
       }
+      // Note: We don't manually add the message here
+      // The Socket.IO 'newMessage' listener will add it automatically
     } catch (error) {
       console.error('Error sending message:', error);
-      // Remove optimistic message on error
-      setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
-      // Restore message content to input
+      // Restore message content to input on error
       setNewMessage(messageContent);
     }
   };

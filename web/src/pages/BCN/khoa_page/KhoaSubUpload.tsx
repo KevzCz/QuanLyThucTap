@@ -592,7 +592,7 @@ const toggleGroup = (key: string) =>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <a
-                              href={submission.fileUrl}
+                              href={resolveFileHref(submission.fileUrl)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="block font-medium text-blue-600 hover:underline truncate"

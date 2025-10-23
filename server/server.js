@@ -19,6 +19,7 @@ import requestRoutes from "./routes/requests.js";
 import reportRoutes from "./routes/reports.js";
 import chatRoutes from "./routes/chat.js";
 import notificationRoutes from "./routes/notifications.js";
+import gradeRoutes from "./routes/grades.js";
 import deadlineReminderService from "./services/deadlineReminderService.js";
 const app = express();
 const httpServer = createServer(app);
@@ -90,6 +91,7 @@ app.use("/api/requests", requestRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/grades", gradeRoutes);
 
 // Add the teacher-specific page routes from pages.js
 import pagesRoutes from "./routes/pages.js";

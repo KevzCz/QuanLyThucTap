@@ -12,9 +12,13 @@ import BCNInternshipSubjectManagement from "./pages/BCN/internship_subject/Inter
 import KhoaPageManagement from "./pages/BCN/khoa_page/KhoaPageManagement";
 import KhoaPageRoutes from "./pages/BCN/khoa_page/KhoaPageRoutes";
 import RequestManagement from "./pages/BCN/request/RequestManagement";
+import GradeReviewList from "./pages/BCN/grade_review/GradeReviewList";
+import GradeReviewDetail from "./pages/BCN/grade_review/GradeReviewDetail";
 import StudentManagement from "./pages/GV/student_management/StudentManagement";
+import GradeManagement from "./pages/GV/grade_management/GradeManagement";
+import StudentGradeDetail from "./pages/GV/grade_management/StudentGradeDetail";
 import { TeacherPageRoutes, ReportManagement as GVReportManagement } from "./pages/GV";
-import { KhoaPageViewRoutes, TeacherPageViewRoutes, InternshipSubjectRegister as SVInternshipSubjectRegister } from "./pages/SV";
+import { KhoaPageViewRoutes, TeacherPageViewRoutes, InternshipSubjectRegister as SVInternshipSubjectRegister, StudentProgress } from "./pages/SV";
 import { ChatManagement as PDTChatManagement } from "./pages/PDT";
 import { ChatManagement as BCNChatManagement } from "./pages/BCN";
 import { ChatManagement as GVChatManagement } from "./pages/GV";
@@ -88,6 +92,8 @@ const AppRoutes: React.FC = () => {
             <Route path="bcn-page/*" element={<KhoaPageRoutes />} />
             <Route path="request" element={<RequestManagement />} />
             <Route path="bcn-reports" element={<KhoaReportManagement />}/>
+            <Route path="grade-review" element={<GradeReviewList />} />
+            <Route path="grade-review/:gradeId" element={<GradeReviewDetail />} />
           </>
         )}
 
@@ -99,6 +105,8 @@ const AppRoutes: React.FC = () => {
             <Route path="teacher-page/*" element={<TeacherPageRoutes />} />
             <Route path="teacher-internship-registration" element={<GVInternshipSubjectRegister />} />
             <Route path="teacher-reports" element={<GVReportManagement />} />
+            <Route path="grade-management" element={<GradeManagement />} />
+            <Route path="grade-management/:studentId" element={<StudentGradeDetail />} />
           </>
         )}
 
@@ -108,7 +116,7 @@ const AppRoutes: React.FC = () => {
             <Route path="docs-dept/*" element={<KhoaPageViewRoutes />} />
             <Route path="docs-teacher/*" element={<TeacherPageViewRoutes />} />
             <Route path="internship-registration" element={<SVInternshipSubjectRegister />} />
-            <Route path="my-internship" element={Stub("Thực tập của tôi")} />
+            <Route path="my-internship" element={<StudentProgress />} />
             <Route path="profile" element={Stub("Hồ sơ cá nhân")} />
           </>
         )}

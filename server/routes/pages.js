@@ -601,6 +601,29 @@ router.put('/teacher/submissions/:submissionId', authGV, async (req, res) => {
 
     const populatedSubmission = await submission.populate('submitter', 'id name email').populate('reviewedBy', 'id name email');
 
+    // Notify student about submission review by teacher
+    try {
+      const io = req.app.get('io');
+      if (status && status !== 'submitted') {
+        await notificationService.createNotification({
+          recipient: submission.submitter._id,
+          sender: req.account._id,
+          type: 'file-submitted',
+          title: 'Bài nộp đã được giảng viên xem xét',
+          message: `Giảng viên ${req.account.name} đã ${status === 'accepted' ? 'chấp nhận' : status === 'rejected' ? 'từ chối' : 'xem xét'} bài nộp "${submission.fileName}"${reviewNote ? ': ' + reviewNote : ''}`,
+          link: `/teacher-page/${lecturerProfile._id}`,
+          priority: 'normal',
+          metadata: { 
+            submissionId: submission._id.toString(),
+            subHeaderId: submission.subHeader._id.toString(),
+            instructorId: lecturerProfile._id.toString()
+          }
+        }, io);
+      }
+    } catch (notifError) {
+      console.error('Error sending teacher submission review notification:', notifError);
+    }
+
     res.json({
       success: true,
       submission: populatedSubmission

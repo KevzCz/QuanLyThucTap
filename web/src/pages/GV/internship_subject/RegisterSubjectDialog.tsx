@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Modal from "../../../util/Modal";
 import type { InternshipSubject, TeacherRegistration } from "./InternshipSubjectTypes";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 const RegisterSubjectDialog: React.FC<Props> = ({ open, onClose, subject, onSuccess }) => {
+  const { showError } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
@@ -30,7 +32,7 @@ const RegisterSubjectDialog: React.FC<Props> = ({ open, onClose, subject, onSucc
       onSuccess(registration);
     } catch (error) {
       console.error('Registration error:', error);
-      alert('Đăng ký thất bại. Vui lòng thử lại.');
+      showError('Đăng ký thất bại. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
       setAgreed(false);

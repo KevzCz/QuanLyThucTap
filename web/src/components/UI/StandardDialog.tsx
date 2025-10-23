@@ -1,7 +1,5 @@
 import React, { type ReactNode } from "react";
 import Modal from "../../util/Modal";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { Icons } from "./Icons";
 
 interface StandardDialogProps {
   open: boolean;
@@ -29,7 +27,6 @@ interface StandardDialogProps {
   
   // Visual
   icon?: ReactNode;
-  type?: 'default' | 'confirmation' | 'form';
 }
 
 const StandardDialog: React.FC<StandardDialogProps> = ({
@@ -40,9 +37,7 @@ const StandardDialog: React.FC<StandardDialogProps> = ({
   primaryAction,
   secondaryAction,
   size = 'md',
-  icon,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  type = 'default'
+  icon
 }) => {
   const sizeClasses = {
     sm: 'max-w-md',
@@ -62,12 +57,12 @@ const StandardDialog: React.FC<StandardDialogProps> = ({
     ghost: 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
   };
 
-  const actions = (
+  const actions = primaryAction || secondaryAction ? (
     <div className="flex items-center gap-3 justify-end">
       {secondaryAction && (
         <button
           onClick={secondaryAction.onClick}
-          className={`h-10 px-4 rounded-md font-medium transition-colors ${
+          className={`h-10 px-4 rounded-lg font-medium transition-all hover:scale-[1.02] active:scale-[0.98] ${
             secondaryVariants[secondaryAction.variant || 'secondary']
           }`}
         >
@@ -79,18 +74,21 @@ const StandardDialog: React.FC<StandardDialogProps> = ({
         <button
           onClick={primaryAction.onClick}
           disabled={primaryAction.disabled || primaryAction.loading}
-          className={`h-10 px-4 rounded-md font-medium transition-colors inline-flex items-center gap-2 ${
+          className={`h-10 px-4 rounded-lg font-medium transition-all inline-flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98] ${
             primaryVariants[primaryAction.variant || 'primary']
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
+          } disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100`}
         >
           {primaryAction.loading && (
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
           )}
           {primaryAction.label}
         </button>
       )}
     </div>
-  );
+  ) : undefined;
 
   const titleWithIcon = icon ? (
     <div className="flex items-center gap-3">

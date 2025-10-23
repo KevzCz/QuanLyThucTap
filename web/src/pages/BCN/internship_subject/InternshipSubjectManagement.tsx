@@ -5,8 +5,6 @@ import {
   type ParticipantStatus,
   type InternshipSubjectDetail,
   roleLabel,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  subjectDisplayName,
   convertToParticipants,
 } from "./ParticipantsTypes";
 import AddChooserDialog from "../internship_subject/AddChooserDialog";
@@ -20,6 +18,8 @@ import SearchInput from "../../../components/UI/SearchInput";
 import FilterButtonGroup from "../../../components/UI/FilterButtonGroup";
 import SubjectPill from "../../../components/UI/SubjectPill";
 import Pagination from "../../../components/UI/Pagination";
+import { useDebounce } from "../../../hooks/useDebounce";
+import EmptyState from "../../../components/UI/EmptyState";
 
 /* ---------- UI helpers ---------- */
 const StatusChip: React.FC<{ v: ParticipantStatus }> = ({ v }) => {
@@ -61,6 +61,7 @@ const InternshipSubjectManagement: React.FC = () => {
 
   // filters & paging
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const [roleFilter, setRoleFilter] = useState<"all" | ParticipantRole>("all");
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -102,7 +103,7 @@ const InternshipSubjectManagement: React.FC = () => {
   }, [subjectData]);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     return participants.filter((r) => {
       const byRole = roleFilter === "all" ? true : r.role === roleFilter;
       const byQuery = !q || 
@@ -110,7 +111,7 @@ const InternshipSubjectManagement: React.FC = () => {
         (r.id && r.id.toLowerCase().includes(q));
       return byRole && byQuery;
     });
-  }, [participants, roleFilter, query]);
+  }, [participants, roleFilter, debouncedQuery]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -161,8 +162,7 @@ const InternshipSubjectManagement: React.FC = () => {
   };
 
   // update student's advisor
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const saveStudentAdvisor = async (svId: string, advisorId?: string, advisorName?: string) => {
+  const saveStudentAdvisor = async (svId: string, advisorId?: string) => {
     if (!subjectData) return;
 
     try {
@@ -346,7 +346,24 @@ const InternshipSubjectManagement: React.FC = () => {
               </tr>
             ))}
             {current.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-10 text-center text-gray-500">Không có thành viên phù hợp.</td></tr>
+              <tr>
+                <td colSpan={5} className="px-4 py-2">
+                  <EmptyState
+                    icon={participants.length === 0 ? "👥" : "🔍"}
+                    title={participants.length === 0 ? "Chưa có thành viên" : "Không tìm thấy thành viên"}
+                    description={
+                      participants.length === 0
+                        ? "Thêm giảng viên và sinh viên vào môn thực tập"
+                        : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
+                    }
+                    action={
+                      participants.length === 0
+                        ? { label: "Thêm thành viên", onClick: () => setOpenAddChooser(true) }
+                        : undefined
+                    }
+                  />
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

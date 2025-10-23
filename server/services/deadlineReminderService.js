@@ -49,10 +49,10 @@ class DeadlineReminderService {
         }
       }).populate({
         path: 'pageHeader',
-        select: 'pageType subject instructor',
+        select: 'pageType internshipSubject instructor',
         populate: [
-          { path: 'subject', select: 'name' },
-          { path: 'instructor', select: 'fullName' }
+          { path: 'internshipSubject', select: 'name students' },
+          { path: 'instructor', select: 'fullName account' }
         ]
       });
 
@@ -79,22 +79,22 @@ class DeadlineReminderService {
         return;
       }
 
-      const { pageType, subject, instructor } = subHeader.pageHeader;
+      const { pageType, internshipSubject, instructor } = subHeader.pageHeader;
       let students = [];
 
       // Get relevant students based on page type
-      if (pageType === 'khoa' && subject) {
-        // For khoa pages, get all students in the subject
+      if (pageType === 'khoa' && internshipSubject) {
+        // For khoa pages, get all students in the subject (internshipSubject.students is array of Account IDs)
         students = await SinhVien.find({
-          subjects: subject._id,
+          account: { $in: internshipSubject.students },
           isActive: true
-        }).select('account');
-      } else if (pageType === 'teacher' && instructor) {
-        // For teacher pages, get students supervised by this teacher
+        }).select('account _id');
+      } else if (pageType === 'teacher' && instructor && instructor.account) {
+        // For teacher pages, get students supervised by this teacher (using Account ID)
         students = await SinhVien.find({
-          supervisor: instructor._id,
+          supervisor: instructor.account,
           isActive: true
-        }).select('account');
+        }).select('account _id');
       }
 
       console.log(`Sending reminders to ${students.length} students for subheader: ${subHeader.title}`);
@@ -127,7 +127,7 @@ class DeadlineReminderService {
       const daysUntilDeadline = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
 
       const instructorName = subHeader.pageHeader.instructor?.fullName || 'Giảng viên';
-      const subjectName = subHeader.pageHeader.subject?.name || '';
+      const subjectName = subHeader.pageHeader.internshipSubject?.name || '';
 
       let urgencyText = '';
       let priority = 'normal';
@@ -148,8 +148,8 @@ class DeadlineReminderService {
         title: `Nhắc nhở nộp file${subjectName ? ` - ${subjectName}` : ''}`,
         message,
         link: subHeader.pageHeader.pageType === 'khoa' 
-          ? `/khoa-page/${subHeader.pageHeader.subject._id}`
-          : `/teacher-page/${subHeader.pageHeader.instructor._id}`,
+          ? `/khoa-page/${subHeader.pageHeader.internshipSubject?._id}`
+          : `/teacher-page/${subHeader.pageHeader.instructor?._id}`,
         priority,
         metadata: {
           subHeaderId: subHeader._id.toString(),

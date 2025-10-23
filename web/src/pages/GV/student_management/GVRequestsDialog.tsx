@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import Modal from "../../../util/Modal";
 import { apiClient } from "../../../utils/api";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Request {
   _id: string;
@@ -37,6 +38,7 @@ const statusColors = {
 };
 
 const GVRequestsDialog: React.FC<Props> = ({ open, onClose }) => {
+  const { showError } = useToast();
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<"all" | "pending" | "accepted" | "rejected">("all");
@@ -75,7 +77,7 @@ const GVRequestsDialog: React.FC<Props> = ({ open, onClose }) => {
       setRequests(prev => prev.filter(r => r._id !== requestId));
     } catch (error) {
       console.error('Error deleting request:', error);
-      alert('Không thể xóa yêu cầu');
+      showError('Không thể xóa yêu cầu');
     }
   };
 

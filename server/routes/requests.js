@@ -6,6 +6,7 @@ import BanChuNhiem from "../models/BanChuNhiem.js";
 import InternshipSubject from "../models/InternshipSubject.js";
 import SinhVien from "../models/SinhVien.js";
 import { authenticate, authGV, authBCN } from "../middleware/auth.js";
+import notificationService from "../services/notificationService.js";
 
 const router = express.Router();
 
@@ -49,6 +50,30 @@ router.post("/", ...authGV, async (req, res) => {
     await request.save();
 
     await request.populate('internshipSubject', 'id title');
+
+    // Notify BCN about new request
+    try {
+      const io = req.app.get('io');
+      const bcnProfile = await BanChuNhiem.findOne({ 
+        internshipSubject: lecturerProfile.internshipSubject._id 
+      });
+      
+      if (bcnProfile) {
+        await notificationService.createNotification({
+          recipient: bcnProfile.account,
+          sender: req.account._id,
+          type: 'system',
+          title: 'Yêu cầu mới từ giảng viên',
+          message: `${req.account.name} đã tạo yêu cầu ${type === 'add-student' ? 'thêm' : 'xóa'} sinh viên`,
+          link: `/bcn/request`,
+          priority: 'normal',
+          metadata: { requestId: request._id.toString() }
+        }, io);
+      }
+    } catch (notifError) {
+      console.error('Error sending notification:', notifError);
+      // Don't fail the request creation if notification fails
+    }
 
     res.status(201).json({
       success: true,
@@ -285,6 +310,19 @@ router.put("/:id/accept", ...authBCN, async (req, res) => {
 
     await request.populate('reviewedBy', 'id name email');
 
+    // Notify lecturer about request acceptance
+    try {
+      const io = req.app.get('io');
+      await notificationService.notifyRequestAccepted(
+        lecturerAccount._id,
+        request.type === 'add-student' ? 'thêm sinh viên' : 'xóa sinh viên',
+        request._id.toString(),
+        io
+      );
+    } catch (notifError) {
+      console.error('Error sending notification:', notifError);
+    }
+
     res.json({
       success: true,
       request,
@@ -329,6 +367,23 @@ router.put("/:id/reject", ...authBCN, async (req, res) => {
     await request.save();
 
     await request.populate('reviewedBy', 'id name email');
+
+    // Notify lecturer about request rejection
+    try {
+      const io = req.app.get('io');
+      const lecturerAccount = await Account.findOne({ id: request.idgv, role: "giang-vien" });
+      if (lecturerAccount) {
+        await notificationService.notifyRequestRejected(
+          lecturerAccount._id,
+          request.type === 'add-student' ? 'thêm sinh viên' : 'xóa sinh viên',
+          request._id.toString(),
+          reviewNote || '',
+          io
+        );
+      }
+    } catch (notifError) {
+      console.error('Error sending notification:', notifError);
+    }
 
     res.json({
       success: true,

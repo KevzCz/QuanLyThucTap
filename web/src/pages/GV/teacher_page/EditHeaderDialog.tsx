@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Modal from "../../../util/Modal";
 import type { HeaderBlock } from "./TeacherPageTypes";
+import LoadingButton from "../../../components/UI/LoadingButton";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -11,9 +13,11 @@ interface Props {
 }
 
 const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDelete }) => {
+  const { showWarning } = useToast();
   const [title, setTitle] = useState("");
   const [order, setOrder] = useState(1);
   const [audience, setAudience] = useState<"tat-ca" | "sinh-vien" | "giang-vien">("sinh-vien");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (!header) return;
@@ -22,7 +26,27 @@ const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDe
     setAudience(header.audience);
   }, [header, open]);
 
-  const save = () => header && onSave({ ...header, title, order, audience });
+  const save = async () => {
+    if (!header) return;
+    if (!title.trim()) {
+      showWarning("Vui lòng nhập tên header");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      await onSave({ ...header, title: title.trim(), order, audience });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !isSubmitting) {
+      e.preventDefault();
+      save();
+    }
+  };
 
   return (
     <Modal
@@ -33,12 +57,28 @@ const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDe
       actions={
         <>
           {header && (
-            <button className="mr-auto h-10 px-4 rounded-md text-rose-600 hover:bg-rose-50" onClick={() => onDelete(header.id)}>
+            <button 
+              className="mr-auto h-10 px-4 rounded-md text-rose-600 hover:bg-rose-50 disabled:opacity-50" 
+              onClick={() => onDelete(header.id)}
+              disabled={isSubmitting}
+            >
               Xóa
             </button>
           )}
-          <button className="h-10 px-4 rounded-md text-gray-700 border border-gray-300 hover:bg-gray-50" onClick={onClose}>Hủy</button>
-          <button className="h-10 px-5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700" onClick={save}>Lưu</button>
+          <button 
+            className="h-10 px-4 rounded-md text-gray-700 border border-gray-300 hover:bg-gray-50 disabled:opacity-50"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
+            Hủy
+          </button>
+          <LoadingButton 
+            onClick={save}
+            loading={isSubmitting}
+            variant="primary"
+          >
+            Lưu
+          </LoadingButton>
         </>
       }
     >
@@ -54,6 +94,8 @@ const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDe
               className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" 
               value={title} 
               onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isSubmitting}
               placeholder="Nhập tên header"
             />
           </div>

@@ -7,6 +7,9 @@ import ViewRequestDialog from "./ViewRequestDialog";
 import ConfirmApproveDialog from "./ConfirmApproveDialog";
 import ConfirmDeleteDialog from "./ConfirmDeleteDialog";
 import { apiClient } from "../../../utils/api";
+import { useToast } from "../../../components/UI/Toast";
+import { useDebounce } from "../../../hooks/useDebounce";
+import EmptyState from "../../../components/UI/EmptyState";
 
 /** Types */
 export type RequestKind = "add-student" | "remove-student";
@@ -40,8 +43,10 @@ const IconBtn: React.FC<
 );
 
 const RequestManagement: React.FC = () => {
+  const { showError } = useToast();
   const [subjectInfo, setSubjectInfo] = useState<{ id: string; title: string } | null>(null);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const [filter, setFilter] = useState<"all" | RequestKind>("all");
   const [requests, setRequests] = useState<RequestRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,6 +58,7 @@ const RequestManagement: React.FC = () => {
   useEffect(() => {
     loadBCNManagedSubject();
     loadRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadBCNManagedSubject = async () => {
@@ -103,13 +109,10 @@ const RequestManagement: React.FC = () => {
 
   // Reload when search/filter changes
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      loadRequests();
-      setPage(1);
-    }, 300);
-    
-    return () => clearTimeout(timeoutId);
-  }, [query, filter]);
+    loadRequests();
+    setPage(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery, filter]);
 
   const filtered = useMemo(() => {
     // Filtering is now done on the server side
@@ -137,7 +140,7 @@ const RequestManagement: React.FC = () => {
       setOpenApprove(false);
     } catch (err) {
       console.error("Error approving request:", err);
-      alert("Không thể chấp nhận yêu cầu");
+      showError("Không thể chấp nhận yêu cầu");
     }
   };
 
@@ -148,7 +151,7 @@ const RequestManagement: React.FC = () => {
       setOpenDelete(false);
     } catch (err) {
       console.error("Error rejecting request:", err);
-      alert("Không thể từ chối yêu cầu");
+      showError("Không thể từ chối yêu cầu");
     }
   };
 
@@ -229,8 +232,16 @@ const RequestManagement: React.FC = () => {
               </tr>
             ) : current.length === 0 ? (
               <tr>
-                <td className="px-4 py-10 text-center text-gray-500" colSpan={5}>
-                  {requests.length === 0 ? "Không có yêu cầu nào." : "Không có yêu cầu phù hợp."}
+                <td colSpan={5} className="px-4 py-2">
+                  <EmptyState
+                    icon={requests.length === 0 ? "📝" : "🔍"}
+                    title={requests.length === 0 ? "Không có yêu cầu nào" : "Không tìm thấy yêu cầu"}
+                    description={
+                      requests.length === 0
+                        ? "Các yêu cầu từ giảng viên sẽ xuất hiện ở đây"
+                        : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
+                    }
+                  />
                 </td>
               </tr>
             ) : (

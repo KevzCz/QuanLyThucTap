@@ -4,6 +4,8 @@ import type { ChatUser, UserRole, ChatRequest } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import { chatAPI } from "../../../services/chatApi";
 import { useAuth } from "../../../contexts/UseAuth";
+import { useToast } from "../../../components/UI/Toast";
+import LoadingButton from "../../../components/UI/LoadingButton";
 
 interface Props {
   open: boolean;
@@ -13,15 +15,14 @@ interface Props {
 
 const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onRequestSent }) => {
   const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [query, setQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<"all" | UserRole>("all");
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [message, setMessage] = useState("");
   const [subject, setSubject] = useState("");
   const [availableUsers, setAvailableUsers] = useState<ChatUser[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loading, setLoading] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState("");
 
   // Load available users when dialog opens
@@ -122,10 +123,11 @@ const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onRequestSent
       setSubject("");
       setQuery("");
       setSelectedRole("all");
+      showSuccess("Đã gửi yêu cầu thành công!");
       onClose();
     } catch (err) {
       console.error("Error sending chat request:", err);
-      alert("Không thể gửi yêu cầu. Vui lòng thử lại.");
+      showError("Không thể gửi yêu cầu. Vui lòng thử lại.");
     } finally {
       setLoading(false);
     }
@@ -141,21 +143,31 @@ const CreateChatRequestDialog: React.FC<Props> = ({ open, onClose, onRequestSent
         <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="h-10 px-4 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
+            disabled={loading}
+            className="h-10 px-4 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Hủy
           </button>
-          <button
+          <LoadingButton
             onClick={handleSendRequest}
             disabled={!selectedUser || !message.trim()}
-            className="h-10 px-4 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            loading={loading}
+            loadingText="Đang gửi..."
+            variant="primary"
           >
             Gửi yêu cầu
-          </button>
+          </LoadingButton>
         </div>
       }
     >
       <div className="space-y-4">
+        {/* Error message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+            {error}
+          </div>
+        )}
+
         {/* Search and filters */}
         <div className="space-y-3">
           <div className="relative">

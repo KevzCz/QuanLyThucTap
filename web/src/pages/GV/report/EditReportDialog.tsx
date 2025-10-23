@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from "react";
 import Modal from "../../../util/Modal";
 import RichTextEditor from "../../../util/RichTextEditor";
 import type { TeacherReport } from "./ReportManagement";
+import { useToast } from "../../../components/UI/Toast";
+import LoadingButton from "../../../components/UI/LoadingButton";
 
 interface Props {
   open: boolean;
@@ -22,11 +24,13 @@ interface UpdateReportData {
 }
 
 const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) => {
+  const { showWarning, showError } = useToast();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [reportType, setReportType] = useState<TeacherReport["reportType"]>("tuan");
   const [attachments, setAttachments] = useState<Array<{ fileName: string; fileUrl: string; fileSize: number }>>([]);
   const [uploading, setUploading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -71,7 +75,7 @@ const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) 
       setAttachments(prev => [...prev, ...uploadedFiles]);
     } catch (error) {
       console.error('File upload error:', error);
-      alert('Không thể tải file lên. Vui lòng thử lại.');
+      showError('Không thể tải file lên. Vui lòng thử lại.');
     } finally {
       setUploading(false);
     }
@@ -81,22 +85,27 @@ const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) 
     setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!title.trim()) {
-      alert("Vui lòng nhập tiêu đề báo cáo");
+      showWarning("Vui lòng nhập tiêu đề báo cáo");
       return;
     }
     if (!content.trim()) {
-      alert("Vui lòng nhập nội dung báo cáo");
+      showWarning("Vui lòng nhập nội dung báo cáo");
       return;
     }
 
-    onSubmit({
-      title: title.trim(),
-      content,
-      reportType,
-      attachments: attachments.length > 0 ? attachments : undefined
-    });
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        title: title.trim(),
+        content,
+        reportType,
+        attachments: attachments.length > 0 ? attachments : undefined
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
@@ -117,17 +126,21 @@ const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) 
       actions={
         <>
           <button
-            className="h-10 px-4 rounded-md text-gray-600 border border-gray-300 hover:bg-gray-50"
+            className="h-10 px-4 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-all font-medium"
             onClick={handleClose}
+            disabled={isSubmitting}
           >
             Hủy
           </button>
-          <button
-            className="h-10 px-5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
+          <LoadingButton
             onClick={handleSubmit}
+            loading={isSubmitting}
+            loadingText="Đang cập nhật..."
+            variant="primary"
+            className="bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500 disabled:bg-emerald-300 shadow-sm hover:shadow"
           >
             Cập nhật
-          </button>
+          </LoadingButton>
         </>
       }
     >

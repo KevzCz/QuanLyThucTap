@@ -2,14 +2,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { HeaderBlock, SubHeader } from "./TeacherPageViewTypes";
 import SearchInput from "../../../components/UI/SearchInput";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import SubjectPill from "../../../components/UI/SubjectPill";
 import ChevronButton from "../../../components/UI/ChevronButton";
 import PageToolbar from "../../../components/UI/PageToolbar";
 import dayjs from "dayjs";
 import { getTeacherPageStructureForViewing } from "../../../services/pageApi";
-import { useAuth } from "../../../contexts/UseAuth";
 import apiClient from "../../../utils/api";
+import { useDebounce } from "../../../hooks/useDebounce";
 
 const htmlToTextWithBreaks = (html: string) => {
   let s = html || "";
@@ -26,12 +24,9 @@ const htmlToTextWithBreaks = (html: string) => {
 
 const TeacherPageView: React.FC = () => {
   const navigate = useNavigate();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { user } = useAuth();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [instructorId, setInstructorId] = useState<string | null>(null);
   const [subjectId, setSubjectId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, 300);
   const [data, setData] = useState<HeaderBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +48,6 @@ const TeacherPageView: React.FC = () => {
       
       // Use the correct API method
       const studentResponse = await apiClient.getStudentAssignedInstructor();
-      console.log('Student response:', studentResponse);
       
       if (!studentResponse.instructor) {
         setError("Bạn chưa được phân công giảng viên hướng dẫn");
@@ -64,7 +58,6 @@ const TeacherPageView: React.FC = () => {
         return;
       }
 
-      setInstructorId(studentResponse.instructor.id);
       setSubjectId(studentResponse.subject?.id || null);
       setTeacherInfo({
         instructor: studentResponse.instructor,
@@ -112,12 +105,12 @@ const TeacherPageView: React.FC = () => {
   };
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return data;
     return data
       .map((h) => ({ ...h, subs: h.subs.filter((s) => s.title.toLowerCase().includes(q)) }))
       .filter((h) => h.title.toLowerCase().includes(q) || h.subs.length > 0);
-  }, [data, query]);
+  }, [data, debouncedQuery]);
 
   const handleSubClick = (h: HeaderBlock, s: SubHeader) => {
     if (s.kind === "file" && s.fileUrl) {

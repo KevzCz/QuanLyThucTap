@@ -1,19 +1,20 @@
 // pages/BCN/khoa_page/EditSubDialog.tsx
 import React, { useEffect, useRef, useState } from "react";
 import Modal from "../../../util/Modal";
-import type { Audience, SubHeader } from "./KhoaPageTypes";
+import type { Audience, SubHeader, HeaderBlock } from "./KhoaPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
 
 interface Props {
   open: boolean;
   headerId?: string;
   sub?: SubHeader;
+  header?: HeaderBlock; // Add header prop to check audience inheritance
   onClose: () => void;
   onSave: (headerId: string, sub: SubHeader) => void;
   onDelete: (headerId: string, subId: string) => void;
 }
 
-const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, onDelete }) => {
+const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, header, onClose, onSave, onDelete }) => {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [order, setOrder] = useState(1);
@@ -161,12 +162,24 @@ const EditSubDialog: React.FC<Props> = ({ open, headerId, sub, onClose, onSave, 
 
           <div className="sm:col-span-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Ai có thể thấy</label>
-            <select className="w-full h-11 rounded-lg border border-gray-300 px-3"
-                    value={audience} onChange={(e) => setAudience(e.target.value as Audience)}>
+            <select 
+              className="w-full h-11 rounded-lg border border-gray-300 px-3"
+              value={audience} 
+              onChange={(e) => setAudience(e.target.value as Audience)}
+              disabled={header?.audience !== "tat-ca"} // Disable if header has specific audience
+            >
               <option value="tat-ca">Sinh viên / Giảng viên / Tất cả</option>
               <option value="sinh-vien">Sinh viên</option>
               <option value="giang-vien">Giảng viên</option>
             </select>
+            {header?.audience !== "tat-ca" && (
+              <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                Sub-header kế thừa đối tượng từ header cha ({header?.audience === "sinh-vien" ? "Chỉ sinh viên" : "Chỉ giảng viên"})
+              </p>
+            )}
           </div>
 
           {/* File management for "file" type */}

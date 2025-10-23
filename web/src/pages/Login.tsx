@@ -1,15 +1,29 @@
-import React, { useState, type FormEvent } from "react";
+import React, { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/UseAuth";
+import { useToast } from "../components/UI/Toast";
+
+const REMEMBER_ME_KEY = 'qltt_remember_email';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { showWarning } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Load remembered email on mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem(REMEMBER_ME_KEY);
+    if (rememberedEmail) {
+      setEmail(rememberedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -24,6 +38,14 @@ const Login: React.FC = () => {
 
     try {
       await login(email, password);
+      
+      // Save or remove email based on remember me checkbox
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_ME_KEY, email);
+      } else {
+        localStorage.removeItem(REMEMBER_ME_KEY);
+      }
+      
       navigate("/dashboard");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Đăng nhập thất bại");
@@ -131,14 +153,20 @@ const Login: React.FC = () => {
 
             {/* Helpers */}
             <div className="mt-2 flex items-center justify-between text-sm">
-              <label className="inline-flex items-center gap-2 text-gray-700 select-none">
+              <label className="inline-flex items-center gap-2 text-gray-700 select-none cursor-pointer">
                 <input
                   type="checkbox"
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                 />
                 Ghi nhớ tôi
               </label>
-              <button type="button" className="text-indigo-600 hover:text-indigo-700 font-medium">
+              <button 
+                type="button" 
+                className="text-indigo-600 hover:text-indigo-700 font-medium transition-colors"
+                onClick={() => showWarning('Chức năng đặt lại mật khẩu đang được phát triển')}
+              >
                 Quên mật khẩu?
               </button>
             </div>
