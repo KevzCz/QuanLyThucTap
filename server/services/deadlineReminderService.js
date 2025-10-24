@@ -86,14 +86,12 @@ class DeadlineReminderService {
       if (pageType === 'khoa' && internshipSubject) {
         // For khoa pages, get all students in the subject (internshipSubject.students is array of Account IDs)
         students = await SinhVien.find({
-          account: { $in: internshipSubject.students },
-          isActive: true
+          account: { $in: internshipSubject.students }
         }).select('account _id');
       } else if (pageType === 'teacher' && instructor && instructor.account) {
         // For teacher pages, get students supervised by this teacher (using Account ID)
         students = await SinhVien.find({
-          supervisor: instructor.account,
-          isActive: true
+          supervisor: instructor.account
         }).select('account _id');
       }
 
@@ -142,14 +140,17 @@ class DeadlineReminderService {
       const message = `${urgencyText}Nhắc nhở: Bạn chưa nộp file cho "${subHeader.title}". ` +
         `Hạn nộp: ${deadline.toLocaleDateString('vi-VN')} (còn ${daysUntilDeadline} ngày)`;
 
+      // Generate correct link based on page type
+      const link = subHeader.pageHeader.pageType === 'teacher'
+        ? `/docs-teacher/sub/${subHeader._id}/upload`
+        : `/docs-dept/sub/${subHeader._id}/upload`;
+
       await notificationService.createNotification({
         recipient: student.account,
         type: 'deadline-reminder',
         title: `Nhắc nhở nộp file${subjectName ? ` - ${subjectName}` : ''}`,
         message,
-        link: subHeader.pageHeader.pageType === 'khoa' 
-          ? `/khoa-page/${subHeader.pageHeader.internshipSubject?._id}`
-          : `/teacher-page/${subHeader.pageHeader.instructor?._id}`,
+        link,
         priority,
         metadata: {
           subHeaderId: subHeader._id.toString(),

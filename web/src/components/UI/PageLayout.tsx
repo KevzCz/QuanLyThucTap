@@ -150,61 +150,63 @@ const PageLayout: React.FC<PageLayoutProps> = ({
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3 flex-1">
-          {title && !breadcrumb && (
-            <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
-          )}
-          
-          {onSearchChange && (
-            <SearchInput
-              value={searchValue || ""}
-              onChange={onSearchChange}
-              placeholder={searchPlaceholder}
-              width="w-[340px]"
-            />
-          )}
-          
-          {filters}
-          
-          {statusPill && (
-            <span className={`inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm ${
-              statusColors[statusPill.color || 'gray']
-            }`}>
-              <span className="w-2 h-2 rounded-full bg-current" />
-              {statusPill.label}
-            </span>
-          )}
-        </div>
+      {/* Toolbar - only show if there's content */}
+      {(title || onSearchChange || filters || statusPill || primaryAction || secondaryActions) && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-3 flex-1">
+            {title && !breadcrumb && (
+              <h1 className="text-lg font-semibold text-gray-900">{title}</h1>
+            )}
+            
+            {onSearchChange && (
+              <SearchInput
+                value={searchValue || ""}
+                onChange={onSearchChange}
+                placeholder={searchPlaceholder}
+                width="w-[340px]"
+              />
+            )}
+            
+            {filters}
+            
+            {statusPill && (
+              <span className={`inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm ${
+                statusColors[statusPill.color || 'gray']
+              }`}>
+                <span className="w-2 h-2 rounded-full bg-current" />
+                {statusPill.label}
+              </span>
+            )}
+          </div>
 
-        <div className="flex items-center gap-2">
-          {secondaryActions?.map((action, index) => (
-            <button
-              key={index}
-              onClick={action.onClick}
-              className={`inline-flex items-center gap-2 rounded-md px-3 h-9 text-sm font-medium transition-colors ${
-                actionVariants[action.variant || 'secondary']
-              }`}
-            >
-              {action.icon}
-              {action.label}
-            </button>
-          ))}
-          
-          {primaryAction && (
-            <button
-              onClick={primaryAction.onClick}
-              className={`inline-flex items-center gap-2 rounded-md px-3 h-9 text-sm font-medium transition-colors ${
-                actionVariants[primaryAction.variant || 'primary']
-              }`}
-            >
-              {primaryAction.icon || <Icons.add size="sm" />}
-              {primaryAction.label}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {secondaryActions?.map((action, index) => (
+              <button
+                key={index}
+                onClick={action.onClick}
+                className={`inline-flex items-center gap-2 rounded-md px-3 h-9 text-sm font-medium transition-colors ${
+                  actionVariants[action.variant || 'secondary']
+                }`}
+              >
+                {action.icon}
+                {action.label}
+              </button>
+            ))}
+            
+            {primaryAction && (
+              <button
+                onClick={primaryAction.onClick}
+                className={`inline-flex items-center gap-2 rounded-md px-3 h-9 text-sm font-medium transition-colors ${
+                  actionVariants[primaryAction.variant || 'primary']
+                }`}
+              >
+                {primaryAction.icon || <Icons.add size="sm" />}
+                {primaryAction.label}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Content */}
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">

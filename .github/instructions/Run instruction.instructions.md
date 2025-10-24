@@ -3,6 +3,7 @@ applyTo: '**'
 ---
 # Project Context and Coding Guidelines
 - There are 4 roles in this project: Student, BCN, GV, PDT
+- Before doing any changes, please look at all files to understand the existing code structure and logic.
 - Follow the existing coding style and conventions used in the project and if seen anything that is not following the conventions (i.e variable naming, file structure, icons, statuses, UI, frontend - backend, etc.), please fix them.
 - Write clear, concise, and well-documented code.
 - Ensure that your code is efficient and optimized for performance.

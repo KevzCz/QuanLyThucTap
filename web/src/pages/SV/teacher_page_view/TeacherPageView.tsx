@@ -127,10 +127,6 @@ const TeacherPageView: React.FC = () => {
     }
   };
 
-  const getBackPath = () => {
-    return "/dashboard";
-  };
-
   if (loading) {
     return (
       <div className="space-y-4">
@@ -178,12 +174,6 @@ const TeacherPageView: React.FC = () => {
     <div className="space-y-4">
       <PageToolbar>
         <div className="flex items-center gap-3">
-          <button 
-            className="text-sm text-blue-600 hover:underline"
-            onClick={() => navigate(getBackPath())}
-          >
-            ← Quay lại
-          </button>
           <SearchInput
             value={query}
             onChange={setQuery}

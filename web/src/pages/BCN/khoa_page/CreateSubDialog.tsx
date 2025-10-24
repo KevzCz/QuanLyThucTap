@@ -14,8 +14,6 @@ interface Props {
 const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) => {
   const [title, setTitle] = useState("");         
   const [content, setContent] = useState("");
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [order, setOrder] = useState(1);
   const [kind, setKind] = useState<SubKind>("thuong");
   const [audience, setAudience] = useState<Audience>("tat-ca");
   const [startAt, setStartAt] = useState("");
@@ -25,16 +23,8 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Calculate next available order and set inherited audience when header changes
+  // Set inherited audience if header has specific audience
   React.useEffect(() => {
-    if (header && header.subs.length > 0) {
-      const maxOrder = Math.max(...header.subs.map(sub => sub.order));
-      setOrder(maxOrder + 1);
-    } else {
-      setOrder(1);
-    }
-
-    // Set inherited audience if header has specific audience
     if (header && header.audience !== "tat-ca") {
       setAudience(header.audience);
     }
@@ -70,7 +60,7 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
     
     onCreate(header.id, {
       title: title.trim(),
-      content: kind === "van-ban" ? title : content,
+      content: kind === "van-ban" ? title : (kind === "nop-file" ? "Nộp file" : content),
       kind,
       audience,
       startAt: kind === "nop-file" ? startAt : undefined,
@@ -82,7 +72,6 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
     // Reset form
     setTitle("");
     setContent("");
-    setOrder(1);
     setKind("thuong");
     setAudience("tat-ca");
     setStartAt("");
@@ -98,7 +87,6 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
   const handleClose = () => {
     setTitle("");
     setContent("");
-    setOrder(1);
     setKind("thuong");
     setAudience("tat-ca");
     setStartAt("");

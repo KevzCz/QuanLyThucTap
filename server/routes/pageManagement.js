@@ -318,16 +318,21 @@ router.post("/headers/:headerId/subs", ...authBCN, async (req, res) => {
           ? `Thông báo mới từ khoa: ${title}`
           : `Yêu cầu nộp file mới: ${title}${endAt ? ` (Hạn: ${new Date(endAt).toLocaleDateString('vi-VN')})` : ''}`;
         
+        // Generate correct link based on kind
+        const notificationLink = kind === 'nop-file' 
+          ? `/docs-dept/sub/${subHeader._id}/upload`
+          : `/docs-dept/sub/${subHeader._id}`;
+        
         // Send to students if audience includes them
         if ((finalAudience === 'tat-ca' || finalAudience === 'sinh-vien') && subject.students && subject.students.length > 0) {
           for (const studentId of subject.students) {
             await notificationService.createNotification({
               recipient: studentId,
               sender: req.account._id,
-              type: kind === 'thong-bao' ? 'system' : 'file-submitted',
+              type: kind === 'thong-bao' ? 'system' : 'deadline-reminder',
               title: notificationType,
               message: notificationMessage,
-              link: `/docs-dept/sub/${subHeader._id}`,
+              link: notificationLink,
               priority: kind === 'nop-file' ? 'high' : 'normal',
               metadata: { 
                 subjectId: subject.id,
@@ -347,7 +352,7 @@ router.post("/headers/:headerId/subs", ...authBCN, async (req, res) => {
               type: 'system',
               title: notificationType,
               message: notificationMessage,
-              link: `/docs-dept/sub/${subHeader._id}`,
+              link: notificationLink,
               priority: 'normal',
               metadata: { 
                 subjectId: subject.id,
@@ -952,15 +957,28 @@ router.post("/teacher/headers/:headerId/subs", authenticate, authorize(["giang-v
 
     await subHeader.save();
 
+    console.log(`[GV SubHeader] SubHeader created with kind: ${kind}, audience: ${audience || "sinh-vien"}`);
+
     // Send notifications to students managed by this teacher for thông báo or nộp-file
-    if ((kind === 'thong-bao' || kind === 'nop-file') && audience === 'sinh-vien') {
+    const finalAudience = audience || "sinh-vien";
+    console.log(`[GV SubHeader] Checking notification condition - kind: ${kind}, finalAudience: ${finalAudience}`);
+    console.log(`[GV SubHeader] Condition check: (kind === 'thong-bao' || kind === 'nop-file'): ${kind === 'thong-bao' || kind === 'nop-file'}`);
+    console.log(`[GV SubHeader] Condition check: (finalAudience === 'sinh-vien' || finalAudience === 'tat-ca'): ${finalAudience === 'sinh-vien' || finalAudience === 'tat-ca'}`);
+    
+    if ((kind === 'thong-bao' || kind === 'nop-file') && (finalAudience === 'sinh-vien' || finalAudience === 'tat-ca')) {
       const io = req.app.get('io');
+      
+      console.log(`[GV SubHeader] Creating notifications for kind: ${kind}, audience: ${finalAudience}`);
+      console.log(`[GV SubHeader] Lecturer profile:`, lecturerProfile);
+      console.log(`[GV SubHeader] Lecturer account ID:`, lecturerProfile.account);
       
       // Get all students supervised by this teacher (using account ID, not GiangVien ID)
       const students = await SinhVien.find({ 
-        supervisor: lecturerProfile.account,
-        isActive: true 
+        supervisor: lecturerProfile.account
       }).select('account');
+
+      console.log(`[GV SubHeader] Found ${students.length} students to notify`);
+      console.log(`[GV SubHeader] Query used: supervisor=${lecturerProfile.account}`);
 
       for (const student of students) {
         let notificationMessage = `${lecturerProfile.fullName} đã đăng ${kind === 'thong-bao' ? 'thông báo' : 'yêu cầu nộp file'}: ${title}`;
@@ -970,13 +988,23 @@ router.post("/teacher/headers/:headerId/subs", authenticate, authorize(["giang-v
           notificationMessage += ` - Hạn: ${deadline.toLocaleDateString('vi-VN')}`;
         }
 
+        // Generate correct link based on kind
+        let notificationLink;
+        if (kind === 'nop-file') {
+          notificationLink = `/docs-teacher/sub/${subHeader._id}/upload`;
+        } else if (kind === 'thong-bao') {
+          notificationLink = `/docs-teacher/sub/${subHeader._id}`;
+        } else {
+          notificationLink = `/docs-teacher/sub/${subHeader._id}`;
+        }
+
         await notificationService.createNotification({
           recipient: student.account,
           sender: req.account._id,
-          type: kind === 'thong-bao' ? 'system' : 'file-submitted',
+          type: kind === 'thong-bao' ? 'system' : 'deadline-reminder',
           title: kind === 'thong-bao' ? 'Thông báo mới từ giảng viên' : 'Yêu cầu nộp file mới',
           message: notificationMessage,
-          link: `/teacher-page/${lecturerProfile._id}`,
+          link: notificationLink,
           priority: kind === 'nop-file' ? 'high' : 'normal',
           metadata: {
             subHeaderId: subHeader._id.toString(),
@@ -986,7 +1014,11 @@ router.post("/teacher/headers/:headerId/subs", authenticate, authorize(["giang-v
             deadline: endAt || undefined
           }
         }, io);
+        
+        console.log(`[GV SubHeader] Notification sent to student ${student.account} with link: ${notificationLink}`);
       }
+    } else {
+      console.log(`[GV SubHeader] No notifications sent. kind: ${kind}, audience: ${finalAudience}`);
     }
 
     res.status(201).json({
@@ -1348,6 +1380,7 @@ router.post("/subs/:subId/submissions", authenticate, async (req, res) => {
           subHeader.pageHeader.instructor,
           req.account.name,
           subHeader._id.toString(),
+          'teacher',
           io
         );
       }
@@ -1362,6 +1395,7 @@ router.post("/subs/:subId/submissions", authenticate, async (req, res) => {
             bcnProfile.account,
             req.account.name,
             subHeader._id.toString(),
+            'khoa',
             io
           );
         }
@@ -1493,6 +1527,78 @@ router.delete("/submissions/:submissionId", authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error("Delete submission error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Get file submission deadlines for a specific audience (for dashboard)
+router.get("/deadlines/:audience", authenticate, async (req, res) => {
+  try {
+    const { audience } = req.params;
+    
+    if (!["sinh-vien", "giang-vien"].includes(audience)) {
+      return res.status(400).json({ error: "Invalid audience parameter" });
+    }
+
+    let subjectId = null;
+
+    // Get the user's internship subject based on their role
+    if (req.account.role === "giang-vien") {
+      const lecturerProfile = await GiangVien.findOne({ account: req.account._id })
+        .populate('internshipSubject', '_id');
+      if (lecturerProfile?.internshipSubject) {
+        subjectId = lecturerProfile.internshipSubject._id;
+      }
+    } else if (req.account.role === "sinh-vien") {
+      const studentProfile = await SinhVien.findOne({ account: req.account._id })
+        .populate('internshipSubject', '_id');
+      if (studentProfile?.internshipSubject) {
+        subjectId = studentProfile.internshipSubject._id;
+      }
+    }
+
+    if (!subjectId) {
+      return res.json({
+        success: true,
+        deadlines: []
+      });
+    }
+
+    // Get all page headers for this subject
+    const headers = await PageHeader.find({
+      internshipSubject: subjectId,
+      isActive: true
+    }).select('_id');
+
+    const headerIds = headers.map(h => h._id);
+
+    // Find all nop-file subheaders with matching audience and endAt deadline
+    const subHeaders = await SubHeader.find({
+      pageHeader: { $in: headerIds },
+      kind: "nop-file",
+      audience: { $in: [audience, "tat-ca"] },
+      endAt: { $ne: null },
+      isActive: true
+    })
+    .select('title endAt audience')
+    .sort({ endAt: 1 })
+    .lean();
+
+    // Transform to deadline format
+    const deadlines = subHeaders.map(sub => ({
+      id: sub._id.toString(),
+      title: sub.title,
+      dueDate: sub.endAt,
+      type: "submission",
+      status: new Date() > new Date(sub.endAt) ? "overdue" : "pending"
+    }));
+
+    res.json({
+      success: true,
+      deadlines
+    });
+  } catch (error) {
+    console.error("Get deadlines error:", error);
     res.status(400).json({ error: error.message });
   }
 });

@@ -59,7 +59,7 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
     try {
       onCreate(header.id, {
         title: (kind === "van-ban" || kind === "thuong") ? title.trim() : title.trim(),
-        content: (kind === "van-ban" || kind === "thuong") ? title : content,
+        content: (kind === "van-ban" || kind === "thuong") ? title : (kind === "nop-file" ? "Nộp file" : content),
         kind,
         audience: "sinh-vien", // Always sinh-vien for teacher pages
         startAt: kind === "nop-file" ? startAt : undefined,

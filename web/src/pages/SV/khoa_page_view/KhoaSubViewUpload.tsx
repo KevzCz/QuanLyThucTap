@@ -243,13 +243,28 @@ const KhoaSubViewUpload: React.FC = () => {
           📤 {sub.title}
         </h1>
 
-        {sub.startAt && sub.endAt && (
-          <div className="mt-2 text-sm text-gray-600">
-            <span className={isActive() ? "text-green-600" : "text-red-600"}>
-              {isActive() ? "Đang mở" : "Đã đóng"}: {dayjs(sub.startAt).format("DD/MM/YYYY HH:mm")} - {dayjs(sub.endAt).format("DD/MM/YYYY HH:mm")}
+        <div className="mt-2 flex items-center gap-4 text-sm">
+          {sub.startAt && sub.endAt ? (
+            <>
+              <span className="text-gray-600">
+                {dayjs(sub.startAt).format("DD/MM/YYYY HH:mm")} - {dayjs(sub.endAt).format("DD/MM/YYYY HH:mm")}
+              </span>
+              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                isActive() 
+                  ? "bg-green-100 text-green-700" 
+                  : dayjs().isBefore(dayjs(sub.startAt))
+                    ? "bg-yellow-100 text-yellow-700"
+                    : "bg-red-100 text-red-700"
+              }`}>
+                {isActive() ? "Đang mở" : dayjs().isBefore(dayjs(sub.startAt)) ? "Chưa mở" : "Đã đóng"}
+              </span>
+            </>
+          ) : (
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+              Mở
             </span>
-          </div>
-        )}
+          )}
+        </div>
 
         <div className="mt-4 prose max-w-none text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
 

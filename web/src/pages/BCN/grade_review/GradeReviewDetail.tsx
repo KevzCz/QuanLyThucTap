@@ -114,7 +114,7 @@ const GradeReviewDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <PageLayout title="Duyệt điểm chi tiết">
+      <PageLayout>
         <div className="animate-pulse space-y-4">
           <div className="h-32 bg-gray-200 rounded"></div>
           <div className="h-96 bg-gray-200 rounded"></div>
@@ -125,7 +125,7 @@ const GradeReviewDetail: React.FC = () => {
 
   if (error || !grade) {
     return (
-      <PageLayout title="Duyệt điểm chi tiết">
+      <PageLayout>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <div className="flex items-center gap-2 text-red-800">
             <Icons.close className="w-5 h-5" />
@@ -144,7 +144,7 @@ const GradeReviewDetail: React.FC = () => {
   }
 
   return (
-    <PageLayout title="Duyệt điểm chi tiết">
+    <PageLayout>
       <div className="space-y-6">
         {/* Header */}
         <div className="bg-white border border-gray-200 rounded-lg p-6">

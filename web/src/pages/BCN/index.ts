@@ -1,3 +1,5 @@
+export { default as Dashboard } from "./Dashboard";
+
 export * from "./internship_subject/ParticipantsTypes";
 export { default as AddChooserDialog } from "./internship_subject/AddChooserDialog";
 export { default as AddStudentsToSubjectDialog } from "./internship_subject/AddStudentsToSubjectDialog";

@@ -1,3 +1,5 @@
+export { default as PDTDashboard } from "./Dashboard";
+
 export * from "./account/AccountTypes";
 export { default as CreateAccountDialog } from "./account/CreateAccountDialog";
 export { default as EditAccountDialog } from "./account/EditAccountDialog";
@@ -11,3 +13,6 @@ export { default as EditInternshipSubjectDialog } from "./internship_subject_man
 export { default as ViewInternshipSubjectDialog } from "./internship_subject_management/ViewInternshipSubjectDialog";
 export { default as DeleteInternshipSubjectDialog } from "./internship_subject_management/DeleteInternshipSubjectDialog";
 export { default as ConfirmStatusInternshipSubjectDialog } from "./internship_subject_management/ConfirmStatusInternshipSubjectDialog";
+
+export { default as ReportSummaryManagement } from "./report_summary/ReportSummaryManagement";
+export { default as GradeStatistics } from "./grade_statistics/GradeStatistics";

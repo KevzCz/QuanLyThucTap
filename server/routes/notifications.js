@@ -1,5 +1,6 @@
 import express from "express";
 import Notification from "../models/Notification.js";
+import SubHeader from "../models/SubHeader.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -218,6 +219,96 @@ router.post("/", authenticate, async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Lỗi khi tạo thông báo' 
+    });
+  }
+});
+
+// Fix notification links (admin/development endpoint)
+router.post("/fix-links", authenticate, async (req, res) => {
+  try {
+    console.log('[Fix Links] Starting notification link fix...');
+    
+    // Find notifications with potentially incorrect links
+    const notifications = await Notification.find({
+      $or: [
+        { link: { $regex: '^/submissions/' } },
+        { link: { $regex: '^/teacher-page/' } },
+        { link: { $regex: '^/khoa-page/' } }
+      ]
+    });
+
+    console.log(`[Fix Links] Found ${notifications.length} notifications to process`);
+
+    let fixed = 0;
+    let skipped = 0;
+
+    for (const notification of notifications) {
+      let subHeaderId = null;
+      let newLink = null;
+
+      // Extract subHeaderId
+      if (notification.link.startsWith('/submissions/')) {
+        subHeaderId = notification.link.replace('/submissions/', '');
+      } else if (notification.metadata?.subHeaderId) {
+        subHeaderId = notification.metadata.subHeaderId;
+      }
+
+      if (!subHeaderId) {
+        console.log(`[Fix Links] Skipping ${notification._id} - no subHeaderId`);
+        skipped++;
+        continue;
+      }
+
+      // Get subheader and page type
+      const subHeader = await SubHeader.findById(subHeaderId).populate('pageHeader', 'pageType');
+      
+      if (!subHeader || !subHeader.pageHeader) {
+        console.log(`[Fix Links] Skipping ${notification._id} - subheader not found`);
+        skipped++;
+        continue;
+      }
+
+      const pageType = subHeader.pageHeader.pageType;
+      const isUpload = notification.type === 'file-submitted' || 
+                       notification.type === 'deadline-reminder' ||
+                       subHeader.kind === 'nop-file';
+
+      // Generate correct link
+      if (pageType === 'teacher') {
+        newLink = isUpload 
+          ? `/docs-teacher/sub/${subHeaderId}/upload`
+          : `/docs-teacher/sub/${subHeaderId}`;
+      } else {
+        newLink = isUpload
+          ? `/docs-dept/sub/${subHeaderId}/upload`
+          : `/docs-dept/sub/${subHeaderId}`;
+      }
+
+      if (newLink !== notification.link) {
+        await Notification.updateOne(
+          { _id: notification._id },
+          { $set: { link: newLink } }
+        );
+        console.log(`[Fix Links] Fixed ${notification._id}: ${notification.link} → ${newLink}`);
+        fixed++;
+      } else {
+        skipped++;
+      }
+    }
+
+    console.log(`[Fix Links] Complete - Fixed: ${fixed}, Skipped: ${skipped}`);
+
+    res.json({
+      success: true,
+      fixed,
+      skipped,
+      total: notifications.length
+    });
+  } catch (error) {
+    console.error('[Fix Links] Error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Lỗi khi sửa link thông báo' 
     });
   }
 });

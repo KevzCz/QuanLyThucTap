@@ -160,30 +160,40 @@ class NotificationService {
   /**
    * Notify about file submission
    */
-  async notifyFileSubmitted(recipientId, studentName, subHeaderId, io = null) {
+  async notifyFileSubmitted(recipientId, studentName, subHeaderId, pageType = 'khoa', io = null) {
+    // Generate correct link based on page type
+    const link = pageType === 'teacher' 
+      ? `/docs-teacher/sub/${subHeaderId}/upload`
+      : `/docs-dept/sub/${subHeaderId}/upload`;
+    
     return this.createNotification({
       recipient: recipientId,
       type: 'file-submitted',
       title: 'File nộp mới',
       message: `${studentName} đã nộp file`,
-      link: `/submissions/${subHeaderId}`,
+      link,
       priority: 'normal',
-      metadata: { subHeaderId }
+      metadata: { subHeaderId, pageType }
     }, io);
   }
 
   /**
    * Notify about deadline reminder
    */
-  async notifyDeadlineReminder(recipientId, taskTitle, subHeaderId, daysLeft, io = null) {
+  async notifyDeadlineReminder(recipientId, taskTitle, subHeaderId, daysLeft, pageType = 'khoa', io = null) {
+    // Generate correct link based on page type
+    const link = pageType === 'teacher'
+      ? `/docs-teacher/sub/${subHeaderId}/upload`
+      : `/docs-dept/sub/${subHeaderId}/upload`;
+    
     return this.createNotification({
       recipient: recipientId,
       type: 'deadline-reminder',
       title: 'Nhắc nhở hạn nộp',
       message: `Còn ${daysLeft} ngày để nộp: ${taskTitle}`,
-      link: `/submissions/${subHeaderId}`,
+      link,
       priority: daysLeft <= 1 ? 'urgent' : 'high',
-      metadata: { subHeaderId }
+      metadata: { subHeaderId, pageType }
     }, io);
   }
 

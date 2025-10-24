@@ -241,6 +241,37 @@ router.delete("/teacher/:id", ...authGV, async (req, res) => {
   }
 });
 
+// Get reports for BCN (BCN only) - Simple list without pagination for dashboard
+router.get("/bcn", ...authBCN, async (req, res) => {
+  try {
+    // Find BCN's managed subject
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
+      .populate('internshipSubject');
+
+    if (!bcnProfile || !bcnProfile.internshipSubject) {
+      return res.json({
+        success: true,
+        reports: []
+      });
+    }
+
+    // Get all reports for the BCN's subject
+    const reports = await Report.find({ 
+      internshipSubject: bcnProfile.internshipSubject._id
+    })
+      .select('status reportType createdAt')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      reports
+    });
+  } catch (error) {
+    console.error("Get BCN reports error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 // Get reports for BCN review (BCN only) - Updated endpoint name
 router.get("/bcn/review", ...authBCN, async (req, res) => {
   try {
@@ -396,6 +427,91 @@ router.get("/:id", authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error("Get report error:", error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Get all reports with statistics for PDT (PDT only)
+router.get("/pdt/statistics", authenticate, async (req, res) => {
+  try {
+    if (req.account.role !== "phong-dao-tao") {
+      return res.status(403).json({ error: "Chỉ Phòng Đào Tạo mới có quyền truy cập" });
+    }
+
+    const { page = 1, limit = 20, status, reportType, subjectId, instructorId, startDate, endDate } = req.query;
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.min(100, Math.max(1, Number(limit)));
+
+    // Build query
+    const query = {};
+    if (status && status !== "all") query.status = status;
+    if (reportType && reportType !== "all") query.reportType = reportType;
+    if (subjectId) query.internshipSubject = subjectId;
+    if (instructorId) query.instructor = instructorId;
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
+    }
+
+    const [reports, total, statistics] = await Promise.all([
+      Report.find(query)
+        .populate('instructor', 'id name email')
+        .populate('internshipSubject', 'id title')
+        .populate('reviewedBy', 'id name email')
+        .sort({ createdAt: -1 })
+        .limit(limitNum)
+        .skip((pageNum - 1) * limitNum),
+      Report.countDocuments(query),
+      Report.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalReports: { $sum: 1 },
+            byStatus: {
+              $push: "$status"
+            },
+            byType: {
+              $push: "$reportType"
+            },
+            bySubject: {
+              $push: "$internshipSubject"
+            }
+          }
+        }
+      ])
+    ]);
+
+    // Calculate statistics
+    const stats = statistics[0] || { totalReports: 0, byStatus: [], byType: [], bySubject: [] };
+    
+    const statusCounts = stats.byStatus.reduce((acc, status) => {
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const typeCounts = stats.byType.reduce((acc, type) => {
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    res.json({
+      success: true,
+      reports,
+      pagination: {
+        page: pageNum,
+        pages: Math.max(1, Math.ceil(total / limitNum)),
+        total
+      },
+      statistics: {
+        total: stats.totalReports,
+        byStatus: statusCounts,
+        byType: typeCounts
+      }
+    });
+  } catch (error) {
+    console.error("Get PDT report statistics error:", error);
     res.status(400).json({ error: error.message });
   }
 });

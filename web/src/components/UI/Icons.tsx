@@ -128,6 +128,13 @@ export const Icons = {
     </svg>
   ),
 
+  chevronLeft: ({ className, size = "md", title }: IconProps) => (
+    <svg viewBox="0 0 24 24" className={`${sizeClasses[size]} ${className || ''}`}>
+      {title && <title>{title}</title>}
+      <path fill="currentColor" d="M14 18l-6-6 6-6 1.41 1.41L10.83 12l4.58 4.59z"/>
+    </svg>
+  ),
+
   // Drag and Drop
   dragHandle: ({ className, size = "md", title }: IconProps) => (
     <svg viewBox="0 0 24 24" className={`${sizeClasses[size]} ${className || ''}`}>

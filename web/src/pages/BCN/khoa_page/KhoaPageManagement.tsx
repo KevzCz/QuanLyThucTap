@@ -1,9 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import type { HeaderBlock, SubHeader } from "./KhoaPageTypes";
-import SearchInput from "../../../components/UI/SearchInput";
 import ChevronButton from "../../../components/UI/ChevronButton";
-import PageToolbar from "../../../components/UI/PageToolbar";
 import CreateHeaderDialog from "./CreateHeaderDialog";
 import EditHeaderDialog from "./EditHeaderDialog";
 import CreateSubDialog from "./CreateSubDialog";
@@ -462,7 +460,6 @@ const KhoaPageManagement: React.FC = () => {
 
   return (
     <PageLayout
-      title="Quản lý trang khoa"
       loading={loading}
       error={error || undefined}
       onRetry={loadManagedSubject}
@@ -480,27 +477,6 @@ const KhoaPageManagement: React.FC = () => {
       }}
     >
       <div className="space-y-4">
-        <PageToolbar>
-          <div className="flex items-center gap-3">
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              placeholder="Tìm kiếm header / sub-header"
-              width="w-[340px]"
-            />
-            <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-              <span className="w-2 h-2 rounded-full bg-blue-500" /> {subject?.title} ({subject?.id})
-            </span>
-          </div>
-
-          <button
-            className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 h-9 text-white text-sm hover:bg-emerald-700"
-            onClick={() => setOpenCreateHeader(true)}
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
-            Tạo header
-          </button>
-        </PageToolbar>
 
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
           {filtered.sort((a, b) => a.order - b.order).map((h) => {

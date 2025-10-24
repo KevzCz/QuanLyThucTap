@@ -115,12 +115,14 @@ const KhoaPageView: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return data.filter(h => h.audience === "tat-ca" || h.audience === "sinh-vien");
+    const userAudience = user?.role === "giang-vien" ? "giang-vien" : "sinh-vien";
+    
+    if (!q) return data.filter(h => h.audience === "tat-ca" || h.audience === userAudience);
     return data
-      .filter(h => h.audience === "tat-ca" || h.audience === "sinh-vien")
-      .map((h) => ({ ...h, subs: h.subs.filter((s) => s.title.toLowerCase().includes(q) && (s.audience === "tat-ca" || s.audience === "sinh-vien")) }))
+      .filter(h => h.audience === "tat-ca" || h.audience === userAudience)
+      .map((h) => ({ ...h, subs: h.subs.filter((s) => s.title.toLowerCase().includes(q) && (s.audience === "tat-ca" || s.audience === userAudience)) }))
       .filter((h) => h.title.toLowerCase().includes(q) || h.subs.length > 0);
-  }, [data, debouncedQuery]);
+  }, [data, debouncedQuery, user?.role]);
 
   const handleSubClick = (h: HeaderBlock, s: SubHeader) => {
     if (s.kind === "file" && s.fileUrl) {
@@ -138,9 +140,6 @@ const KhoaPageView: React.FC = () => {
     }
   };
 
-  const getBackPath = () => {
-    return user?.role === "giang-vien" ? "/teacher-students" : "/dashboard";
-  };
 
   if (loading || !subjectId) {
     return (
@@ -167,12 +166,6 @@ const KhoaPageView: React.FC = () => {
       <div className="space-y-4">
         <PageToolbar>
           <div className="flex items-center gap-3">
-            <button 
-              className="text-sm text-blue-600 hover:underline"
-              onClick={() => navigate(getBackPath())}
-            >
-              ← Quay lại
-            </button>
             <SearchInput
               value={query}
               onChange={setQuery}
@@ -202,12 +195,6 @@ const KhoaPageView: React.FC = () => {
     <div className="space-y-4">
       <PageToolbar>
         <div className="flex items-center gap-3">
-          <button 
-            className="text-sm text-blue-600 hover:underline"
-            onClick={() => navigate(getBackPath())}
-          >
-            ← Quay lại
-          </button>
           <SearchInput
             value={query}
             onChange={setQuery}
@@ -223,6 +210,8 @@ const KhoaPageView: React.FC = () => {
       <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         {filtered.sort((a, b) => a.order - b.order).map((h) => {
           const open = !!expanded[h.id];
+          const userAudience = user?.role === "giang-vien" ? "giang-vien" : "sinh-vien";
+          
           return (
             <div key={h.id} className="border-b last:border-b-0">
               <div className="flex items-center gap-2 px-4 py-4 bg-gray-50">
@@ -233,7 +222,7 @@ const KhoaPageView: React.FC = () => {
               {open && (
                 <div className="px-6 pb-4">
                   {h.subs
-                    .filter(s => s.audience === "tat-ca" || s.audience === "sinh-vien")
+                    .filter(s => s.audience === "tat-ca" || s.audience === userAudience)
                     .sort((a, b) => a.order - b.order)
                     .map((s) => (
                       <div key={s.id} className="flex items-center py-2.5">

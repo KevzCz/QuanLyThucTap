@@ -926,4 +926,140 @@ router.get("/student/my-progress", authenticate, authorize(["sinh-vien"]), async
   }
 });
 
+// Get grade statistics for PDT (PDT only)
+router.get("/pdt/statistics", authenticate, async (req, res) => {
+  try {
+    if (req.account.role !== "phong-dao-tao") {
+      return res.status(403).json({ error: "Chỉ Phòng Đào Tạo mới có quyền truy cập" });
+    }
+
+    const { page = 1, limit = 20, status, workType, subjectId, supervisorId } = req.query;
+    const pageNum = Math.max(1, Number(page));
+    const limitNum = Math.min(100, Math.max(1, Number(limit)));
+
+    // Build query
+    const query = {};
+    if (status && status !== "all") query.status = status;
+    if (workType && workType !== "all") query.workType = workType;
+    if (subjectId) query.internshipSubject = subjectId;
+    if (supervisorId) query.supervisor = supervisorId;
+
+    const [grades, total, statistics] = await Promise.all([
+      InternshipGrade.find(query)
+        .populate('student', 'id name email')
+        .populate('supervisor', 'id name email')
+        .populate('internshipSubject', 'id title')
+        .sort({ updatedAt: -1 })
+        .limit(limitNum)
+        .skip((pageNum - 1) * limitNum),
+      InternshipGrade.countDocuments(query),
+      InternshipGrade.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalGrades: { $sum: 1 },
+            byStatus: { $push: "$status" },
+            byWorkType: { $push: "$workType" },
+            finalGrades: { $push: "$finalGrade" },
+            letterGrades: { $push: "$letterGrade" },
+            submittedCount: {
+              $sum: { $cond: [{ $eq: ["$submittedToBCN", true] }, 1, 0] }
+            },
+            approvedCount: {
+              $sum: { $cond: [{ $eq: ["$status", "approved"] }, 1, 0] }
+            }
+          }
+        }
+      ])
+    ]);
+
+    // Calculate statistics
+    const stats = statistics[0] || { 
+      totalGrades: 0, 
+      byStatus: [], 
+      byWorkType: [], 
+      finalGrades: [],
+      letterGrades: [],
+      submittedCount: 0,
+      approvedCount: 0
+    };
+    
+    const statusCounts = stats.byStatus.reduce((acc, status) => {
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+
+    const workTypeCounts = stats.byWorkType.reduce((acc, type) => {
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {});
+
+    const letterGradeCounts = stats.letterGrades.filter(g => g).reduce((acc, grade) => {
+      acc[grade] = (acc[grade] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Calculate average grade (only from finalized grades)
+    const validGrades = stats.finalGrades.filter(g => g !== null && g !== undefined);
+    const averageGrade = validGrades.length > 0 
+      ? (validGrades.reduce((sum, g) => sum + g, 0) / validGrades.length).toFixed(2)
+      : 0;
+
+    // Calculate pass rate (grades >= 5.0)
+    const passCount = validGrades.filter(g => g >= 5.0).length;
+    const passRate = validGrades.length > 0 
+      ? ((passCount / validGrades.length) * 100).toFixed(1)
+      : 0;
+
+    res.json({
+      success: true,
+      grades: grades.map(grade => ({
+        id: grade._id,
+        student: {
+          id: grade.student.id,
+          name: grade.student.name,
+          email: grade.student.email
+        },
+        supervisor: {
+          id: grade.supervisor.id,
+          name: grade.supervisor.name
+        },
+        subject: {
+          id: grade.internshipSubject.id,
+          title: grade.internshipSubject.title
+        },
+        workType: grade.workType,
+        status: grade.status,
+        finalGrade: grade.finalGrade,
+        letterGrade: grade.letterGrade,
+        progressPercentage: grade.getProgressPercentage(),
+        submittedToBCN: grade.submittedToBCN,
+        startDate: grade.startDate,
+        endDate: grade.endDate,
+        updatedAt: grade.updatedAt
+      })),
+      pagination: {
+        page: pageNum,
+        pages: Math.max(1, Math.ceil(total / limitNum)),
+        total
+      },
+      statistics: {
+        total: stats.totalGrades,
+        byStatus: statusCounts,
+        byWorkType: workTypeCounts,
+        byLetterGrade: letterGradeCounts,
+        averageGrade: parseFloat(averageGrade),
+        passRate: parseFloat(passRate),
+        submittedCount: stats.submittedCount,
+        approvedCount: stats.approvedCount,
+        totalFinalized: validGrades.length
+      }
+    });
+  } catch (error) {
+    console.error("Get PDT grade statistics error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server" });
+  }
+});
+
 export default router;

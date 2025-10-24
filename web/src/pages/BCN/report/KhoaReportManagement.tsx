@@ -205,16 +205,6 @@ const handleReviewReport = async (reportId: string, status: "reviewed" | "approv
     <div className="space-y-4">
       {/* Header and filters */}
       <div className="flex flex-col gap-4">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
-            </svg>
-            <div className="text-sm text-blue-800">
-              <span className="font-medium">Môn thực tập được quản lý:</span> {managedSubject.title}
-            </div>
-          </div>
-        </div>
 
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">

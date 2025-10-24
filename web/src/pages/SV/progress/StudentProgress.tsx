@@ -38,7 +38,7 @@ const StudentProgress: React.FC = () => {
 
   if (loading) {
     return (
-      <PageLayout title="Tiến độ thực tập/đồ án">
+      <PageLayout>
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
@@ -48,7 +48,7 @@ const StudentProgress: React.FC = () => {
 
   if (!grade) {
     return (
-      <PageLayout title="Tiến độ thực tập/đồ án">
+      <PageLayout>
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
           <div className="flex items-center">
             <Icons.info className="h-6 w-6 text-yellow-600 mr-3" />
@@ -82,7 +82,7 @@ const StudentProgress: React.FC = () => {
   };
 
   return (
-    <PageLayout title="Tiến độ thực tập/đồ án">
+    <PageLayout>
       <div className="space-y-6">
         {/* Overview Card */}
         <div className="bg-white shadow rounded-lg p-6">

@@ -19,7 +19,7 @@ import GradeManagement from "./pages/GV/grade_management/GradeManagement";
 import StudentGradeDetail from "./pages/GV/grade_management/StudentGradeDetail";
 import { TeacherPageRoutes, ReportManagement as GVReportManagement } from "./pages/GV";
 import { KhoaPageViewRoutes, TeacherPageViewRoutes, InternshipSubjectRegister as SVInternshipSubjectRegister, StudentProgress } from "./pages/SV";
-import { ChatManagement as PDTChatManagement } from "./pages/PDT";
+import { ChatManagement as PDTChatManagement, ReportSummaryManagement, GradeStatistics } from "./pages/PDT";
 import { ChatManagement as BCNChatManagement } from "./pages/BCN";
 import { ChatManagement as GVChatManagement } from "./pages/GV";
 import { ChatManagement as SVChatManagement } from "./pages/SV";
@@ -79,8 +79,8 @@ const AppRoutes: React.FC = () => {
           <>
             <Route path="accounts" element={<AccountManagement />} />
             <Route path="menu-list" element={<InternshipSubjectManagement />} />
-            <Route path="summary" element={Stub("Quản lý tổng kết")} />
-            <Route path="stats" element={Stub("Thống kê điểm thực tập")} />
+            <Route path="summary" element={<ReportSummaryManagement />} />
+            <Route path="stats" element={<GradeStatistics />} />
           </>
         )}
 

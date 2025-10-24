@@ -163,10 +163,6 @@ const RequestManagement: React.FC = () => {
 
   return (
     <div className="space-y-3">
-      {/* Header breadcrumb mimic */}
-      <div className="text-sm text-gray-600">
-        <span className="text-gray-800 font-medium">Ban chủ nhiệm</span> / Quản lý yêu cầu
-      </div>
 
       {/* Error Alert */}
       {error && (
