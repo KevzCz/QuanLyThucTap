@@ -5,6 +5,11 @@ import BanChuNhiem from "../models/BanChuNhiem.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 
+// Warn if using default JWT secret in production
+if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  WARNING: Using default JWT secret. Set JWT_SECRET environment variable in production!');
+}
+
 // Generate JWT token
 export function generateToken(accountId) {
   return jwt.sign({ accountId }, JWT_SECRET, { expiresIn: "7d" });

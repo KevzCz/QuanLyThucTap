@@ -1,7 +1,8 @@
 import express from "express";
 import multer from "multer";
 import path from "path";
-import fs from "fs"; // Add fs for directory check
+import fs from "fs";
+import crypto from "crypto";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -21,7 +22,7 @@ const storage = multer.diskStorage({
   },
   filename: function (_req, file, cb) {
     const safeOriginal = file.originalname.replace(/\s+/g, "_");
-    // Use UUID + time to avoid any collision
+    // Use crypto UUID + timestamp to avoid collisions
     const unique = `${Date.now()}-${crypto.randomUUID()}`;
     cb(null, `${unique}-${safeOriginal}`);
   }

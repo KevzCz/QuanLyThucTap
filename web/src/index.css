@@ -38,31 +38,3 @@ button {
   width: 0;
   height: 0;
 }
-
-html, body, #root {
-  height: 100%;
-  overflow-x: hidden; /* Prevent horizontal scroll */
-}
-
-body {
-  margin: 0;
-  background: #f3f4f6; /* bg-gray-100 */
-  color: #111827;      /* gray-900 */
-  display: block;
-}
-
-/* Ensure consistent box-sizing */
-*, *::before, *::after {
-  box-sizing: border-box;
-}
-
-/* remove button here */
-h1 { all: unset; }
-
-/* keep your basic button behavior, or let Tailwind handle it */
-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}

@@ -16,6 +16,8 @@ export interface ChatMessage {
   type: "text" | "file" | "system";
   fileName?: string;
   fileUrl?: string;
+  fileSize?: number;
+  mimeType?: string;
 }
 
 export interface ChatRequest {

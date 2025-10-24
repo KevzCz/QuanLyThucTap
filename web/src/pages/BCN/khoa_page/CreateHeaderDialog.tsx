@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Modal from "../../../util/Modal";
 import type { Audience, HeaderBlock } from "./KhoaPageTypes";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -11,10 +12,11 @@ interface Props {
 const CreateHeaderDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
   const [title, setTitle] = useState("");
   const [audience, setAudience] = useState<Audience>("tat-ca");
+  const { showWarning } = useToast();
 
   const submit = () => {
     if (!title.trim()) {
-      alert("Vui lòng nhập tên header");
+      showWarning("Thiếu thông tin", "Vui lòng nhập tên header");
       return;
     }
     

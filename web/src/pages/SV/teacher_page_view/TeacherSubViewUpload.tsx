@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader, SubmittedFile } from "./TeacherPageViewTypes";
 import { useToast } from "../../../components/UI/Toast";
+import StandardDialog from "../../../components/UI/StandardDialog";
+import { Icons } from "../../../components/UI/Icons";
 import { 
   getSubHeader, 
   getSubmissions, 
@@ -24,6 +26,8 @@ const TeacherSubViewUpload: React.FC = () => {
   const [submittedFiles, setSubmittedFiles] = useState<SubmittedFile[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
   // Load sub-header data and submissions
   useEffect(() => {
@@ -138,15 +142,22 @@ const TeacherSubViewUpload: React.FC = () => {
   };
 
   const deleteSubmittedFile = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa bài này?')) return;
+    setDeletingFileId(id);
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDeleteFile = async () => {
+    if (!deletingFileId) return;
     try {
-      await deleteSubmission(id);
+      await deleteSubmission(deletingFileId);
       await loadData();
       showSuccess('Đã xóa bài thành công!');
     } catch (error) {
       console.error('Failed to delete submission:', error);
       showError('Không thể xóa bài');
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeletingFileId(null);
     }
   };
 
@@ -364,6 +375,28 @@ const TeacherSubViewUpload: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <StandardDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Xác nhận xóa bài"
+        size="sm"
+        icon={<Icons.delete className="text-red-600" />}
+        primaryAction={{
+          label: "Xóa",
+          onClick: confirmDeleteFile,
+          variant: 'danger'
+        }}
+        secondaryAction={{
+          label: "Hủy",
+          onClick: () => setShowDeleteConfirm(false)
+        }}
+      >
+        <p className="text-gray-600">
+          Bạn có chắc chắn muốn xóa bài này? Hành động này không thể hoàn tác.
+        </p>
+      </StandardDialog>
     </div>
   );
 };

@@ -4,6 +4,7 @@ import PageLayout from '../../../components/UI/PageLayout';
 import StandardDialog from '../../../components/UI/StandardDialog';
 import { Icons } from '../../../components/UI/Icons';
 import { useToast } from '../../../components/UI/Toast';
+import LocationPicker from '../../../components/LocationPicker';
 import { 
   getStudentGradeDetails, 
   updateMilestone,
@@ -58,7 +59,11 @@ const StudentGradeDetail: React.FC = () => {
     supervisorName: '',
     supervisorEmail: '',
     supervisorPhone: '',
-    address: ''
+    address: '',
+    location: {
+      lat: 0,
+      lng: 0
+    }
   });
   
   // Custom milestone form
@@ -67,6 +72,7 @@ const StudentGradeDetail: React.FC = () => {
   const [editingMilestone, setEditingMilestone] = useState<Milestone | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingMilestone, setDeletingMilestone] = useState<Milestone | null>(null);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [newMilestone, setNewMilestone] = useState({
     title: '',
     description: '',
@@ -91,7 +97,15 @@ const StudentGradeDetail: React.FC = () => {
       // Initialize work type and company info
       setWorkType(response.grade.workType || 'thuc_tap');
       if (response.grade.company) {
-        setCompany(response.grade.company);
+        const companyData = response.grade.company as Record<string, unknown>;
+        setCompany({
+          name: (companyData.name as string) || '',
+          supervisorName: (companyData.supervisorName as string) || '',
+          supervisorEmail: (companyData.supervisorEmail as string) || '',
+          supervisorPhone: (companyData.supervisorPhone as string) || '',
+          address: (companyData.address as string) || '',
+          location: (companyData.location as { lat: number; lng: number }) || { lat: 0, lng: 0 }
+        });
       }
     } catch (err) {
       console.error('Failed to load grade details:', err);
@@ -196,9 +210,11 @@ const StudentGradeDetail: React.FC = () => {
       return;
     }
 
-    if (!confirm('Bạn có chắc chắn muốn nộp điểm lên khoa? Sau khi nộp sẽ không thể chỉnh sửa.')) {
-      return;
-    }
+    setShowSubmitConfirm(true);
+  };
+
+  const confirmSubmitToBCN = async () => {
+    if (!studentId) return;
 
     try {
       setSubmitting(true);
@@ -990,6 +1006,25 @@ const StudentGradeDetail: React.FC = () => {
                           disabled={grade.status === 'submitted' || grade.status === 'approved'}
                         />
                       </div>
+                      
+                      {/* Location Picker with Google Maps */}
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          📍 Vị trí doanh nghiệp trên bản đồ
+                        </label>
+                        <LocationPicker
+                          onLocationSelect={(location) => {
+                            setCompany({
+                              ...company,
+                              address: location.address,
+                              location: { lat: location.lat, lng: location.lng }
+                            });
+                          }}
+                          initialLocation={company.location && company.location.lat && company.location.lng ? company.location : undefined}
+                          initialAddress={company.address}
+                          disabled={grade.status === 'submitted' || grade.status === 'approved'}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1155,6 +1190,29 @@ const StudentGradeDetail: React.FC = () => {
           <p className="text-gray-600">
             Bạn có chắc chắn muốn xóa mốc thời gian "{deletingMilestone?.title}"? 
             Hành động này không thể hoàn tác.
+          </p>
+        </StandardDialog>
+
+        {/* Submit to BCN Confirmation Dialog */}
+        <StandardDialog
+          open={showSubmitConfirm}
+          onClose={() => setShowSubmitConfirm(false)}
+          title="Xác nhận nộp điểm"
+          size="sm"
+          icon={<Icons.send className="text-blue-600" />}
+          primaryAction={{
+            label: "Xác nhận nộp",
+            onClick: confirmSubmitToBCN,
+            variant: 'primary',
+            loading: submitting
+          }}
+          secondaryAction={{
+            label: "Hủy",
+            onClick: () => setShowSubmitConfirm(false)
+          }}
+        >
+          <p className="text-gray-600">
+            Bạn có chắc chắn muốn nộp điểm lên khoa? Sau khi nộp, điểm sẽ được gửi đến Ban Chủ Nhiệm để xét duyệt và bạn sẽ không thể chỉnh sửa.
           </p>
         </StandardDialog>
       </div>

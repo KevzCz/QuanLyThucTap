@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader, SubmittedFile } from "./KhoaPageViewTypes";
 import { useToast } from "../../../components/UI/Toast";
+import StandardDialog from "../../../components/UI/StandardDialog";
+import { Icons } from "../../../components/UI/Icons";
 import { 
   getSubHeader, 
   getSubmissions, 
@@ -27,6 +29,8 @@ const KhoaSubViewUpload: React.FC = () => {
   const [submittedFiles, setSubmittedFiles] = useState<SubmittedFile[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
   // Load sub-header data and submissions
   useEffect(() => {
@@ -148,15 +152,22 @@ const KhoaSubViewUpload: React.FC = () => {
 
   // Remove a submitted file (if status is pending)
   const deleteSubmittedFile = async (id: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa file này?')) return;
+    setDeletingFileId(id);
+    setShowDeleteConfirm(true);
+  };
 
+  const confirmDeleteFile = async () => {
+    if (!deletingFileId) return;
     try {
-      await deleteSubmission(id);
+      await deleteSubmission(deletingFileId);
       await loadData();
       showSuccess('Đã xóa file thành công!');
     } catch (error) {
       console.error('Failed to delete submission:', error);
       showError('Không thể xóa file');
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeletingFileId(null);
     }
   };
 
@@ -392,6 +403,28 @@ const KhoaSubViewUpload: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <StandardDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Xác nhận xóa file"
+        size="sm"
+        icon={<Icons.delete className="text-red-600" />}
+        primaryAction={{
+          label: "Xóa",
+          onClick: confirmDeleteFile,
+          variant: 'danger'
+        }}
+        secondaryAction={{
+          label: "Hủy",
+          onClick: () => setShowDeleteConfirm(false)
+        }}
+      >
+        <p className="text-gray-600">
+          Bạn có chắc chắn muốn xóa file này? Hành động này không thể hoàn tác.
+        </p>
+      </StandardDialog>
     </div>
   );
 };

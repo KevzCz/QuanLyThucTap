@@ -113,7 +113,11 @@ const internshipGradeSchema = new mongoose.Schema({
     supervisorName: String,
     supervisorEmail: String,
     supervisorPhone: String,
-    address: String
+    address: String,
+    location: {
+      lat: Number,
+      lng: Number
+    }
   },
   
   // Timeline and milestones

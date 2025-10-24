@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { useToast } from "../../../components/UI/Toast";
 
 export interface ParsedRow {
   id: string;
@@ -15,6 +16,7 @@ interface Props {
 const FileDrop: React.FC<Props> = ({ onParsed, acceptAdvisor }) => {
   const [drag, setDrag] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { showWarning } = useToast();
 
   const parseCSV = async (file: File) => {
     const text = await file.text();
@@ -34,7 +36,7 @@ const FileDrop: React.FC<Props> = ({ onParsed, acceptAdvisor }) => {
     if (lower.endsWith(".csv")) return void parseCSV(f);
 
     // To support real Excel: install 'xlsx' and parse here.
-    alert("Vui lòng nộp file .csv (hoặc cài đặt parser .xlsx).");
+    showWarning("File không hỗ trợ", "Vui lòng nộp file .csv (hoặc cài đặt parser .xlsx).");
   };
 
   return (

@@ -3,6 +3,7 @@ import React, { useRef, useState } from "react";
 import Modal from "../../../util/Modal";
 import type { Audience, HeaderBlock, SubHeader, SubKind } from "./KhoaPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
   const [startAt, setStartAt] = useState("");
   const [endAt, setEndAt] = useState("");
   const [fileUrl, setFileUrl] = useState("");
+  const { showWarning } = useToast();
   const [fileName, setFileName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,7 +56,7 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
     if (!header) return;
     
     if (!title.trim()) {
-      alert("Vui lòng nhập tên sub-header");
+      showWarning("Thiếu thông tin", "Vui lòng nhập tên sub-header");
       return;
     }
     

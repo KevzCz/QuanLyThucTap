@@ -136,20 +136,9 @@ export const updateSubHeader = async (subId: string, data: {
   fileUrl?: string;
   fileName?: string;
 }): Promise<SubHeader> => {
-  console.log('Updating subheader:', subId, 'with data:', {
-    ...data,
-    content: data.content?.substring(0, 50) + '...'
-  });
-  
   const response = await apiClient.request<{ success: boolean; subHeader: SubHeader }>(`/pages/subs/${subId}`, {
     method: 'PUT',
     body: JSON.stringify(data)
-  });
-  
-  console.log('Update response:', {
-    success: response.success,
-    subHeaderId: response.subHeader._id,
-    hasContent: !!response.subHeader.content
   });
   
   return response.subHeader;

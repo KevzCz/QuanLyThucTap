@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import type { ChatRequest, ChatConversation, ChatUser } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import ChatRequestDialog from "./ChatRequestDialog";
@@ -19,6 +20,7 @@ type UserRole = "phong-dao-tao" | "ban-chu-nhiem" | "giang-vien" | "sinh-vien";
 
 const ChatManagement: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { showError } = useToast();
   const [activeTab, setActiveTab] = useState<"requests" | "conversations">("requests");
   const [requests, setRequests] = useState<ChatRequest[]>([]);
@@ -137,7 +139,6 @@ const ChatManagement: React.FC = () => {
     // Listen for new chat requests
     const handleNewRequest = (...args: unknown[]) => {
       const data = args[0] as ApiChatRequest;
-      console.log('New chat request received:', data);
       const transformedRequest = transformApiRequestToLocal(data);
       setRequests(prev => [transformedRequest, ...prev]);
     };
@@ -145,7 +146,6 @@ const ChatManagement: React.FC = () => {
     // Listen for new conversations
     const handleNewConversation = (...args: unknown[]) => {
       const data = args[0] as ApiChatConversation;
-      console.log('New conversation created:', data);
       const transformedConv = transformApiConversationToLocal(data);
       setConversations(prev => [transformedConv, ...prev]);
     };
@@ -153,7 +153,6 @@ const ChatManagement: React.FC = () => {
     // Listen for conversation updates (new messages)
     const handleConversationUpdate = (...args: unknown[]) => {
       const data = args[0] as { conversationId: string; lastMessage?: { messageId: string; senderId: string; content: string; timestamp: string; type: string }; updatedAt: string };
-      console.log('Conversation updated:', data.conversationId);
       setConversations(prev => {
         const updatedConversations = prev.map(conv => 
           conv.id === data.conversationId 
@@ -185,7 +184,6 @@ const ChatManagement: React.FC = () => {
     // Listen for conversation end
     const handleConversationEnd = (...args: unknown[]) => {
       const data = args[0] as { conversationId: string };
-      console.log('Conversation ended:', data.conversationId);
       setConversations(prev => 
         prev.map(conv => 
           conv.id === data.conversationId 
@@ -198,17 +196,14 @@ const ChatManagement: React.FC = () => {
     // Listen for request updates
     const handleRequestUpdate = (...args: unknown[]) => {
       const data = args[0] as ApiChatRequest;
-      console.log('Request updated:', data);
       const transformedRequest = transformApiRequestToLocal(data);
       
       // If request is accepted or declined, remove it from the list
       if (transformedRequest.status === 'accepted' || transformedRequest.status === 'declined') {
-        console.log('Removing request from list:', transformedRequest.id);
         setRequests(prev => prev.filter(r => r.id !== transformedRequest.id));
         
         // If accepted, automatically switch to conversations tab to see the new chat
         if (transformedRequest.status === 'accepted') {
-          console.log('Request accepted, switching to conversations tab');
           setActiveTab('conversations');
           // Reload conversations to get the new one
           loadConversations();
@@ -241,6 +236,21 @@ const ChatManagement: React.FC = () => {
       socketManager.off('requestUpdated', handleRequestUpdate);
     };
   }, [user, transformApiRequestToLocal, transformApiConversationToLocal, loadConversations, user?.id]);
+
+  // Handle opening conversation from URL parameter (from notifications)
+  useEffect(() => {
+    const conversationId = searchParams.get('conversation');
+    if (conversationId && conversations.length > 0) {
+      const conversation = conversations.find(c => c.id === conversationId);
+      if (conversation) {
+        setActiveTab('conversations');
+        setSelectedConversation(conversation);
+        setOpenChatDialog(true);
+        // Clear the URL parameter
+        setSearchParams({});
+      }
+    }
+  }, [searchParams, conversations, setSearchParams]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();

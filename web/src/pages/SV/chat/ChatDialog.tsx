@@ -18,7 +18,11 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
   const { showError } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<Map<string, string>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const otherUser = conversation?.participants.find(p => p.id !== currentUser.id);
 
@@ -45,6 +49,10 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
           content: msg.content,
           timestamp: msg.createdAt,
           type: msg.type as "text" | "file" | "system",
+          fileName: msg.attachment?.originalName,
+          fileUrl: msg.attachment?.fileUrl,
+          fileSize: msg.attachment?.fileSize,
+          mimeType: msg.attachment?.mimeType,
         }));
         
         setMessages(transformedMessages);
@@ -65,13 +73,19 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
 
     // Listen for new messages
     const handleNewMessage = (...args: unknown[]) => {
-      const message = args[0] as ChatMessage & { messageId?: string; createdAt?: string };
+      const message = args[0] as ChatMessage & { messageId?: string; createdAt?: string; attachment?: { originalName?: string; fileUrl?: string; fileSize?: number; mimeType?: string } };
       // Only add message if it's for this conversation
       if (message) {
         const transformedMessage = {
-          ...message,
           id: message.messageId || message.id,
-          timestamp: message.createdAt || message.timestamp
+          senderId: message.senderId,
+          content: message.content,
+          timestamp: message.createdAt || message.timestamp,
+          type: message.type as "text" | "file" | "system",
+          fileName: message.attachment?.originalName,
+          fileUrl: message.attachment?.fileUrl,
+          fileSize: message.attachment?.fileSize,
+          mimeType: message.attachment?.mimeType,
         };
         setMessages(prev => {
           // Avoid duplicates
@@ -91,22 +105,118 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
     };
   }, [conversation?.id]);
 
+  const addFiles = (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const validFiles: File[] = [];
+    const newPreviews = new Map(filePreviews);
+
+    fileArray.forEach(file => {
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        showError(`${file.name}: Kích thước file không được vượt quá 10MB`);
+        return;
+      }
+
+      validFiles.push(file);
+
+      // Create preview for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          newPreviews.set(file.name, reader.result as string);
+          setFilePreviews(new Map(newPreviews));
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      addFiles(e.target.files);
+    }
+  };
+
+  const handleRemoveFile = (fileName: string) => {
+    setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
+    setFilePreviews(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(fileName);
+      return newMap;
+    });
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    const files: File[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  };
+
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !conversation) return;
+    if ((!newMessage.trim() && selectedFiles.length === 0) || !conversation) return;
 
     const messageContent = newMessage.trim();
-    setNewMessage(""); // Clear input immediately for better UX
+    const filesToSend = [...selectedFiles];
+    
+    // Clear input immediately for better UX
+    setNewMessage("");
+    setSelectedFiles([]);
+    setFilePreviews(new Map());
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
 
     try {
-      await chatAPI.sendMessage(conversation.id, {
-        content: messageContent,
-      });
+      // If there's a text message, send it first
+      if (messageContent) {
+        await chatAPI.sendMessage(conversation.id, {
+          content: messageContent,
+          type: 'text',
+        });
+      }
+
+      // Then send each file as a separate message
+      for (const file of filesToSend) {
+        await chatAPI.sendMessage(conversation.id, {
+          content: `[File: ${file.name}]`,
+          type: 'file',
+          attachment: file,
+        });
+      }
 
       // Note: We don't manually add the message here
       // The Socket.IO 'newMessage' listener will add it automatically
-    } catch (error) {
-      console.error("Error sending message:", error);
-      setNewMessage(messageContent); // Restore message to input
+    } catch {
+      // Restore message and files on error
+      setNewMessage(messageContent);
+      setSelectedFiles(filesToSend);
+      // Recreate previews
+      const newPreviews = new Map<string, string>();
+      filesToSend.forEach(file => {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            newPreviews.set(file.name, reader.result as string);
+            setFilePreviews(new Map(newPreviews));
+          };
+          reader.readAsDataURL(file);
+        }
+      });
       showError("Không thể gửi tin nhắn. Vui lòng thử lại.");
     }
   };
@@ -169,7 +279,34 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
                       ? "bg-blue-600 text-white" 
                       : "bg-gray-100 text-gray-900"
                   }`}>
-                    <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                    {message.type === 'file' && message.fileName && message.fileUrl ? (
+                      <div className="space-y-2">
+                        {message.mimeType?.startsWith('image/') ? (
+                          <img 
+                            src={message.fileUrl} 
+                            alt={message.fileName}
+                            className="max-w-xs rounded-lg cursor-pointer"
+                            onClick={() => window.open(message.fileUrl, '_blank')}
+                          />
+                        ) : (
+                          <a 
+                            href={message.fileUrl}
+                            download={message.fileName}
+                            className={`flex items-center gap-2 p-2 rounded ${isOwn ? 'bg-blue-500' : 'bg-white'}`}
+                          >
+                            <svg viewBox="0 0 24 24" className="h-5 w-5">
+                              <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">{message.fileName}</div>
+                              <div className="text-xs opacity-75">{((message.fileSize || 0) / 1024).toFixed(1)} KB</div>
+                            </div>
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                    )}
                     <div className={`text-xs mt-1 ${
                       isOwn ? "text-blue-200" : "text-gray-500"
                     }`}>
@@ -185,18 +322,73 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
 
         {/* Input */}
         <div className="border-t border-gray-200 p-4">
+          {/* File Previews */}
+          {selectedFiles.length > 0 && (
+            <div className="mb-3 space-y-2 max-h-32 overflow-y-auto">
+              {selectedFiles.map((file) => (
+                <div key={file.name} className="p-2 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
+                  {filePreviews.has(file.name) ? (
+                    <img 
+                      src={filePreviews.get(file.name)} 
+                      alt="Preview" 
+                      className="w-10 h-10 object-cover rounded" 
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                      <svg viewBox="0 0 24 24" className="h-5 w-5 text-gray-500">
+                        <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                      </svg>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{file.name}</div>
+                    <div className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</div>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveFile(file.name)}
+                    className="p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0"
+                    title="Xóa file"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4">
+                      <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="flex gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileSelect}
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+              multiple
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+              title="Đính kèm file (Ctrl+V để dán)"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5">
+                <path fill="currentColor" d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/>
+              </svg>
+            </button>
             <textarea
+              ref={textareaRef}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Nhập tin nhắn..."
+              onPaste={handlePaste}
+              placeholder="Nhập tin nhắn hoặc dán ảnh (Ctrl+V)..."
               className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={1}
             />
             <button
               onClick={handleSendMessage}
-              disabled={!newMessage.trim()}
+              disabled={!newMessage.trim() && selectedFiles.length === 0}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4">

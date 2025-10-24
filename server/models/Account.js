@@ -122,12 +122,10 @@ AccountSchema.methods.comparePassword = async function(candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
   } else {
     // Password is plain text (legacy data), compare directly
-    console.log('Comparing plain text password');
     const isMatch = candidatePassword === this.password;
     
     // If match and password is plain text, hash it for future use
     if (isMatch) {
-      console.log('Plain text password matched, hashing for future use...');
       this.password = candidatePassword; // This will trigger the pre-save hook to hash it
       await this.save();
     }
@@ -138,14 +136,7 @@ AccountSchema.methods.comparePassword = async function(candidatePassword) {
 
 // Static method to find by credentials
 AccountSchema.statics.findByCredentials = async function(email, password) {
-  console.log('Finding account with email:', email);
-  
-  // Debug: List all accounts to see what's in the database
-  const allAccounts = await this.find({}, 'id email status');
-  console.log('All accounts in database:', allAccounts);
-  
   const account = await this.findOne({ email: email.toLowerCase() });
-  console.log('Found account:', account ? { id: account.id, email: account.email, status: account.status } : 'null');
   
   if (!account) {
     throw new Error('Email không tồn tại trong hệ thống');
@@ -156,7 +147,6 @@ AccountSchema.statics.findByCredentials = async function(email, password) {
   }
   
   const isMatch = await account.comparePassword(password);
-  console.log('Password match:', isMatch);
   
   if (!isMatch) {
     throw new Error('Mật khẩu không chính xác');

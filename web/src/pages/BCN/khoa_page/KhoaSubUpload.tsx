@@ -5,6 +5,9 @@ import type { SubHeader } from "./KhoaPageTypes";
 import type { FileSubmission } from "../../../services/pageApi";
 import dayjs from "dayjs";
 import RichTextEditor from "../../../util/RichTextEditor";
+import { useToast } from "../../../components/UI/Toast";
+import StandardDialog from "../../../components/UI/StandardDialog";
+import { Icons } from "../../../components/UI/Icons";
 import {
   getSubHeader,
   updateSubHeader,
@@ -21,6 +24,7 @@ const KhoaSubUpload: React.FC = () => {
   const { subId } = useParams();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const { showSuccess, showError } = useToast();
 
   const [sub, setSub] = useState<SubHeader | null>(null);
   const [html, setHtml] = useState<string>("");
@@ -32,6 +36,8 @@ const KhoaSubUpload: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<"submit" | "view">("submit");
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null);
 // Group submissions by submitter for reviewer view
 const groupedSubmissions = useMemo(() => {
   const map = new Map<string, { submitter: { _id?: string; id?: string; name?: string } | undefined; items: FileSubmission[] }>();
@@ -106,7 +112,7 @@ const toggleGroup = (key: string) =>
       await loadData();
     } catch (error) {
       console.error('Failed to save:', error);
-      alert('Không thể lưu thay đổi');
+      showError("Không thể lưu", "Không thể lưu thay đổi");
     }
   };
 
@@ -163,10 +169,10 @@ const toggleGroup = (key: string) =>
         inputRef.current.value = '';
       }
 
-      alert('Nộp file thành công!');
+      showSuccess("Thành công", "Nộp file thành công!");
     } catch (error) {
       console.error('File upload error:', error);
-      alert('Không thể nộp file. Vui lòng thử lại.');
+      showError("Lỗi nộp file", "Không thể nộp file. Vui lòng thử lại.");
     } finally {
       setUploading(false);
     }
@@ -174,13 +180,22 @@ const toggleGroup = (key: string) =>
 
   // Remove a submitted file (if status is pending)
   const handleDeleteSubmission = async (submissionId: string) => {
-    if (!confirm('Bạn có chắc chắn muốn xóa bài nộp này?')) return;
+    setDeletingSubmissionId(submissionId);
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteSubmission = async () => {
+    if (!deletingSubmissionId) return;
     try {
-      await deleteSubmission(submissionId);
+      await deleteSubmission(deletingSubmissionId);
       await loadData();
+      showSuccess("Thành công", "Đã xóa bài nộp");
     } catch (error) {
       console.error('Failed to delete submission:', error);
-      alert('Không thể xóa bài nộp');
+      showError("Lỗi xóa", "Không thể xóa bài nộp");
+    } finally {
+      setShowDeleteConfirm(false);
+      setDeletingSubmissionId(null);
     }
   };
 
@@ -195,7 +210,7 @@ const toggleGroup = (key: string) =>
       await loadData();
     } catch (error) {
       console.error('Failed to update status:', error);
-      alert('Không thể cập nhật trạng thái');
+      showError("Lỗi cập nhật", "Không thể cập nhật trạng thái");
     }
   };
 
@@ -691,6 +706,27 @@ const toggleGroup = (key: string) =>
   </div>
 )}
 
+      {/* Delete Confirmation Dialog */}
+      <StandardDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Xác nhận xóa bài nộp"
+        size="sm"
+        icon={<Icons.delete className="text-red-600" />}
+        primaryAction={{
+          label: "Xóa",
+          onClick: confirmDeleteSubmission,
+          variant: 'danger'
+        }}
+        secondaryAction={{
+          label: "Hủy",
+          onClick: () => setShowDeleteConfirm(false)
+        }}
+      >
+        <p className="text-gray-600">
+          Bạn có chắc chắn muốn xóa bài nộp này? Hành động này không thể hoàn tác.
+        </p>
+      </StandardDialog>
     </div>
   );
 };

@@ -4,11 +4,13 @@ import { useLocation, useParams, useNavigate } from "react-router-dom";
 import type { SubHeader } from "./KhoaPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
 import { getSubHeader, updateSubHeader } from "../../../services/pageApi";
+import { useToast } from "../../../components/UI/Toast";
 
 const KhoaSubRegular: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
+  const { showError } = useToast();
 
   const [sub, setSub] = useState<SubHeader | null>(null);
   const [editing, setEditing] = useState(false);
@@ -77,7 +79,7 @@ const KhoaSubRegular: React.FC = () => {
       await loadSubHeader();
     } catch (error) {
       console.error('Failed to save:', error);
-      alert('Không thể lưu thay đổi: ' + (error instanceof Error ? error.message : 'Unknown error'));
+      showError("Không thể lưu", 'Không thể lưu thay đổi: ' + (error instanceof Error ? error.message : 'Unknown error'));
     }
   };
 

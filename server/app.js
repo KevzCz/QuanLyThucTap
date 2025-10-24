@@ -11,7 +11,6 @@ import internshipSubjectRoutes from "./routes/internshipSubjects.js";
 import pageRoutes from "./routes/pageManagement.js";
 import lecturerRoutes from "./routes/lecturers.js";
 import studentRoutes from "./routes/students.js";
-import studentsRouter from './routes/students.js';
 import uploadRoutes from "./routes/uploads.js";
 import chatRoutes from "./routes/chat.js";
 import gradeRoutes from "./routes/grades.js";
@@ -30,12 +29,10 @@ app.use(cors({
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/accounts", authRoutes); // Account management routes
 app.use("/api/internship-subjects", internshipSubjectRoutes);
-app.use("/api/pages", pageRoutes); // Page management routes (main)
+app.use("/api/pages", pageRoutes);
 app.use("/api/lecturers", lecturerRoutes);
 app.use("/api/students", studentRoutes);
-app.use('/api/students', studentsRouter);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/grades", gradeRoutes);

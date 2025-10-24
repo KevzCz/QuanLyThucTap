@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../../../contexts/UseAuth";
 import type { ChatRequest, ChatConversation, ChatUser } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
@@ -21,17 +22,14 @@ type UserRole = "phong-dao-tao" | "ban-chu-nhiem" | "giang-vien" | "sinh-vien";
 
 const ChatManagement: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<"requests" | "conversations">("requests");
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [requestType, setRequestType] = useState<"incoming" | "outgoing" | "all">("all");
+  const [requestType] = useState<"incoming" | "outgoing" | "all">("all");
   const [requests, setRequests] = useState<ChatRequest[]>([]);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [query, setQuery] = useState("");
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingRequests, setLoadingRequests] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingConversations, setLoadingConversations] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState("");
 
   // Dialogs
@@ -155,7 +153,6 @@ const ChatManagement: React.FC = () => {
     // Listen for conversation updates (new messages)
     const handleConversationUpdate = (...args: unknown[]) => {
       const data = args[0] as { conversationId: string; lastMessage?: { messageId: string; senderId: string; content: string; timestamp: string; type: string }; updatedAt: string };
-      console.log('Conversation updated:', data.conversationId);
       setConversations(prev => {
         const updatedConversations = prev.map(conv => 
           conv.id === data.conversationId 
@@ -187,7 +184,6 @@ const ChatManagement: React.FC = () => {
     // Listen for conversation end
     const handleConversationEnd = (...args: unknown[]) => {
       const data = args[0] as { conversationId: string };
-      console.log('Conversation ended:', data.conversationId);
       setConversations(prev => 
         prev.map(conv => 
           conv.id === data.conversationId 
@@ -227,6 +223,21 @@ const ChatManagement: React.FC = () => {
       socketManager.off('requestUpdated', handleRequestUpdate);
     };
   }, [user, transformApiRequestToLocal, transformApiConversationToLocal, user?.id]);
+
+  // Handle opening conversation from URL parameter (from notifications)
+  useEffect(() => {
+    const conversationId = searchParams.get('conversation');
+    if (conversationId && conversations.length > 0) {
+      const conversation = conversations.find(c => c.id === conversationId);
+      if (conversation) {
+        setActiveTab('conversations');
+        setSelectedConversation(conversation);
+        setOpenChatDialog(true);
+        // Clear the URL parameter
+        setSearchParams({});
+      }
+    }
+  }, [searchParams, conversations, setSearchParams]);
 
   const filteredRequests = useMemo(() => {
     const q = query.trim().toLowerCase();

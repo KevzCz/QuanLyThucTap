@@ -780,10 +780,6 @@ router.post("/conversations/:conversationId/messages", authMiddleware.authentica
       return res.status(404).json({ success: false, message: "Không tìm thấy cuộc trò chuyện" });
     }
 
-    if (!content || content.trim() === '') {
-      return res.status(400).json({ success: false, message: "Nội dung tin nhắn không được trống" });
-    }
-
     // Handle file attachment
     let attachment = null;
     if (req.file) {
@@ -797,6 +793,11 @@ router.post("/conversations/:conversationId/messages", authMiddleware.authentica
       };
     }
 
+    // Validate content - allow empty if there's a file attachment
+    if ((!content || content.trim() === '') && !attachment) {
+      return res.status(400).json({ success: false, message: "Nội dung tin nhắn hoặc file đính kèm là bắt buộc" });
+    }
+
     // Get reply message if provided
     let replyToContent = null;
     if (replyToMessageId) {
@@ -808,13 +809,14 @@ router.post("/conversations/:conversationId/messages", authMiddleware.authentica
 
     // Create message
     const messageId = generateId('msg_');
+    const messageContent = content ? content.trim() : (attachment ? `[File: ${attachment.originalName}]` : '');
     const message = new ChatMessage({
       messageId,
       conversationId,
       senderId: userId,
       senderName: req.account.name,
       senderRole: req.account.role,
-      content: content.trim(),
+      content: messageContent,
       type: req.file ? 'file' : type,
       attachment,
       replyToMessageId,
@@ -846,15 +848,13 @@ router.post("/conversations/:conversationId/messages", authMiddleware.authentica
     const io = getIO(req);
     io.to(`conversation_${conversationId}`).emit('newMessage', message);
     
-    // Update conversation participants about new message
+    // Update ALL conversation participants about new message (including sender for immediate UI update)
     conversation.participants.forEach(participant => {
-      if (participant.userId !== userId) {
-        io.to(`user_${participant.userId}`).emit('conversationUpdated', {
-          conversationId,
-          lastMessage: conversation.lastMessage,
-          updatedAt: conversation.updatedAt
-        });
-      }
+      io.to(`user_${participant.userId}`).emit('conversationUpdated', {
+        conversationId,
+        lastMessage: conversation.lastMessage,
+        updatedAt: conversation.updatedAt
+      });
     });
 
     // Send notification to other participants (with throttling)

@@ -47,8 +47,6 @@ const AccountManagement: React.FC = () => {
   const [rows, setRows] = useState<Account[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [totalRows, setTotalRows] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pageSize = 10;
@@ -107,7 +105,6 @@ const AccountManagement: React.FC = () => {
       // Filter out current user
       setRows(response.accounts);
       setTotalPages(response.pagination.pages);
-      setTotalRows(response.pagination.total);
       if (page > response.pagination.pages) {
         setPage(Math.max(1, response.pagination.pages));
       }
@@ -124,6 +121,7 @@ const AccountManagement: React.FC = () => {
   // Fetch accounts when filters change
   useEffect(() => {
     fetchAccounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, status, role, query]);
 
   // Reset page when filters change

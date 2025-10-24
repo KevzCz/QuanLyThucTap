@@ -135,7 +135,6 @@ class SocketManager {
     if (!this.socket) return;
 
     this.socket.on('connect', () => {
-      console.log('🔗 Socket connected');
       this.isConnected = true;
       
       // Re-authenticate if we have user data
@@ -144,13 +143,11 @@ class SocketManager {
       }
     });
 
-    this.socket.on('disconnect', (reason) => {
-      console.log('🔌 Socket disconnected:', reason);
+    this.socket.on('disconnect', () => {
       this.isConnected = false;
     });
 
-    this.socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+    this.socket.on('connect_error', () => {
       this.isConnected = false;
     });
   }

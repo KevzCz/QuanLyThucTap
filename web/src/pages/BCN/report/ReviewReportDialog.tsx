@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Modal from "../../../util/Modal";
 import type { KhoaReport } from "./KhoaReportManagement";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -12,12 +13,13 @@ interface Props {
 const ReviewReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) => {
   const [reviewStatus, setReviewStatus] = useState<"reviewed" | "approved" | "rejected">("reviewed");
   const [reviewNote, setReviewNote] = useState("");
+  const { showWarning } = useToast();
 
   const handleSubmit = () => {
     if (!report) return;
 
     if (!reviewNote.trim() && reviewStatus === "rejected") {
-      alert("Vui lòng nhập lý do từ chối");
+      showWarning("Thiếu thông tin", "Vui lòng nhập lý do từ chối");
       return;
     }
 

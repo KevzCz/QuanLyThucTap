@@ -3,6 +3,7 @@ import Modal from "../../../util/Modal";
 import type { ChatConversation, ChatMessage, ChatUser } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import { socketManager } from "../../../services/socketManager";
+import { useToast } from "../../../components/UI/Toast";
 import dayjs from "dayjs";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3001/api";
@@ -18,7 +19,12 @@ interface Props {
 const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [filePreviews, setFilePreviews] = useState<Map<string, string>>(new Map());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { showError } = useToast();
 
   const otherUser = conversation?.participants.find(p => p.id !== currentUser.id);
 
@@ -48,9 +54,15 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
           const messagesData = responseData.data || [];
           // Transform messages to match expected format
           const transformedMessages = messagesData.map((msg: Record<string, unknown>) => ({
-            ...msg,
-            id: msg.messageId || msg.id, // Map messageId to id
-            timestamp: msg.createdAt || msg.timestamp // Map createdAt to timestamp
+            id: msg.messageId || msg.id,
+            senderId: msg.senderId,
+            content: msg.content,
+            timestamp: msg.createdAt || msg.timestamp,
+            type: msg.type as "text" | "file" | "system",
+            fileName: (msg.attachment as { originalName?: string })?.originalName,
+            fileUrl: (msg.attachment as { fileUrl?: string })?.fileUrl,
+            fileSize: (msg.attachment as { fileSize?: number })?.fileSize,
+            mimeType: (msg.attachment as { mimeType?: string })?.mimeType,
           }));
           setMessages(transformedMessages);
         } else {
@@ -75,13 +87,19 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
 
     // Listen for new messages
     const handleNewMessage = (...args: unknown[]) => {
-      const message = args[0] as ChatMessage & { messageId?: string; createdAt?: string };
+      const message = args[0] as ChatMessage & { messageId?: string; createdAt?: string; attachment?: { originalName?: string; fileUrl?: string; fileSize?: number; mimeType?: string } };
       // Only add message if it's for this conversation
       if (message) {
         const transformedMessage = {
-          ...message,
           id: message.messageId || message.id,
-          timestamp: message.createdAt || message.timestamp
+          senderId: message.senderId,
+          content: message.content,
+          timestamp: message.createdAt || message.timestamp,
+          type: message.type as "text" | "file" | "system",
+          fileName: message.attachment?.originalName,
+          fileUrl: message.attachment?.fileUrl,
+          fileSize: message.attachment?.fileSize,
+          mimeType: message.attachment?.mimeType,
         };
         setMessages(prev => {
           // Avoid duplicates
@@ -101,37 +119,128 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
     };
   }, [conversation?.id]);
 
+  const addFiles = (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    const validFiles: File[] = [];
+    const newPreviews = new Map(filePreviews);
+
+    fileArray.forEach(file => {
+      if (file.size > 10 * 1024 * 1024) {
+        showError("File quá lớn", `${file.name}: Kích thước file không được vượt quá 10MB`);
+        return;
+      }
+
+      validFiles.push(file);
+
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          newPreviews.set(file.name, reader.result as string);
+          setFilePreviews(new Map(newPreviews));
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    setSelectedFiles(prev => [...prev, ...validFiles]);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      addFiles(e.target.files);
+    }
+  };
+
+  const handleRemoveFile = (fileName: string) => {
+    setSelectedFiles(prev => prev.filter(f => f.name !== fileName));
+    setFilePreviews(prev => {
+      const newMap = new Map(prev);
+      newMap.delete(fileName);
+      return newMap;
+    });
+  };
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    const files: File[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === 'file') {
+        const file = items[i].getAsFile();
+        if (file) {
+          files.push(file);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      e.preventDefault();
+      addFiles(files);
+    }
+  };
+
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !conversation) return;
+    if ((!newMessage.trim() && selectedFiles.length === 0) || !conversation) return;
 
     const messageContent = newMessage.trim();
-    setNewMessage(""); // Clear input immediately for better UX
+    const filesToSend = [...selectedFiles];
+    
+    setNewMessage("");
+    setSelectedFiles([]);
+    setFilePreviews(new Map());
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
 
     try {
-      // Send message to server - Socket.IO will broadcast it back to all participants
-      const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversation.id}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          content: messageContent,
-          type: 'text'
-        })
-      });
+      // If there's a text message, send it first
+      if (messageContent) {
+        const formData = new FormData();
+        formData.append('content', messageContent);
+        formData.append('type', 'text');
 
-      if (!response.ok) {
-        console.error('Failed to send message');
-        // Restore message content to input on failure
-        setNewMessage(messageContent);
+        const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversation.id}/messages`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to send message');
+        }
       }
-      // Note: We don't manually add the message here
-      // The Socket.IO 'newMessage' listener will add it automatically
-    } catch (error) {
-      console.error('Error sending message:', error);
-      // Restore message content to input on error
+
+      // Then send each file as a separate message
+      for (const file of filesToSend) {
+        const formData = new FormData();
+        formData.append('content', `[File: ${file.name}]`);
+        formData.append('type', 'file');
+        formData.append('attachment', file);
+
+        const response = await fetch(`${API_BASE_URL}/chat/conversations/${conversation.id}/messages`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to send message');
+        }
+      }
+    } catch {
       setNewMessage(messageContent);
+      setSelectedFiles(filesToSend);
+      const newPreviews = new Map<string, string>();
+      filesToSend.forEach(file => {
+        if (file.type.startsWith('image/')) {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            newPreviews.set(file.name, reader.result as string);
+            setFilePreviews(new Map(newPreviews));
+          };
+          reader.readAsDataURL(file);
+        }
+      });
     }
   };
 
@@ -193,7 +302,39 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
                       ? "bg-blue-600 text-white" 
                       : "bg-gray-100 text-gray-900"
                   }`}>
-                    <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                    {message.content && !message.content.startsWith('[File:') && (
+                      <div className="text-sm whitespace-pre-wrap">{message.content}</div>
+                    )}
+                    {message.fileName && (
+                      <div className={message.content && !message.content.startsWith('[File:') ? "mt-2" : ""}>
+                        {message.mimeType?.startsWith('image/') ? (
+                          <img 
+                            src={message.fileUrl} 
+                            alt={message.fileName}
+                            className="max-w-full rounded cursor-pointer"
+                            onClick={() => window.open(message.fileUrl, '_blank')}
+                          />
+                        ) : (
+                          <a 
+                            href={message.fileUrl} 
+                            download={message.fileName}
+                            className={`flex items-center gap-2 p-2 rounded ${
+                              isOwn ? 'bg-blue-700' : 'bg-gray-200'
+                            }`}
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M8 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0017.414 6L14 2.586A2 2 0 0012.586 2H8z" />
+                            </svg>
+                            <div className="text-xs">
+                              <div className="font-medium">{message.fileName}</div>
+                              <div className={isOwn ? 'text-blue-200' : 'text-gray-500'}>
+                                {message.fileSize ? `${(message.fileSize / 1024).toFixed(1)} KB` : ''}
+                              </div>
+                            </div>
+                          </a>
+                        )}
+                      </div>
+                    )}
                     <div className={`text-xs mt-1 ${
                       isOwn ? "text-blue-200" : "text-gray-500"
                     }`}>
@@ -209,18 +350,69 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser 
 
         {/* Input */}
         <div className="border-t border-gray-200 p-4">
+          {selectedFiles.length > 0 && (
+            <div className="mb-3 space-y-2 max-h-32 overflow-y-auto">
+              {selectedFiles.map((file) => (
+                <div key={file.name} className="p-2 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
+                  {filePreviews.has(file.name) ? (
+                    <img 
+                      src={filePreviews.get(file.name)} 
+                      alt="Preview" 
+                      className="w-10 h-10 object-cover rounded" 
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                      <svg viewBox="0 0 24 24" className="h-5 w-5 text-gray-500">
+                        <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                      </svg>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-gray-900 truncate">{file.name}</div>
+                    <div className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</div>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveFile(file.name)}
+                    className="p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0"
+                    title="Xóa file"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4">
+                      <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+              multiple
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+              title="Đính kèm tệp (Ctrl+V để dán)"
+            >
+              📎
+            </button>
             <textarea
+              ref={textareaRef}
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Nhập tin nhắn..."
+              onPaste={handlePaste}
+              placeholder="Nhập tin nhắn hoặc dán ảnh (Ctrl+V)..."
               className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               rows={1}
             />
             <button
               onClick={handleSendMessage}
-              disabled={!newMessage.trim()}
+              disabled={!newMessage.trim() && selectedFiles.length === 0}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4">

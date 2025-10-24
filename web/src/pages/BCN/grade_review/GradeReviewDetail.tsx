@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageLayout from '../../../components/UI/PageLayout';
 import { Icons } from '../../../components/UI/Icons';
+import { useToast } from '../../../components/UI/Toast';
 import {
   getGradeDetailsForReview,
   reviewGrade,
@@ -17,6 +18,7 @@ import dayjs from 'dayjs';
 const GradeReviewDetail: React.FC = () => {
   const { gradeId } = useParams<{ gradeId: string }>();
   const navigate = useNavigate();
+  const { showSuccess, showError, showWarning } = useToast();
 
   const [grade, setGrade] = useState<InternshipGrade | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,6 +26,8 @@ const GradeReviewDetail: React.FC = () => {
   const [processing, setProcessing] = useState(false);
   const [bcnComment, setBcnComment] = useState('');
   const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [showApproveDialog, setShowApproveDialog] = useState(false);
+  const [showRejectConfirm, setShowRejectConfirm] = useState(false);
 
   const loadGradeDetails = useCallback(async () => {
     if (!gradeId) return;
@@ -49,10 +53,6 @@ const GradeReviewDetail: React.FC = () => {
   const handleApprove = async () => {
     if (!gradeId || !grade) return;
 
-    if (!confirm('Bạn có chắc chắn muốn duyệt điểm này? Sau khi duyệt sẽ không thể thay đổi.')) {
-      return;
-    }
-
     try {
       setProcessing(true);
       await reviewGrade(gradeId, 'approve', bcnComment.trim() || undefined);
@@ -67,10 +67,11 @@ const GradeReviewDetail: React.FC = () => {
         };
       });
 
-      alert('Đã duyệt điểm thành công!');
+      setShowApproveDialog(false);
+      showSuccess("Đã duyệt", "Đã duyệt điểm thành công!");
     } catch (err) {
       console.error('Failed to approve grade:', err);
-      alert('Không thể duyệt điểm. Vui lòng thử lại.');
+      showError("Lỗi duyệt điểm", "Không thể duyệt điểm. Vui lòng thử lại.");
     } finally {
       setProcessing(false);
     }
@@ -80,11 +81,7 @@ const GradeReviewDetail: React.FC = () => {
     if (!gradeId || !grade) return;
 
     if (!bcnComment.trim()) {
-      alert('Vui lòng nhập lý do từ chối trước khi thực hiện.');
-      return;
-    }
-
-    if (!confirm('Bạn có chắc chắn muốn từ chối điểm này? Điểm sẽ được trả về cho giảng viên chỉnh sửa.')) {
+      showWarning("Thiếu thông tin", "Vui lòng nhập lý do từ chối trước khi thực hiện.");
       return;
     }
 
@@ -102,11 +99,12 @@ const GradeReviewDetail: React.FC = () => {
         };
       });
 
-      alert('Đã từ chối điểm. Giảng viên sẽ nhận được thông báo.');
+      showSuccess("Đã từ chối", "Đã từ chối điểm. Giảng viên sẽ nhận được thông báo.");
       setShowRejectDialog(false);
+      setShowRejectConfirm(false);
     } catch (err) {
       console.error('Failed to reject grade:', err);
-      alert('Không thể từ chối điểm. Vui lòng thử lại.');
+      showError("Lỗi từ chối", "Không thể từ chối điểm. Vui lòng thử lại.");
     } finally {
       setProcessing(false);
     }
@@ -362,7 +360,7 @@ const GradeReviewDetail: React.FC = () => {
             {grade.status === 'submitted' && (
               <div className="flex gap-3 pt-4">
                 <button
-                  onClick={handleApprove}
+                  onClick={() => setShowApproveDialog(true)}
                   disabled={processing}
                   className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -437,11 +435,73 @@ const GradeReviewDetail: React.FC = () => {
                   Hủy
                 </button>
                 <button
-                  onClick={handleReject}
-                  disabled={!bcnComment.trim() || processing}
+                  onClick={() => {
+                    if (!bcnComment.trim()) {
+                      showWarning("Thiếu thông tin", "Vui lòng nhập lý do từ chối");
+                      return;
+                    }
+                    setShowRejectConfirm(true);
+                  }}
+                  disabled={processing}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {processing ? 'Đang xử lý...' : 'Từ chối'}
+                  {processing ? 'Đang xử lý...' : 'Xác nhận'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Approve Confirmation Dialog */}
+        {showApproveDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Xác nhận duyệt điểm</h3>
+              <p className="text-gray-600 mb-6">
+                Bạn có chắc chắn muốn duyệt điểm này? Sau khi duyệt sẽ không thể thay đổi.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowApproveDialog(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={processing}
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleApprove}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  disabled={processing}
+                >
+                  {processing ? 'Đang xử lý...' : 'Xác nhận duyệt'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reject Final Confirmation Dialog */}
+        {showRejectConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Xác nhận lần cuối</h3>
+              <p className="text-gray-600 mb-6">
+                Bạn có chắc chắn muốn từ chối điểm này? Điểm sẽ được trả về cho giảng viên chỉnh sửa.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowRejectConfirm(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={processing}
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleReject}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  disabled={processing}
+                >
+                  {processing ? 'Đang xử lý...' : 'Xác nhận từ chối'}
                 </button>
               </div>
             </div>

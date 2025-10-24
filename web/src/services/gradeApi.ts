@@ -225,10 +225,10 @@ export const uploadGradingFiles = async (files: FileList): Promise<{
 };
 
 // Delete grading file (placeholder for future implementation)
-export const deleteGradingFile = async (fileName: string): Promise<{ success: boolean }> => {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export const deleteGradingFile = async (_fileName: string): Promise<{ success: boolean }> => {
   // For now, just return success since there's no delete endpoint yet
-  // In a real implementation, you'd call DELETE /uploads/${fileName}
-  console.log('Delete file:', fileName); // Placeholder log
+  // In a real implementation, you'd call DELETE /uploads/${_fileName}
   return Promise.resolve({ success: true });
 };
 
