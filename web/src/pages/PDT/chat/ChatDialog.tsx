@@ -305,16 +305,58 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
             </div>
           </div>
           {isConversationActive && currentUser.role === 'phong-dao-tao' && (
-            <button
-              onClick={() => setShowEndDialog(true)}
-              className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5"
-              title="Kết thúc cuộc trò chuyện"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>Kết thúc</span>
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowEndDialog(!showEndDialog)}
+                className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center gap-1.5"
+                title="Kết thúc cuộc trò chuyện"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Kết thúc</span>
+              </button>
+              
+              {showEndDialog && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50">
+                  <h4 className="text-sm font-medium text-gray-900 mb-2">
+                    Kết thúc cuộc trò chuyện
+                  </h4>
+                  <p className="text-xs text-gray-600 mb-3">
+                    Bạn có chắc chắn muốn kết thúc cuộc trò chuyện với {otherUser.name}?
+                  </p>
+                  
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Lý do kết thúc (tùy chọn)
+                    </label>
+                    <textarea
+                      value={endReason}
+                      onChange={(e) => setEndReason(e.target.value)}
+                      placeholder="Nhập lý do..."
+                      className="w-full h-16 border border-gray-300 rounded-lg px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowEndDialog(false)}
+                      disabled={loading}
+                      className="px-3 py-1.5 text-xs border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      onClick={handleEndConversation}
+                      disabled={loading}
+                      className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {loading ? "Đang xử lý..." : "Kết thúc"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       }
@@ -467,50 +509,6 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
           </div>
         )}
       </div>
-
-      {/* End Conversation Confirmation Dialog */}
-      {showEndDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              Kết thúc cuộc trò chuyện
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              Bạn có chắc chắn muốn kết thúc cuộc trò chuyện với {otherUser.name}? 
-              Hành động này không thể hoàn tác.
-            </p>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Lý do kết thúc (tùy chọn)
-              </label>
-              <textarea
-                value={endReason}
-                onChange={(e) => setEndReason(e.target.value)}
-                placeholder="Nhập lý do kết thúc cuộc trò chuyện..."
-                className="w-full h-20 border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowEndDialog(false)}
-                disabled={loading}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={handleEndConversation}
-                disabled={loading}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-              >
-                {loading ? "Đang xử lý..." : "Kết thúc"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </Modal>
   );
 };

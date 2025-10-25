@@ -452,7 +452,7 @@ router.post("/students/:studentId/submit", authenticate, authorize(["giang-vien"
 router.put("/students/:studentId/work-info", authenticate, authorize(["giang-vien"]), async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { workType, company } = req.body;
+    const { workType, company, projectTopic } = req.body;
 
     // Find student by Account.id
     const studentAccount = await Account.findOne({ id: studentId });
@@ -477,6 +477,11 @@ router.put("/students/:studentId/work-info", authenticate, authorize(["giang-vie
       grade.company = company;
     }
 
+    // Update project topic for thesis
+    if (workType === 'do_an' && projectTopic !== undefined) {
+      grade.projectTopic = projectTopic;
+    }
+
     await grade.save();
 
     res.json({
@@ -485,6 +490,7 @@ router.put("/students/:studentId/work-info", authenticate, authorize(["giang-vie
       grade: {
         workType: grade.workType,
         company: grade.company,
+        projectTopic: grade.projectTopic,
         gradeComponents: grade.gradeComponents,
         milestones: grade.milestones
       }

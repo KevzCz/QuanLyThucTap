@@ -5,6 +5,7 @@ import type { ChatRequest } from "../../PDT/chat/ChatTypes";
 import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import dayjs from "dayjs";
 import { chatAPI } from "../../../services/chatApi";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Props {
   open: boolean;
@@ -16,6 +17,7 @@ interface Props {
 
 const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, onDecline }) => {
   const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(false);
 
   if (!request) return null;
@@ -29,10 +31,12 @@ const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, 
     try {
       setLoading(true);
       await chatAPI.declineChatRequest(request.id);
+      showSuccess("Đã hủy yêu cầu", "Yêu cầu chat của bạn đã được hủy");
       onDecline(request);
       onClose();
     } catch (error) {
       console.error('Error revoking request:', error);
+      showError("Lỗi", "Không thể hủy yêu cầu chat");
     } finally {
       setLoading(false);
     }

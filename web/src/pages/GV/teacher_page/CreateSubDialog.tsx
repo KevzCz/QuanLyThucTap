@@ -4,6 +4,8 @@ import type { HeaderBlock, SubHeader, SubKind } from "./TeacherPageTypes";
 import RichTextEditor from "../../../util/RichTextEditor";
 import LoadingButton from "../../../components/UI/LoadingButton";
 import { useToast } from "../../../components/UI/Toast";
+import { useFormValidation } from "../../../hooks/useFormValidation";
+import { ValidatedInput } from "../../../components/UI/ValidatedInput";
 
 interface Props {
   open: boolean;
@@ -25,6 +27,32 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { validate, validateAll, getFieldError, setFieldTouched, clearErrors } = useFormValidation({
+    title: {
+      required: 'Vui lòng nhập tiêu đề',
+      minLength: { value: 2, message: 'Tiêu đề phải có ít nhất 2 ký tự' }
+    },
+    startAt: {
+      custom: (value) => {
+        if (kind === "nop-file" && !value) {
+          return 'Vui lòng chọn ngày bắt đầu';
+        }
+        return '';
+      }
+    },
+    endAt: {
+      custom: (value, formData) => {
+        if (kind === "nop-file" && !value) {
+          return 'Vui lòng chọn ngày kết thúc';
+        }
+        if (kind === "nop-file" && value && formData.startAt && new Date(value as string) <= new Date(formData.startAt as string)) {
+          return 'Ngày kết thúc phải sau ngày bắt đầu';
+        }
+        return '';
+      }
+    }
+  });
 
 
 
@@ -50,8 +78,9 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
   const submit = async () => {
     if (!header) return;
     
-    if (!title.trim()) {
-      showWarning("Vui lòng nhập tên sub-header");
+    const isValid = validateAll({ title, startAt, endAt });
+    if (!isValid) {
+      showWarning("Vui lòng kiểm tra lại thông tin nhập vào");
       return;
     }
     
@@ -77,6 +106,7 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
       setFileUrl("");
       setFileName("");
       setSelectedFile(null);
+      clearErrors();
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -94,6 +124,7 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
     setFileUrl("");
     setFileName("");
     setSelectedFile(null);
+    clearErrors();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -172,11 +203,15 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
             {(kind === "van-ban" || kind === "thuong") ? (
               <RichTextEditor html={title} onChange={setTitle} />
             ) : (
-              <input
+              <ValidatedInput
                 type="text"
-                className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  validate('title', e.target.value, { title, startAt, endAt });
+                }}
+                onBlur={() => setFieldTouched('title')}
+                error={getFieldError('title')}
                 placeholder={
                   kind === "file" ? "Ví dụ: Hướng dẫn thực tập.pdf" : 
                   kind === "thong-bao" ? "Ví dụ: Thông báo nghỉ học" :
@@ -239,21 +274,33 @@ const CreateSubDialog: React.FC<Props> = ({ open, header, onClose, onCreate }) =
               <label className="block text-sm font-medium text-gray-700 mb-2">Thời gian nộp file</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Bắt đầu</label>
-                  <input 
+                  <label className="block text-xs text-gray-600 mb-1">Bắt đầu <span className="text-red-500">*</span></label>
+                  <ValidatedInput
                     type="datetime-local" 
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                     value={startAt} 
-                    onChange={(e) => setStartAt(e.target.value)} 
+                    onChange={(e) => {
+                      setStartAt(e.target.value);
+                      validate('startAt', e.target.value, { title, startAt: e.target.value, endAt });
+                      // Re-validate end date when start date changes
+                      if (endAt) {
+                        validate('endAt', endAt, { title, startAt: e.target.value, endAt });
+                      }
+                    }}
+                    onBlur={() => setFieldTouched('startAt')}
+                    error={getFieldError('startAt')}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-600 mb-1">Kết thúc</label>
-                  <input 
+                  <label className="block text-xs text-gray-600 mb-1">Kết thúc <span className="text-red-500">*</span></label>
+                  <ValidatedInput
                     type="datetime-local" 
-                    className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                     value={endAt} 
-                    onChange={(e) => setEndAt(e.target.value)} 
+                    onChange={(e) => {
+                      setEndAt(e.target.value);
+                      validate('endAt', e.target.value, { title, startAt, endAt: e.target.value });
+                    }}
+                    onBlur={() => setFieldTouched('endAt')}
+                    error={getFieldError('endAt')}
                   />
                 </div>
               </div>

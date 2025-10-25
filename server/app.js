@@ -14,6 +14,7 @@ import studentRoutes from "./routes/students.js";
 import uploadRoutes from "./routes/uploads.js";
 import chatRoutes from "./routes/chat.js";
 import gradeRoutes from "./routes/grades.js";
+import profileRoutes from "./routes/profile.js";
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use("/api/students", studentRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/grades", gradeRoutes);
+app.use("/api/profile", profileRoutes);
 
 // Static uploads - fix the undefined uploadsDir
 const uploadsDir = path.resolve("./uploads");

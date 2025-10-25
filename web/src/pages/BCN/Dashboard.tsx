@@ -83,27 +83,33 @@ const BCNDashboard: React.FC = () => {
       const totalReports = reports.length;
       const pendingReports = reports.filter(r => r.status === "submitted").length;
 
-      // Fetch students count
-      const studentsResponse = await apiClient.request<{
-        success: boolean;
-        students: unknown[];
-      }>("/students");
-      const totalStudents = studentsResponse.students?.length || 0;
-
-      // Fetch subjects
+      // Fetch students count from managed subjects
       const subjectsResponse = await apiClient.request<{
         success: boolean;
-        subjects: Array<{ status: string }>;
-      }>("/internship-subjects");
+        subjects: Array<{ status: string; students: Array<{ id?: string; _id?: string }> }>;
+      }>("/internship-subjects/bcn/managed");
       
       const subjects = subjectsResponse.subjects || [];
       const activeSubjects = subjects.filter(s => s.status === "open").length;
+      
+      // Count unique students from all subjects
+      const studentIds = new Set<string>();
+      subjects.forEach(subject => {
+        if (subject.students && Array.isArray(subject.students)) {
+          subject.students.forEach((student) => {
+            if (student.id || student._id) {
+              studentIds.add(student.id || student._id || '');
+            }
+          });
+        }
+      });
+      const totalStudents = studentIds.size;
 
       // Fetch requests
       const requestsResponse = await apiClient.request<{
         success: boolean;
         requests: Array<{ status: string }>;
-      }>("/requests");
+      }>("/requests/bcn/pending");
       
       const requests = requestsResponse.requests || [];
       const totalRequests = requests.length;
@@ -119,8 +125,9 @@ const BCNDashboard: React.FC = () => {
       });
     } catch (error) {
       console.error("Error loading statistics:", error);
+      showError("Không thể tải thống kê");
     }
-  }, []);
+  }, [showError]);
 
   // Load chat requests
   const loadChatRequests = useCallback(async () => {
@@ -131,10 +138,11 @@ const BCNDashboard: React.FC = () => {
       setChatRequests(transformed);
     } catch (error) {
       console.error("Failed to load chat requests:", error);
+      showError("Không thể tải yêu cầu chat");
     } finally {
       setLoadingRequests(false);
     }
-  }, [transformApiRequestToLocal]);
+  }, [transformApiRequestToLocal, showError]);
 
   useEffect(() => {
     loadStatistics();
@@ -268,11 +276,12 @@ const BCNDashboard: React.FC = () => {
               {notifications.slice(0, 3).map((notif) => (
                 <div
                   key={notif._id}
+                  onClick={() => notif.link && navigate(notif.link)}
                   className={`p-3 rounded-lg border transition-all ${
                     notif.isRead 
                       ? "bg-gray-50 border-gray-200" 
                       : "bg-blue-50 border-blue-200"
-                  }`}
+                  } ${notif.link ? "cursor-pointer hover:shadow-md" : ""}`}
                 >
                   <div className="flex items-start gap-2">
                     <div className="text-lg">

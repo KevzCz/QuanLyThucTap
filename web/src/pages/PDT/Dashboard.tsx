@@ -134,8 +134,9 @@ const PDTDashboard: React.FC = () => {
       });
     } catch (error) {
       console.error("Error loading statistics:", error);
+      showError("Không thể tải thống kê");
     }
-  }, []);
+  }, [showError]);
 
   // Load chat requests
   const loadChatRequests = useCallback(async () => {
@@ -146,10 +147,11 @@ const PDTDashboard: React.FC = () => {
       setChatRequests(transformed);
     } catch (error) {
       console.error("Failed to load chat requests:", error);
+      showError("Không thể tải yêu cầu chat");
     } finally {
       setLoadingRequests(false);
     }
-  }, [transformApiRequestToLocal]);
+  }, [transformApiRequestToLocal, showError]);
 
   useEffect(() => {
     loadStatistics();

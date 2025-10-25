@@ -4,6 +4,8 @@ import type { Role, Status, Account } from "./AccountTypes";
 import { roleLabel } from "./AccountTypes";
 import { useToast } from "../../../components/UI/Toast";
 import LoadingButton from "../../../components/UI/LoadingButton";
+import { useFormValidation } from "../../../hooks/useFormValidation";
+import { ValidatedInput } from "../../../components/UI/ValidatedInput";
 
 interface Props {
   open: boolean;
@@ -21,6 +23,25 @@ const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { validate, validateAll, getFieldError, hasError, setFieldTouched, clearErrors } = useFormValidation({
+    name: {
+      required: 'Vui lòng nhập tên',
+      minLength: { value: 2, message: 'Tên phải có ít nhất 2 ký tự' }
+    },
+    email: {
+      required: 'Vui lòng nhập email',
+      email: 'Email không hợp lệ'
+    },
+    password: {
+      required: 'Vui lòng nhập mật khẩu',
+      minLength: { value: 6, message: 'Mật khẩu phải có ít nhất 6 ký tự' }
+    },
+    confirmPassword: {
+      required: 'Vui lòng xác nhận mật khẩu',
+      match: { field: 'password', message: 'Mật khẩu xác nhận không khớp' }
+    }
+  });
+
   const reset = () => {
     setName("");
     setEmail("");
@@ -29,6 +50,7 @@ const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
     setPassword("");
     setConfirmPassword("");
     setIsSubmitting(false);
+    clearErrors();
   };
 
   const handleClose = () => {
@@ -37,24 +59,10 @@ const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
   };
 
   const submit = async () => {
-    if (!name.trim()) {
-      showWarning("Vui lòng nhập tên");
-      return;
-    }
-    if (!email.trim()) {
-      showWarning("Vui lòng nhập email");
-      return;
-    }
-    if (!password.trim()) {
-      showWarning("Vui lòng nhập mật khẩu");
-      return;
-    }
-    if (password !== confirmPassword) {
-      showWarning("Mật khẩu xác nhận không khớp");
-      return;
-    }
-    if (password.length < 6) {
-      showWarning("Mật khẩu phải có ít nhất 6 ký tự");
+    // Validate all fields
+    const isValid = validateAll({ name, email, password, confirmPassword });
+    if (!isValid) {
+      showWarning("Vui lòng kiểm tra lại thông tin nhập vào");
       return;
     }
 
@@ -97,18 +105,23 @@ const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
       }
     >
       <div className="grid grid-cols-1 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Tên <span className="text-red-500">*</span>
-          </label>
-          <input 
-            className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-            placeholder="VD: Nguyễn Văn A" 
-            value={name} 
-            onChange={(e) => setName(e.target.value)}
-            disabled={isSubmitting}
-          />
-        </div>
+        <ValidatedInput
+          label="Tên"
+          placeholder="VD: Nguyễn Văn A"
+          value={name}
+          onChange={(e) => {
+            setName(e.target.value);
+            validate('name', e.target.value, { name: e.target.value, email, password, confirmPassword });
+          }}
+          onBlur={() => {
+            setFieldTouched('name');
+            validate('name', name, { name, email, password, confirmPassword });
+          }}
+          error={getFieldError('name')}
+          touched={hasError('name')}
+          required
+          disabled={isSubmitting}
+        />
         
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
@@ -140,47 +153,63 @@ const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
           </div>
         </div>
         
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Email <span className="text-red-500">*</span>
-          </label>
-          <input 
-            type="email"
-            className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-            placeholder="name@huflit.edu.vn" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={isSubmitting}
-          />
-        </div>
+        <ValidatedInput
+          label="Email"
+          type="email"
+          placeholder="name@huflit.edu.vn"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            validate('email', e.target.value, { name, email: e.target.value, password, confirmPassword });
+          }}
+          onBlur={() => {
+            setFieldTouched('email');
+            validate('email', email, { name, email, password, confirmPassword });
+          }}
+          error={getFieldError('email')}
+          touched={hasError('email')}
+          required
+          disabled={isSubmitting}
+        />
         
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Mật khẩu <span className="text-red-500">*</span>
-            </label>
-            <input 
-              type="password" 
-              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              placeholder="Tối thiểu 6 ký tự" 
-              value={password} 
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isSubmitting}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Xác nhận mật khẩu <span className="text-red-500">*</span>
-            </label>
-            <input 
-              type="password" 
-              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-              placeholder="Nhập lại mật khẩu" 
-              value={confirmPassword} 
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={isSubmitting}
-            />
-          </div>
+          <ValidatedInput
+            label="Mật khẩu"
+            type="password"
+            placeholder="Tối thiểu 6 ký tự"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              validate('password', e.target.value, { name, email, password: e.target.value, confirmPassword });
+            }}
+            onBlur={() => {
+              setFieldTouched('password');
+              validate('password', password, { name, email, password, confirmPassword });
+            }}
+            error={getFieldError('password')}
+            touched={hasError('password')}
+            required
+            disabled={isSubmitting}
+            helpText="Tối thiểu 6 ký tự"
+          />
+          <ValidatedInput
+            label="Xác nhận mật khẩu"
+            type="password"
+            placeholder="Nhập lại mật khẩu"
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              validate('confirmPassword', e.target.value, { name, email, password, confirmPassword: e.target.value });
+            }}
+            onBlur={() => {
+              setFieldTouched('confirmPassword');
+              validate('confirmPassword', confirmPassword, { name, email, password, confirmPassword });
+            }}
+            error={getFieldError('confirmPassword')}
+            touched={hasError('confirmPassword')}
+            required
+            disabled={isSubmitting}
+          />
         </div>
         
         <div className="text-xs text-gray-500">

@@ -83,7 +83,11 @@ const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch { setUser(null); }
   };
 
-  const value: AuthContextType = { user, isAuthenticated, isLoading, login, logout, refreshUser };
+  const updateUser = (updatedAccount: Account) => {
+    setUser(updatedAccount);
+  };
+
+  const value: AuthContextType = { user, isAuthenticated, isLoading, login, logout, refreshUser, updateUser };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 

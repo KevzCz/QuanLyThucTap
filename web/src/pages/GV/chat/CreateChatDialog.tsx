@@ -11,9 +11,10 @@ interface Props {
   open: boolean;
   onClose: () => void;
   onCreateConversation?: (conversation: ChatConversation) => void;
+  onRequestSent?: () => void;
 }
 
-const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation }) => {
+const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation, onRequestSent }) => {
   const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [selectedRole, setSelectedRole] = useState<"all" | UserRole>("all");
@@ -138,8 +139,10 @@ const CreateChatDialog: React.FC<Props> = ({ open, onClose, onCreateConversation
           subject: "Yêu cầu hỗ trợ"
         });
 
-        // Request created successfully - socket events will handle the refresh automatically
-        // No need to call onSendRequest
+        console.log('✅ GV: Chat request created successfully');
+        
+        // Trigger callback to manually refresh (as fallback)
+        onRequestSent?.();
       }
 
       // Close dialog and reset state

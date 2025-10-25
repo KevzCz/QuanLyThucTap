@@ -120,6 +120,12 @@ const internshipGradeSchema = new mongoose.Schema({
     }
   },
   
+  // Project topic (for thesis)
+  projectTopic: {
+    type: String,
+    default: ''
+  },
+  
   // Timeline and milestones
   startDate: {
     type: Date,

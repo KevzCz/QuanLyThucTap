@@ -5,6 +5,7 @@ import { roleLabel, roleColor } from "../../PDT/chat/ChatTypes";
 import ChatRequestDialog from "./ChatRequestDialog";
 import CreateChatRequestDialog from "./CreateChatRequestDialog";
 import ChatDialog from "./ChatDialog";
+import ChatRequestCard from "../../../components/chat/ChatRequestCard";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { useAuth } from "../../../contexts/UseAuth";
@@ -21,7 +22,7 @@ type UserRole = "phong-dao-tao" | "ban-chu-nhiem" | "giang-vien" | "sinh-vien";
 const ChatManagement: React.FC = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [activeTab, setActiveTab] = useState<"requests" | "conversations">("requests");
   const [requests, setRequests] = useState<ChatRequest[]>([]);
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
@@ -127,8 +128,10 @@ const ChatManagement: React.FC = () => {
   useEffect(() => {
     if (!user) return;
 
-    // Connect and authenticate socket
-    socketManager.connect();
+    // Socket is already connected in AuthProvider, just ensure authentication
+    if (!socketManager.connected) {
+      socketManager.connect();
+    }
     socketManager.authenticate({
       id: user.id,
       name: user.name,
@@ -273,26 +276,26 @@ const ChatManagement: React.FC = () => {
   const handleAcceptRequest = async (request: ChatRequest) => {
     try {
       await chatAPI.acceptChatRequest(request.id);
-      
+      showSuccess("Đã chấp nhận", "Yêu cầu chat đã được chấp nhận");
       // Request will be removed and conversation will be added via socket events
       setOpenRequestDialog(false);
       setActiveTab("conversations");
     } catch (err) {
       console.error("Error accepting request:", err);
-      showError("Không thể chấp nhận yêu cầu. Vui lòng thử lại.");
+      showError("Lỗi", "Không thể chấp nhận yêu cầu. Vui lòng thử lại");
     }
   };
 
   const handleDeclineRequest = async (request: ChatRequest) => {
     try {
       await chatAPI.declineChatRequest(request.id);
-      
+      showSuccess("Đã từ chối", "Yêu cầu chat đã bị từ chối");
       // Remove from local state
       setRequests(prev => prev.filter(r => r.id !== request.id));
       setOpenRequestDialog(false);
     } catch (err) {
       console.error("Error declining request:", err);
-      showError("Không thể từ chối yêu cầu. Vui lòng thử lại.");
+      showError("Lỗi", "Không thể từ chối yêu cầu. Vui lòng thử lại");
     }
   };
 
@@ -399,74 +402,18 @@ const ChatManagement: React.FC = () => {
                 }
               />
             ) : (
-              filteredRequests.map((request) => {
-                const isOwnRequest = request.fromUser.id === currentUser.id;
-                const displayUser = isOwnRequest ? request.toUser : request.fromUser;
-                
-                return (
-                  <div key={request.id} className="p-4 hover:bg-gray-50 cursor-pointer"
-                       onClick={() => { setSelectedRequest(request); setOpenRequestDialog(true); }}>
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                        <span className="text-sm font-medium">
-                          {displayUser?.name.charAt(0)}
-                        </span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          {isOwnRequest && (
-                            <span className="text-xs text-gray-500">Đến:</span>
-                          )}
-                          <span className="font-medium text-gray-900">{displayUser?.name}</span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColor[displayUser?.role || 'sinh-vien']}`}>
-                            {roleLabel[displayUser?.role || 'sinh-vien']}
-                          </span>
-                          {displayUser?.isOnline && (
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                          )}
-                          {isOwnRequest && (
-                            <span className="ml-auto px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                              Đã gửi
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-gray-600 text-sm line-clamp-2 mb-1">{request.message}</p>
-                        <div className="text-xs text-gray-500">
-                          {dayjs(request.timestamp).fromNow()}
-                        </div>
-                      </div>
-                      {!isOwnRequest && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeclineRequest(request);
-                            }}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
-                            title="Từ chối"
-                          >
-                            <svg viewBox="0 0 24 24" className="h-4 w-4">
-                              <path fill="currentColor" d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12z"/>
-                            </svg>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleAcceptRequest(request);
-                            }}
-                            className="p-1 text-green-600 hover:bg-green-50 rounded"
-                            title="Chấp nhận"
-                          >
-                            <svg viewBox="0 0 24 24" className="h-4 w-4">
-                              <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19L21 7l-1.41-1.41z"/>
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
+              filteredRequests.map((request) => (
+                <ChatRequestCard
+                  key={request.id}
+                  request={request}
+                  currentUserId={currentUser.id}
+                  currentUserRole={currentUser.role}
+                  onAccept={handleAcceptRequest}
+                  onDecline={handleDeclineRequest}
+                  onClick={() => { setSelectedRequest(request); setOpenRequestDialog(true); }}
+                  showActions={true}
+                />
+              ))
             )}
           </div>
         ) : (
@@ -560,6 +507,7 @@ const ChatManagement: React.FC = () => {
         onClose={() => setOpenChatDialog(false)}
         conversation={selectedConversation}
         currentUser={currentUser}
+        onConversationEnded={loadConversations}
       />
     </div>
   );

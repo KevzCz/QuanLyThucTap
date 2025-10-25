@@ -200,12 +200,22 @@ router.post("/requests", authMiddleware.authenticate, upload.any(), async (req, 
     // Broadcast new chat request via Socket.io
     const io = getIO(req);
     
+    console.log(`📨 Broadcasting new chat request ${chatRequest.requestId} from ${fromUserId} to ${toUserId}`);
+    
+    // Send to sender (so their outgoing requests update)
+    io.to(`user_${fromUserId}`).emit('newChatRequest', chatRequest);
+    console.log(`  ✓ Sent to sender: user_${fromUserId}`);
+    
     // Send to target user
-    io.to(`user_${toUserId}`).emit('newChatRequest', chatRequest);
+    if (toUserId !== fromUserId) {
+      io.to(`user_${toUserId}`).emit('newChatRequest', chatRequest);
+      console.log(`  ✓ Sent to recipient: user_${toUserId}`);
+    }
     
     // If it's a PDT request, send to all PDT members
     if (toUser.role === 'phong-dao-tao') {
       io.emit('newPDTRequest', chatRequest);
+      console.log(`  ✓ Broadcast to all PDT members`);
     }
 
     // Send notification for chat request
@@ -408,7 +418,7 @@ router.post("/requests/:requestId/accept", authMiddleware.authenticate, async (r
         sender: req.account._id,
         type: 'request-accepted',
         title: 'Yêu cầu chat được chấp nhận',
-        message: `${request.acceptedBy.name} đã chấp nhận yêu cầu chat của bạn`,
+        message: `${request.respondedBy.name} đã chấp nhận yêu cầu chat của bạn`,
         link: `/chat?conversation=${conversationId}`,
         priority: 'normal',
         metadata: {
@@ -445,12 +455,10 @@ router.post("/requests/:requestId/decline", authMiddleware.authenticate, async (
       return res.status(404).json({ success: false, message: "Không tìm thấy yêu cầu chat" });
     }
 
-    if (request.status !== 'pending') {
-      return res.status(400).json({ success: false, message: "Yêu cầu đã được xử lý" });
-    }
-
-    // Check permission to decline
+    // Check permission to decline/cancel
+    const isOwnRequest = request.fromUser.userId === userId;
     const canDecline = 
+      isOwnRequest || // User can revoke their own request
       request.toUser.userId === userId ||
       request.assignedTo?.userId === userId ||
       (req.account.role === 'phong-dao-tao' && request.toUser.role === 'phong-dao-tao');
@@ -459,22 +467,41 @@ router.post("/requests/:requestId/decline", authMiddleware.authenticate, async (
       return res.status(403).json({ success: false, message: "Không có quyền từ chối yêu cầu này" });
     }
 
-    // Decline the request
-    request.decline({
-      userId: req.account.id,
-      name: req.account.name,
-      role: req.account.role
-    }, responseMessage);
+    // Check if request is still pending (only check if not cancelled)
+    if (request.status !== 'pending' && request.status !== 'cancelled') {
+      return res.status(400).json({ success: false, message: "Yêu cầu đã được xử lý" });
+    }
+
+    // If user is revoking their own request, use cancel instead of decline
+    if (isOwnRequest) {
+      request.cancel({
+        userId: req.account.id,
+        name: req.account.name,
+        role: req.account.role
+      }, responseMessage || 'Người dùng đã hủy yêu cầu');
+    } else {
+      // Otherwise, decline the request
+      request.decline({
+        userId: req.account.id,
+        name: req.account.name,
+        role: req.account.role
+      }, responseMessage);
+    }
 
     await request.save();
 
     // Broadcast request update via Socket.io
     const io = getIO(req);
     io.to(`user_${request.fromUser.userId}`).emit('requestUpdated', request);
+    
+    // Also notify the recipient if it's a decline (not a cancel)
+    if (!isOwnRequest) {
+      io.to(`user_${request.toUser.userId}`).emit('requestUpdated', request);
+    }
 
     res.json({
       success: true,
-      message: "Đã từ chối yêu cầu chat",
+      message: isOwnRequest ? "Đã hủy yêu cầu chat" : "Đã từ chối yêu cầu chat",
       data: request
     });
   } catch (error) {
@@ -902,18 +929,13 @@ router.post("/conversations/:conversationId/messages", authMiddleware.authentica
   }
 });
 
-// End conversation (PDT and BCN only)
+// End conversation (all roles can end their own conversations)
 router.put("/conversations/:conversationId/end", authMiddleware.authenticate, async (req, res) => {
   try {
     const { conversationId } = req.params;
     const { reason = '' } = req.body;
     const userId = req.account.id;
     const userRole = req.account.role;
-
-    // Only PDT and BCN can end conversations
-    if (!['phong-dao-tao', 'ban-chu-nhiem'].includes(userRole)) {
-      return res.status(403).json({ success: false, message: "Chỉ PDT và BCN mới có quyền kết thúc cuộc trò chuyện" });
-    }
 
     // Verify conversation exists and user is participant
     const conversation = await ChatConversation.findOne({

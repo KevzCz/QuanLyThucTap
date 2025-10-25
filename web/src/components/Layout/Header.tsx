@@ -3,6 +3,9 @@ import { useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/UseAuth";
 import { useNotifications } from "../../contexts/UseNotifications";
 import NotificationListDialog from "../NotificationListDialog";
+import ProfileDialog from "../ProfileDialog";
+import GlobalSearch from "../GlobalSearch";
+import UserProfileDialog from "../UserProfileDialog";
 
 const BellIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12 2a6 6 0 0 0-6 6v3.28l-1.62 3.24A1 1 0 0 0 5.28 16h13.44a1 1 0 0 0 .9-1.48L18 11.28V8a6 6 0 0 0-6-6zm0 20a3 3 0 0 0 2.995-2.824L15 19h-6a3 3 0 0 0 2.824 2.995L12 22z"/></svg>
@@ -10,9 +13,7 @@ const BellIcon = () => (
 const UserIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-5 0-9 2.5-9 5.5V22h18v-2.5C21 16.5 17 14 12 14z"/></svg>
 );
-const SearchIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-4 w-4 text-gray-400"><path fill="currentColor" d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"/></svg>
-);
+
 
 function roleName(role: string) {
   switch (role) {
@@ -41,6 +42,7 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
     "/bcn-page": { breadcrumb: "Quản lý trang khoa", title: "Quản lý trang khoa" },
     "/request": { breadcrumb: "Quản lý yêu cầu", title: "Quản lý yêu cầu" },
     "/bcn-reports": { breadcrumb: "Quản lý báo cáo", title: "Quản lý báo cáo" },
+    "/grade-review": { breadcrumb: "Duyệt điểm", title: "Duyệt điểm thực tập" },
     
     // GV pages
     "/teacher-students": { breadcrumb: "Quản lý sinh viên", title: "Quản lý sinh viên" },
@@ -48,6 +50,7 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
     "/teacher-page": { breadcrumb: "Quản lý trang giảng viên", title: "Quản lý trang giảng viên" },
     "/teacher-internship-registration": { breadcrumb: "Đăng ký môn thực tập", title: "Đăng ký môn thực tập" },
     "/teacher-reports": { breadcrumb: "Quản lý báo cáo", title: "Quản lý báo cáo" },
+    "/grade-management": { breadcrumb: "Quản lý điểm", title: "Quản lý điểm thực tập" },
     
     // SV pages
     "/docs-teacher": { breadcrumb: "Xem tài liệu giảng viên", title: "Xem tài liệu giảng viên" },
@@ -55,6 +58,14 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
     "/my-internship": { breadcrumb: "Thực tập của tôi", title: "Thực tập của tôi" },
     "/profile": { breadcrumb: "Hồ sơ cá nhân", title: "Hồ sơ cá nhân" },
   };
+
+  // Handle detail pages with dynamic IDs
+  if (pathname.startsWith("/grade-review/") && pathname !== "/grade-review") {
+    return { breadcrumb: "Duyệt điểm / Chi tiết điểm", title: "Chi tiết điểm thực tập" };
+  }
+  if (pathname.startsWith("/grade-management/") && pathname !== "/grade-management") {
+    return { breadcrumb: "Quản lý điểm / Chi tiết sinh viên", title: "Điểm thực tập sinh viên" };
+  }
 
   // Handle sub-routes
   if (pathname.startsWith("/bcn-page/sub/")) {
@@ -65,6 +76,9 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
   }
   if (pathname.startsWith("/docs-dept/sub/")) {
     return { breadcrumb: "Xem tài liệu khoa / Trang con", title: "Trang con khoa" };
+  }
+  if (pathname.startsWith("/docs-teacher/sub/")) {
+    return { breadcrumb: "Xem tài liệu giảng viên / Trang con", title: "Trang con giảng viên" };
   }
 
   // Find exact match or return default
@@ -82,7 +96,15 @@ const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showUserProfile, setShowUserProfile] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null);
   const { breadcrumb, title } = getPageInfo(location.pathname);
+
+  const handleUserProfileClick = (user: { id: string; name: string; email: string; role: string }) => {
+    setSelectedUser(user);
+    setShowUserProfile(true);
+  };
 
   const handleLogout = async () => {
     try {
@@ -125,17 +147,18 @@ const Header: React.FC = () => {
             />
           </div>
 
-          <div className="relative">
-            <span className="absolute left-3 top-2.5"><SearchIcon /></span>
-            <input
-              type="text"
-              placeholder="Tìm kiếm"
-              className="pl-8 pr-3 py-2 w-[320px] rounded-md border border-gray-300 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <GlobalSearch onUserProfileClick={handleUserProfileClick} />
 
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">Xin chào, <span className="font-medium">{user.name}</span></span>
+            <button
+              onClick={() => setShowProfile(true)}
+              className="inline-flex items-center gap-2 px-3 h-9 rounded-full border border-gray-300 bg-white hover:bg-gray-50 transition-colors"
+            >
+              <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-sm font-medium text-gray-800">{user.name}</span>
+            </button>
             <button 
               onClick={handleLogout}
               className="inline-flex items-center gap-2 px-3 h-9 rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
@@ -146,6 +169,16 @@ const Header: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Profile Dialog */}
+      <ProfileDialog open={showProfile} onClose={() => setShowProfile(false)} />
+      
+      {/* User Profile Dialog */}
+      <UserProfileDialog 
+        open={showUserProfile} 
+        onClose={() => setShowUserProfile(false)} 
+        user={selectedUser} 
+      />
     </div>
   );
 };

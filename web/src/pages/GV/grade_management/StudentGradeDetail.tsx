@@ -65,6 +65,7 @@ const StudentGradeDetail: React.FC = () => {
       lng: 0
     }
   });
+  const [projectTopic, setProjectTopic] = useState('');
   
   // Custom milestone form
   const [showAddMilestone, setShowAddMilestone] = useState(false);
@@ -73,6 +74,9 @@ const StudentGradeDetail: React.FC = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingMilestone, setDeletingMilestone] = useState<Milestone | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [showNotesDialog, setShowNotesDialog] = useState(false);
+  const [editingNotesMilestone, setEditingNotesMilestone] = useState<Milestone | null>(null);
+  const [notesInput, setNotesInput] = useState('');
   const [newMilestone, setNewMilestone] = useState({
     title: '',
     description: '',
@@ -96,6 +100,7 @@ const StudentGradeDetail: React.FC = () => {
       
       // Initialize work type and company info
       setWorkType(response.grade.workType || 'thuc_tap');
+      setProjectTopic(response.grade.projectTopic || '');
       if (response.grade.company) {
         const companyData = response.grade.company as Record<string, unknown>;
         setCompany({
@@ -124,6 +129,25 @@ const StudentGradeDetail: React.FC = () => {
       console.error('Missing required parameters for milestone update:', { studentId, grade: !!grade, milestoneId });
       showError('Không thể cập nhật milestone. Thiếu thông tin cần thiết.');
       return;
+    }
+
+    // Find the milestone being updated
+    const milestone = grade.milestones.find(m => m.id === milestoneId);
+    
+    // Validation for "Bắt đầu thực tập" milestone
+    if (milestone?.title === 'Bắt đầu thực tập' && status === 'completed') {
+      if (!company.name || !company.address || !company.supervisorName) {
+        showError('Vui lòng điền đầy đủ thông tin doanh nghiệp (tên, địa chỉ, người hướng dẫn) trong tab "Cài đặt" trước khi bắt đầu thực tập.');
+        return;
+      }
+    }
+
+    // Validation for "Bắt đầu đồ án" milestone
+    if (milestone?.title === 'Bắt đầu đồ án' && status === 'completed') {
+      if (!projectTopic.trim()) {
+        showError('Vui lòng điền chủ đề đồ án trong tab "Cài đặt" trước khi bắt đầu đồ án.');
+        return;
+      }
     }
 
     try {
@@ -244,10 +268,17 @@ const StudentGradeDetail: React.FC = () => {
     if (!studentId) return;
 
     try {
-      const response = await updateWorkInfo(studentId, {
+      const payload: {
+        workType: 'thuc_tap' | 'do_an';
+        company?: typeof company;
+        projectTopic?: string;
+      } = {
         workType,
-        company: workType === 'thuc_tap' ? company : undefined
-      });
+        company: workType === 'thuc_tap' ? company : undefined,
+        projectTopic: workType === 'do_an' ? projectTopic : undefined
+      };
+
+      const response = await updateWorkInfo(studentId, payload);
 
       setGrade(prev => {
         if (!prev) return prev;
@@ -255,6 +286,7 @@ const StudentGradeDetail: React.FC = () => {
           ...prev,
           workType: response.grade.workType as 'thuc_tap' | 'do_an',
           company: response.grade.company,
+          projectTopic: response.grade.projectTopic,
           gradeComponents: response.grade.gradeComponents || prev.gradeComponents,
           milestones: response.grade.milestones || prev.milestones
         };
@@ -419,6 +451,14 @@ const StudentGradeDetail: React.FC = () => {
     setShowDeleteConfirm(true);
   };
 
+  const saveNotesForMilestone = async () => {
+    if (!editingNotesMilestone) return;
+    await handleMilestoneUpdate(editingNotesMilestone.id, editingNotesMilestone.status, notesInput);
+    setShowNotesDialog(false);
+    setEditingNotesMilestone(null);
+    setNotesInput('');
+  };
+
   const resetMilestoneForm = () => {
     setNewMilestone({ title: '', description: '', dueDate: '' });
     setEditingMilestone(null);
@@ -471,47 +511,62 @@ const StudentGradeDetail: React.FC = () => {
   }
 
   return (
-    <PageLayout>
-      <div className="space-y-6">
-        {/* Header with student info */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  onClick={() => navigate('/teacher-grade-management')}
-                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                >
-                  <Icons.close className="w-4 h-4" />
-                  Quay lại
-                </button>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900">{grade.student.name}</h2>
-              <p className="text-gray-600">{grade.student.id} • {grade.student.email}</p>
-              <p className="text-gray-600">{grade.subject.title}</p>
-              <div className="mt-2">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                  grade.workType === 'thuc_tap' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
-                }`}>
-                  {getWorkTypeText(grade.workType)}
-                </span>
-              </div>
+    <>
+      {/* Toolbar outside PageLayout */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <button
+          onClick={() => navigate('/teacher-grade-management')}
+          className="h-10 px-4 flex items-center gap-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          <Icons.close className="w-4 h-4" />
+          Quay lại
+        </button>
+        
+        <div className="flex-1 flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold text-gray-900">{grade.student.name}</h2>
+            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+              grade.workType === 'thuc_tap' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+            }`}>
+              {getWorkTypeText(grade.workType)}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getGradeStatusColor(grade.status)}`}>
+            {getGradeStatusText(grade.status)}
+          </span>
+          {grade.finalGrade && (
+            <div className="bg-white border border-gray-200 rounded-lg px-4 py-1">
+              <span className="text-lg font-bold text-gray-900">{grade.finalGrade.toFixed(1)}</span>
+              <span className="text-sm text-gray-500 ml-1">({grade.letterGrade})</span>
             </div>
-            <div className="text-right">
-              <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getGradeStatusColor(grade.status)}`}>
-                {getGradeStatusText(grade.status)}
-              </div>
-              {grade.finalGrade && (
-                <div className="mt-2">
-                  <div className="text-2xl font-bold text-gray-900">{grade.finalGrade.toFixed(1)}</div>
-                  <div className="text-sm text-gray-500">{grade.letterGrade}</div>
-                </div>
-              )}
+          )}
+        </div>
+      </div>
+
+      <PageLayout>
+      <div className="space-y-6">
+        {/* Student info card */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm text-gray-600">Mã sinh viên</p>
+              <p className="font-medium text-gray-900">{grade.student.id}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Email</p>
+              <p className="font-medium text-gray-900">{grade.student.email}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Môn thực tập</p>
+              <p className="font-medium text-gray-900">{grade.subject.title}</p>
             </div>
           </div>
           
           {/* Progress bar */}
-          <div className="mt-4">
+          <div className="mt-4 pt-4 border-t border-gray-200">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm text-gray-600">Tiến độ thực tập</span>
               <span className="text-sm text-gray-600">{grade.progressPercentage}%</span>
@@ -643,10 +698,9 @@ const StudentGradeDetail: React.FC = () => {
                           )}
                           <button
                             onClick={() => {
-                              const notes = prompt('Nhập ghi chú:', milestone.supervisorNotes || '');
-                              if (notes !== null) {
-                                handleMilestoneUpdate(milestone.id, milestone.status, notes);
-                              }
+                              setEditingNotesMilestone(milestone);
+                              setNotesInput(milestone.supervisorNotes || '');
+                              setShowNotesDialog(true);
                             }}
                             className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                             disabled={grade.status === 'submitted' || grade.status === 'approved'}
@@ -1029,6 +1083,29 @@ const StudentGradeDetail: React.FC = () => {
                   </div>
                 )}
 
+                {/* Project Topic (only for thesis) */}
+                {workType === 'do_an' && (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <h4 className="font-medium text-gray-900 mb-3">Thông tin đồ án</h4>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Chủ đề đồ án <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={projectTopic}
+                        onChange={(e) => setProjectTopic(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        rows={3}
+                        placeholder="Nhập chủ đề đồ án tốt nghiệp..."
+                        disabled={grade.status === 'submitted' || grade.status === 'approved'}
+                      />
+                      <p className="text-sm text-gray-600 mt-1">
+                        Mô tả ngắn gọn về chủ đề và nội dung đồ án của sinh viên
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Save Settings Button */}
                 {grade.status !== 'submitted' && grade.status !== 'approved' && (
                   <div className="flex justify-end pt-4 border-t border-gray-200">
@@ -1215,8 +1292,51 @@ const StudentGradeDetail: React.FC = () => {
             Bạn có chắc chắn muốn nộp điểm lên khoa? Sau khi nộp, điểm sẽ được gửi đến Ban Chủ Nhiệm để xét duyệt và bạn sẽ không thể chỉnh sửa.
           </p>
         </StandardDialog>
+
+        {/* Milestone Notes Dialog */}
+        <StandardDialog
+          open={showNotesDialog}
+          onClose={() => {
+            setShowNotesDialog(false);
+            setEditingNotesMilestone(null);
+            setNotesInput('');
+          }}
+          title="Ghi chú mốc thời gian"
+          size="md"
+          icon={<Icons.edit className="text-blue-600" />}
+          primaryAction={{
+            label: "Lưu ghi chú",
+            onClick: saveNotesForMilestone,
+            variant: 'primary',
+            loading: saving
+          }}
+          secondaryAction={{
+            label: "Hủy",
+            onClick: () => {
+              setShowNotesDialog(false);
+              setEditingNotesMilestone(null);
+              setNotesInput('');
+            }
+          }}
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Ghi chú cho: <span className="font-semibold">{editingNotesMilestone?.title}</span>
+              </label>
+              <textarea
+                value={notesInput}
+                onChange={(e) => setNotesInput(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                rows={5}
+                placeholder="Nhập ghi chú của giảng viên..."
+              />
+            </div>
+          </div>
+        </StandardDialog>
       </div>
     </PageLayout>
+    </>
   );
 };
 

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../../components/UI/PageLayout';
-import SearchInput from '../../../components/UI/SearchInput';
-import FilterButtonGroup from '../../../components/UI/FilterButtonGroup';
 import Pagination from '../../../components/UI/Pagination';
 import { Icons } from '../../../components/UI/Icons';
 import {
@@ -14,9 +12,11 @@ import {
 import dayjs from 'dayjs';
 import { useDebounce } from '../../../hooks/useDebounce';
 import EmptyState from '../../../components/UI/EmptyState';
+import { useToast } from '../../../components/UI/Toast';
 
 const GradeReviewList: React.FC = () => {
   const navigate = useNavigate();
+  const { showError } = useToast();
   const [grades, setGrades] = useState<InternshipGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,9 @@ const GradeReviewList: React.FC = () => {
       setGrades(response.grades);
     } catch (err) {
       console.error('Failed to load submitted grades:', err);
-      setError('Không thể tải danh sách điểm cần duyệt. Vui lòng thử lại.');
+      const errorMsg = 'Không thể tải danh sách điểm cần duyệt. Vui lòng thử lại.';
+      setError(errorMsg);
+      showError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -63,13 +65,6 @@ const GradeReviewList: React.FC = () => {
   const totalPages = Math.ceil(filteredGrades.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedGrades = filteredGrades.slice(startIndex, startIndex + itemsPerPage);
-
-  const statusOptions = [
-    { key: 'all', label: 'Tất cả' },
-    { key: 'submitted', label: 'Chờ duyệt' },
-    { key: 'approved', label: 'Đã duyệt' },
-    { key: 'rejected', label: 'Từ chối' }
-  ];
 
   const handleReviewGrade = (gradeId: string) => {
     navigate(`/grade-review/${gradeId}`);
@@ -107,62 +102,52 @@ const GradeReviewList: React.FC = () => {
   }
 
   return (
-    <PageLayout>
-      <div className="space-y-6">
-        {/* Filters */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <SearchInput
+    <>
+      {/* Search and Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
+              <svg viewBox="0 0 24 24" className="h-4 w-4">
+                <path
+                  fill="currentColor"
+                  d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"
+                />
+              </svg>
+            </span>
+            <input
               value={searchTerm}
-              onChange={setSearchTerm}
-              placeholder="Tìm kiếm theo tên sinh viên, MSSV, môn học, giảng viên..."
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm kiếm theo tên sinh viên, MSSV, môn học..."
+              className="w-[380px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
             />
-            <FilterButtonGroup
-              options={statusOptions}
-              value={statusFilter}
-              onChange={setStatusFilter}
-            />
+          </div>
+
+          <div className="flex gap-2">
+            {(["all", "submitted", "approved", "rejected"] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setStatusFilter(k);
+                  setCurrentPage(1);
+                }}
+                disabled={loading}
+                className={`h-10 rounded-lg px-3 text-sm border transition disabled:opacity-50 ${
+                  statusFilter === k
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                {k === "all" ? "Tất cả" : k === "submitted" ? "Chờ duyệt" : k === "approved" ? "Đã duyệt" : "Từ chối"}
+              </button>
+            ))}
           </div>
         </div>
+      </div>
 
-        {/* Statistics */}
-        {grades.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-yellow-700">Chờ duyệt</p>
-                  <p className="text-3xl font-bold text-yellow-900 mt-1">
-                    {grades.filter(g => g.status === 'submitted').length}
-                  </p>
-                </div>
-                <div className="w-10 h-10 flex items-center justify-center text-3xl">⏳</div>
-              </div>
-            </div>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-700">Đã duyệt</p>
-                  <p className="text-3xl font-bold text-green-900 mt-1">
-                    {grades.filter(g => g.status === 'approved').length}
-                  </p>
-                </div>
-                <Icons.check className="w-10 h-10 text-green-400" />
-              </div>
-            </div>
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-red-700">Từ chối</p>
-                  <p className="text-3xl font-bold text-red-900 mt-1">
-                    {grades.filter(g => g.status === 'rejected').length}
-                  </p>
-                </div>
-                <Icons.close className="w-10 h-10 text-red-400" />
-              </div>
-            </div>
-          </div>
-        )}
+      <PageLayout>
+      <div className="space-y-6">
 
         {/* Grades list */}
         <div className="bg-white border border-gray-200 rounded-lg">
@@ -250,7 +235,8 @@ const GradeReviewList: React.FC = () => {
           />
         )}
       </div>
-    </PageLayout>
+      </PageLayout>
+    </>
   );
 };
 

@@ -20,6 +20,7 @@ import SubjectPill from "../../../components/UI/SubjectPill";
 import Pagination from "../../../components/UI/Pagination";
 import { useDebounce } from "../../../hooks/useDebounce";
 import EmptyState from "../../../components/UI/EmptyState";
+import { useToast } from "../../../components/UI/Toast";
 
 /* ---------- UI helpers ---------- */
 const StatusChip: React.FC<{ v: ParticipantStatus }> = ({ v }) => {
@@ -54,6 +55,8 @@ const IconBtn: React.FC<
 
 /* ---------- MAIN ---------- */
 const InternshipSubjectManagement: React.FC = () => {
+  const { showSuccess, showError } = useToast();
+  
   // backend data
   const [subjectData, setSubjectData] = useState<InternshipSubjectDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -155,9 +158,12 @@ const InternshipSubjectManagement: React.FC = () => {
       await loadManagedSubject();
       setOpenConfirmImported(false);
       setPage(1);
+      showSuccess("Đã nhập danh sách sinh viên thành công");
     } catch (err: unknown) {
       console.error("Error importing students:", err);
-      setError(err instanceof Error ? err.message : "Không thể nhập danh sách sinh viên");
+      const errorMessage = err instanceof Error ? err.message : "Không thể nhập danh sách sinh viên";
+      setError(errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -174,9 +180,12 @@ const InternshipSubjectManagement: React.FC = () => {
       );
       setSubjectData(response.subject);
       setOpenEditAdvisor(false);
+      showSuccess("Đã cập nhật giảng viên hướng dẫn");
     } catch (err: unknown) {
       console.error("Error updating student supervisor:", err);
-      setError(err instanceof Error ? err.message : "Không thể cập nhật giảng viên hướng dẫn");
+      const errorMessage = err instanceof Error ? err.message : "Không thể cập nhật giảng viên hướng dẫn";
+      setError(errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -194,9 +203,12 @@ const InternshipSubjectManagement: React.FC = () => {
       }
       
       await loadManagedSubject();
+      showSuccess("Đã xóa thành viên thành công");
     } catch (err: unknown) {
       console.error("Error removing participant:", err);
-      setError(err instanceof Error ? err.message : "Không thể xóa thành viên");
+      const errorMessage = err instanceof Error ? err.message : "Không thể xóa thành viên";
+      setError(errorMessage);
+      showError(errorMessage);
     }
   };
 

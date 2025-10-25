@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 
 interface Props {
   html: string;
@@ -21,6 +21,8 @@ const Icon = ({ path }: { path: string }) => (
 
 const RichTextEditor: React.FC<Props> = ({ html, onChange, placeholder, className }) => {
   const ref = useRef<HTMLDivElement | null>(null);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkInput, setLinkInput] = useState('');
 
   useEffect(() => {
     if (ref.current && ref.current.innerHTML !== html) ref.current.innerHTML = html;
@@ -34,8 +36,14 @@ const RichTextEditor: React.FC<Props> = ({ html, onChange, placeholder, classNam
   const onInput = () => ref.current && onChange(ref.current.innerHTML);
 
   const addLink = () => {
-    const url = prompt("Nhập URL:");
-    if (url) exec("createLink", url);
+    setLinkInput('');
+    setShowLinkDialog(true);
+  };
+
+  const confirmAddLink = () => {
+    if (linkInput) exec("createLink", linkInput);
+    setShowLinkDialog(false);
+    setLinkInput('');
   };
 
   const clear = () => {
@@ -87,6 +95,51 @@ const RichTextEditor: React.FC<Props> = ({ html, onChange, placeholder, classNam
         [contenteditable] a { color: #2563eb; text-decoration: underline; }
         blockquote { border-left: 3px solid #e5e7eb; padding-left: .75rem; color:#4b5563; margin: .25rem 0; }
       `}</style>
+
+      {/* Link Dialog */}
+      {showLinkDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6 shadow-xl">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Thêm liên kết</h3>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                URL
+              </label>
+              <input
+                type="url"
+                value={linkInput}
+                onChange={(e) => setLinkInput(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="https://example.com"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    confirmAddLink();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowLinkDialog(false);
+                  setLinkInput('');
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={confirmAddLink}
+                className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+              >
+                Thêm liên kết
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

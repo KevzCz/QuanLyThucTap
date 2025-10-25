@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../../components/UI/PageLayout';
-import PageToolbar from '../../../components/UI/PageToolbar';
 import SearchInput from '../../../components/UI/SearchInput';
 import FilterButtonGroup from '../../../components/UI/FilterButtonGroup';
 import Pagination from '../../../components/UI/Pagination';
@@ -16,9 +15,11 @@ import {
 import dayjs from 'dayjs';
 import { useDebounce } from '../../../hooks/useDebounce';
 import EmptyState from '../../../components/UI/EmptyState';
+import { useToast } from '../../../components/UI/Toast';
 
 const GradeManagement: React.FC = () => {
   const navigate = useNavigate();
+  const { showError } = useToast();
   const [grades, setGrades] = useState<GradeSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,11 +39,13 @@ const GradeManagement: React.FC = () => {
       setGrades(response.grades);
     } catch (err) {
       console.error('Failed to load grades:', err);
-      setError('Không thể tải danh sách điểm. Vui lòng thử lại.');
+      const errorMsg = 'Không thể tải danh sách điểm. Vui lòng thử lại.';
+      setError(errorMsg);
+      showError(errorMsg);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, showError]);
 
   useEffect(() => {
     loadGrades();
@@ -118,34 +121,35 @@ const GradeManagement: React.FC = () => {
   }
 
   return (
-    <PageLayout>
-      <PageToolbar>
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">
-          <SearchInput
-            value={query}
-            onChange={(value) => {
-              setQuery(value);
-              setPage(1);
-            }}
-            placeholder="Tìm kiếm sinh viên, môn học..."
-            width="w-[300px]"
-          />
+    <>
+      {/* Search and Filters - Outside PageLayout */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-6">
+        <SearchInput
+          value={query}
+          onChange={(value) => {
+            setQuery(value);
+            setPage(1);
+          }}
+          placeholder="Tìm kiếm sinh viên, môn học..."
+          width="w-[300px]"
+        />
 
-          <FilterButtonGroup
-            options={statusOptions}
-            value={statusFilter}
-            onChange={(value) => {
-              setStatusFilter(value);
-              setPage(1);
-            }}
-          />
-        </div>
+        <FilterButtonGroup
+          options={statusOptions}
+          value={statusFilter}
+          onChange={(value) => {
+            setStatusFilter(value);
+            setPage(1);
+          }}
+        />
 
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Icons.users className="w-4 h-4" />
           <span>{filtered.length} sinh viên</span>
         </div>
-      </PageToolbar>
+      </div>
+
+      <PageLayout>
 
       <div className="space-y-4">
         {current.length === 0 ? (
@@ -315,6 +319,7 @@ const GradeManagement: React.FC = () => {
         )}
       </div>
     </PageLayout>
+    </>
   );
 };
 

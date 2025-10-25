@@ -51,6 +51,7 @@ export interface InternshipGrade {
     supervisorPhone: string;
     address: string;
   };
+  projectTopic?: string;
   status: 'not_started' | 'in_progress' | 'draft_completed' | 'submitted' | 'approved' | 'rejected';
   startDate: string;
   endDate: string;
@@ -259,6 +260,7 @@ export const updateWorkInfo = async (
       supervisorPhone: string;
       address: string;
     };
+    projectTopic?: string;
   }
 ): Promise<{ message: string; grade: Partial<InternshipGrade> }> => {
   const response = await apiClient.request<{ 
@@ -273,6 +275,7 @@ export const updateWorkInfo = async (
         supervisorPhone: string;
         address: string;
       };
+      projectTopic?: string;
       gradeComponents: GradeComponent[];
       milestones: Milestone[];
     }

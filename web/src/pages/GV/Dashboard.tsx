@@ -125,8 +125,9 @@ const GVDashboard: React.FC = () => {
       setDeadlines([...reportDeadlines, ...milestoneDeadlines, ...submissionDeadlines]);
     } catch (error) {
       console.error("Failed to load deadlines:", error);
+      showError("Không thể tải lịch trình");
     }
-  }, []);
+  }, [showError]);
 
   const loadChatRequests = useCallback(async () => {
     try {
@@ -136,10 +137,11 @@ const GVDashboard: React.FC = () => {
       setChatRequests(transformed);
     } catch (error) {
       console.error("Failed to load chat requests:", error);
+      showError("Không thể tải yêu cầu chat");
     } finally {
       setLoadingRequests(false);
     }
-  }, [transformApiRequestToLocal]);
+  }, [transformApiRequestToLocal, showError]);
 
   useEffect(() => {
     loadDeadlines();
@@ -221,11 +223,12 @@ const GVDashboard: React.FC = () => {
               {notifications.slice(0, 3).map((notif) => (
                 <div
                   key={notif._id}
+                  onClick={() => notif.link && navigate(notif.link)}
                   className={`p-3 rounded-lg border transition-all ${
                     notif.isRead 
                       ? "bg-gray-50 border-gray-200" 
                       : "bg-emerald-50 border-emerald-200"
-                  }`}
+                  } ${notif.link ? "cursor-pointer hover:shadow-md" : ""}`}
                 >
                   <div className="flex items-start gap-2">
                     <div className="text-lg">

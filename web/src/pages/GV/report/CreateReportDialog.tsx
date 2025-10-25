@@ -4,6 +4,8 @@ import RichTextEditor from "../../../util/RichTextEditor";
 import type { TeacherReport } from "./ReportManagement";
 import { useToast } from "../../../components/UI/Toast";
 import LoadingButton from "../../../components/UI/LoadingButton";
+import { useFormValidation } from "../../../hooks/useFormValidation";
+import { ValidatedInput } from "../../../components/UI/ValidatedInput";
 
 interface Props {
   open: boolean;
@@ -37,6 +39,17 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, currentL
   const [uploading, setUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { validate, validateAll, getFieldError, setFieldTouched, clearErrors } = useFormValidation({
+    title: {
+      required: 'Vui lòng nhập tiêu đề báo cáo',
+      minLength: { value: 2, message: 'Tiêu đề phải có ít nhất 2 ký tự' }
+    },
+    content: {
+      required: 'Vui lòng nhập nội dung báo cáo',
+      minLength: { value: 10, message: 'Nội dung phải có ít nhất 10 ký tự' }
+    }
+  });
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -82,12 +95,9 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, currentL
   };
 
   const handleSubmit = async () => {
-    if (!title.trim()) {
-      showWarning("Vui lòng nhập tiêu đề báo cáo");
-      return;
-    }
-    if (!content.trim()) {
-      showWarning("Vui lòng nhập nội dung báo cáo");
+    const isValid = validateAll({ title, content });
+    if (!isValid) {
+      showWarning("Vui lòng kiểm tra lại thông tin nhập vào");
       return;
     }
 
@@ -108,6 +118,7 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, currentL
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+      clearErrors();
     } finally {
       setIsSubmitting(false);
     }
@@ -121,6 +132,7 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, currentL
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+    clearErrors();
     onClose();
   };
 
@@ -172,11 +184,15 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, currentL
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Tiêu đề báo cáo <span className="text-red-500">*</span>
             </label>
-            <input
+            <ValidatedInput
               type="text"
-              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                validate('title', e.target.value, { title: e.target.value, content });
+              }}
+              onBlur={() => setFieldTouched('title')}
+              error={getFieldError('title')}
               placeholder="Ví dụ: Báo cáo tiến độ thực tập tuần 1"
               autoFocus
             />
@@ -206,7 +222,21 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, currentL
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Nội dung báo cáo <span className="text-red-500">*</span>
           </label>
-          <RichTextEditor html={content} onChange={setContent} />
+          <RichTextEditor 
+            html={content} 
+            onChange={(value) => {
+              setContent(value);
+              validate('content', value, { title, content: value });
+            }} 
+          />
+          {getFieldError('content') && (
+            <div className="flex items-center gap-1.5 text-red-600 text-sm mt-1.5">
+              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <span>{getFieldError('content')}</span>
+            </div>
+          )}
         </div>
 
         {/* File attachments */}

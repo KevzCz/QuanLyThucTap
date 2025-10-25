@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import Modal from "../../../util/Modal";
 import type { Audience, HeaderBlock } from "./KhoaPageTypes";
 import { useToast } from "../../../components/UI/Toast";
+import { useFormValidation } from "../../../hooks/useFormValidation";
+import { ValidatedInput } from "../../../components/UI/ValidatedInput";
 
 interface Props {
   open: boolean;
@@ -14,9 +16,17 @@ const CreateHeaderDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
   const [audience, setAudience] = useState<Audience>("tat-ca");
   const { showWarning } = useToast();
 
+  const { validate, validateAll, getFieldError, setFieldTouched, clearErrors } = useFormValidation({
+    title: {
+      required: 'Vui lòng nhập tên header',
+      minLength: { value: 2, message: 'Tên header phải có ít nhất 2 ký tự' }
+    }
+  });
+
   const submit = () => {
-    if (!title.trim()) {
-      showWarning("Thiếu thông tin", "Vui lòng nhập tên header");
+    const isValid = validateAll({ title });
+    if (!isValid) {
+      showWarning("Thiếu thông tin", "Vui lòng kiểm tra lại thông tin nhập vào");
       return;
     }
     
@@ -28,11 +38,13 @@ const CreateHeaderDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
     // Reset form
     setTitle("");
     setAudience("tat-ca");
+    clearErrors();
   };
 
   const handleClose = () => {
     setTitle("");
     setAudience("tat-ca");
+    clearErrors();
     onClose();
   };
 
@@ -58,10 +70,14 @@ const CreateHeaderDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Tên header <span className="text-red-500">*</span>
           </label>
-          <input 
-            className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" 
+          <ValidatedInput
             value={title} 
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              validate('title', e.target.value, { title });
+            }}
+            onBlur={() => setFieldTouched('title')}
+            error={getFieldError('title')}
             placeholder="Ví dụ: Thông báo từ giảng viên"
             autoFocus
           />

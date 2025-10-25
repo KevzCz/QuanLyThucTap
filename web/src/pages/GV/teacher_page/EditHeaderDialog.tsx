@@ -3,6 +3,8 @@ import Modal from "../../../util/Modal";
 import type { HeaderBlock } from "./TeacherPageTypes";
 import LoadingButton from "../../../components/UI/LoadingButton";
 import { useToast } from "../../../components/UI/Toast";
+import { useFormValidation } from "../../../hooks/useFormValidation";
+import { ValidatedInput } from "../../../components/UI/ValidatedInput";
 
 interface Props {
   open: boolean;
@@ -19,17 +21,26 @@ const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDe
   const [audience, setAudience] = useState<"tat-ca" | "sinh-vien" | "giang-vien">("sinh-vien");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { validate, validateAll, getFieldError, setFieldTouched, clearErrors } = useFormValidation({
+    title: {
+      required: 'Vui lòng nhập tên header',
+      minLength: { value: 2, message: 'Tên header phải có ít nhất 2 ký tự' }
+    }
+  });
+
   useEffect(() => {
     if (!header) return;
     setTitle(header.title);
     setOrder(header.order);
     setAudience(header.audience);
-  }, [header, open]);
+    clearErrors();
+  }, [header, open, clearErrors]);
 
   const save = async () => {
     if (!header) return;
-    if (!title.trim()) {
-      showWarning("Vui lòng nhập tên header");
+    const isValid = validateAll({ title });
+    if (!isValid) {
+      showWarning("Vui lòng kiểm tra lại thông tin nhập vào");
       return;
     }
     
@@ -90,11 +101,15 @@ const EditHeaderDialog: React.FC<Props> = ({ open, header, onClose, onSave, onDe
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tên header <span className="text-red-500">*</span>
             </label>
-            <input 
-              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" 
+            <ValidatedInput
               value={title} 
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                validate('title', e.target.value, { title });
+              }}
+              onBlur={() => setFieldTouched('title')}
               onKeyDown={handleKeyDown}
+              error={getFieldError('title')}
               disabled={isSubmitting}
               placeholder="Nhập tên header"
             />

@@ -38,6 +38,9 @@ const KhoaSubUpload: React.FC = () => {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingSubmissionId, setDeletingSubmissionId] = useState<string | null>(null);
+  const [showReviewNoteDialog, setShowReviewNoteDialog] = useState(false);
+  const [reviewNoteInput, setReviewNoteInput] = useState('');
+  const [editingSubmission, setEditingSubmission] = useState<FileSubmission | null>(null);
 // Group submissions by submitter for reviewer view
 const groupedSubmissions = useMemo(() => {
   const map = new Map<string, { submitter: { _id?: string; id?: string; name?: string } | undefined; items: FileSubmission[] }>();
@@ -212,6 +215,15 @@ const toggleGroup = (key: string) =>
       console.error('Failed to update status:', error);
       showError("Lỗi cập nhật", "Không thể cập nhật trạng thái");
     }
+  };
+
+  const saveReviewNote = async () => {
+    if (!editingSubmission) return;
+    await handleUpdateStatus(editingSubmission._id, editingSubmission.status, reviewNoteInput);
+    setShowReviewNoteDialog(false);
+    setEditingSubmission(null);
+    setReviewNoteInput('');
+    showSuccess("Đã lưu nhận xét");
   };
 
   const icon = "🗂️";
@@ -675,17 +687,9 @@ const toggleGroup = (key: string) =>
 
                           <button
                             onClick={() => {
-                              const note = prompt(
-                                "Nhập nhận xét:",
-                                submission.reviewNote || ""
-                              );
-                              if (note !== null) {
-                                handleUpdateStatus(
-                                  submission._id,
-                                  submission.status,
-                                  note
-                                );
-                              }
+                              setEditingSubmission(submission);
+                              setReviewNoteInput(submission.reviewNote || '');
+                              setShowReviewNoteDialog(true);
                             }}
                             className="text-blue-600 hover:underline text-xs"
                             title="Thêm/Chỉnh sửa nhận xét"
@@ -726,6 +730,47 @@ const toggleGroup = (key: string) =>
         <p className="text-gray-600">
           Bạn có chắc chắn muốn xóa bài nộp này? Hành động này không thể hoàn tác.
         </p>
+      </StandardDialog>
+
+      {/* Review Note Dialog */}
+      <StandardDialog
+        open={showReviewNoteDialog}
+        onClose={() => {
+          setShowReviewNoteDialog(false);
+          setEditingSubmission(null);
+          setReviewNoteInput('');
+        }}
+        title="Nhận xét bài nộp"
+        size="md"
+        icon={<Icons.edit className="text-blue-600" />}
+        primaryAction={{
+          label: "Lưu nhận xét",
+          onClick: saveReviewNote,
+          variant: 'primary'
+        }}
+        secondaryAction={{
+          label: "Hủy",
+          onClick: () => {
+            setShowReviewNoteDialog(false);
+            setEditingSubmission(null);
+            setReviewNoteInput('');
+          }
+        }}
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Nhận xét
+            </label>
+            <textarea
+              value={reviewNoteInput}
+              onChange={(e) => setReviewNoteInput(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              rows={5}
+              placeholder="Nhập nhận xét cho bài nộp..."
+            />
+          </div>
+        </div>
       </StandardDialog>
     </div>
   );

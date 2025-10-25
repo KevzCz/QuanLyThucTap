@@ -227,27 +227,211 @@ router.delete("/:id", ...authPDT, async (req, res) => {
   }
 });
 
-// Get single account (PDT only)
-router.get("/:id", ...authPDT, async (req, res) => {
+// Search users based on role permissions (MUST be before /:id route)
+router.get("/search", authenticate, async (req, res) => {
   try {
-    const account = await Account.findOne({ id: req.params.id });
+    const { q } = req.query;
+    const currentUser = req.account;
+    
+    console.log("🔍 Search request:", { q, userRole: currentUser.role, userId: currentUser.id });
+
+    if (!q || q.trim().length < 2) {
+      return res.json({ success: true, users: [] });
+    }
+
+    const searchQuery = {
+      $and: [
+        {
+          $or: [
+            { name: new RegExp(q, "i") },
+            { id: new RegExp(q, "i") },
+            { email: new RegExp(q, "i") }
+          ]
+        },
+        { id: { $ne: currentUser.id } }, // Exclude self
+        { status: "open" } // Only active accounts
+      ]
+    };
+
+    let users = [];
+
+    // Role-based filtering
+    if (currentUser.role === "phong-dao-tao") {
+      // PDT can search all roles
+      users = await Account.find(searchQuery)
+        .select("id name email role")
+        .limit(10)
+        .lean();
+    } else if (currentUser.role === "ban-chu-nhiem") {
+      // BCN can search GV and SV in their subject
+      const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
+      const bcn = await BanChuNhiem.findOne({ account: currentUser._id }).populate("internshipSubject");
+      
+      if (bcn && bcn.internshipSubject) {
+        const subject = bcn.internshipSubject;
+        
+        // Get lecturer and student IDs from the subject
+        const allowedIds = [
+          ...subject.lecturers.map(id => id.toString()),
+          ...subject.students.map(id => id.toString())
+        ];
+
+        // Find accounts matching search and in allowed list
+        const allowedAccounts = await Account.find({ _id: { $in: allowedIds } });
+        const allowedAccountIds = allowedAccounts.map(acc => acc.id);
+
+        searchQuery.$and.push({ id: { $in: allowedAccountIds } });
+        searchQuery.$and.push({ role: { $in: ["giang-vien", "sinh-vien"] } });
+
+        users = await Account.find(searchQuery)
+          .select("id name email role")
+          .limit(10)
+          .lean();
+      }
+    } else if (currentUser.role === "giang-vien") {
+      // GV can search their managed students
+      const GiangVien = (await import("../models/GiangVien.js")).default;
+      const gv = await GiangVien.findOne({ account: currentUser._id });
+
+      if (gv && gv.managedStudents && gv.managedStudents.length > 0) {
+        // Get account IDs from managed students
+        const studentAccounts = await Account.find({ _id: { $in: gv.managedStudents } });
+        const studentIds = studentAccounts.map(acc => acc.id);
+
+        searchQuery.$and.push({ id: { $in: studentIds } });
+        searchQuery.$and.push({ role: "sinh-vien" });
+
+        users = await Account.find(searchQuery)
+          .select("id name email role")
+          .limit(10)
+          .lean();
+      }
+    } else if (currentUser.role === "sinh-vien") {
+      // SV can only search their supervisor
+      const SinhVien = (await import("../models/SinhVien.js")).default;
+      const sv = await SinhVien.findOne({ account: currentUser._id });
+
+      if (sv && sv.supervisor) {
+        const supervisorAccount = await Account.findOne({ _id: sv.supervisor });
+        
+        if (supervisorAccount) {
+          searchQuery.$and.push({ id: supervisorAccount.id });
+          searchQuery.$and.push({ role: "giang-vien" });
+
+          users = await Account.find(searchQuery)
+            .select("id name email role")
+            .limit(10)
+            .lean();
+        }
+      }
+    }
+
+    res.json({ success: true, users });
+  } catch (error) {
+    console.error("Search users error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server" });
+  }
+});
+
+// Get account by ID (authenticated users)
+router.get("/:id", authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentUser = req.account;
+
+    // Find the account
+    const account = await Account.findOne({ id }).select("-password");
+
     if (!account) {
-      return res.status(404).json({ error: "Tài khoản không tồn tại" });
+      return res.status(404).json({ success: false, error: "Không tìm thấy tài khoản" });
+    }
+
+    // Check permissions based on role
+    let hasPermission = false;
+
+    if (currentUser.role === "phong-dao-tao") {
+      // PDT can view any account
+      hasPermission = true;
+    } else if (currentUser.role === "ban-chu-nhiem") {
+      // BCN can view GV and SV in their subject
+      const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
+      const bcn = await BanChuNhiem.findOne({ account: currentUser._id }).populate("internshipSubject");
+
+      if (bcn && bcn.internshipSubject) {
+        const subject = bcn.internshipSubject;
+        const canViewGV = subject.lecturers?.some(l => l.toString() === account._id.toString());
+        const canViewSV = subject.students?.some(s => s.toString() === account._id.toString());
+        hasPermission = canViewGV || canViewSV;
+      }
+    } else if (currentUser.role === "giang-vien") {
+      // GV can view their students
+      const GiangVien = (await import("../models/GiangVien.js")).default;
+      const gv = await GiangVien.findOne({ account: currentUser._id });
+
+      if (gv) {
+        hasPermission = gv.managedStudents?.some(s => s.toString() === account._id.toString());
+      }
+    } else if (currentUser.role === "sinh-vien") {
+      // SV can view their supervisor
+      const SinhVien = (await import("../models/SinhVien.js")).default;
+      const sv = await SinhVien.findOne({ account: currentUser._id });
+
+      if (sv && sv.supervisor) {
+        hasPermission = sv.supervisor.toString() === account._id.toString();
+      }
+    }
+
+    // Can always view own account
+    if (currentUser.id === id) {
+      hasPermission = true;
+    }
+
+    if (!hasPermission) {
+      return res.status(403).json({ success: false, error: "Không có quyền xem tài khoản này" });
+    }
+
+    // Fetch role-specific information
+    let additionalInfo = {};
+
+    if (account.role === "sinh-vien") {
+      const SinhVien = (await import("../models/SinhVien.js")).default;
+      const sv = await SinhVien.findOne({ account: account._id });
+      if (sv) {
+        additionalInfo = {
+          studentClass: sv.class,
+          year: sv.year,
+          internshipStatus: sv.internshipStatus,
+        };
+      }
+    } else if (account.role === "giang-vien") {
+      const GiangVien = (await import("../models/GiangVien.js")).default;
+      const gv = await GiangVien.findOne({ account: account._id });
+      if (gv) {
+        additionalInfo = {
+          department: gv.department,
+          maxStudents: gv.maxStudents,
+        };
+      }
+    } else if (account.role === "ban-chu-nhiem") {
+      const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
+      const bcn = await BanChuNhiem.findOne({ account: account._id });
+      if (bcn) {
+        additionalInfo = {
+          department: bcn.department,
+        };
+      }
     }
 
     res.json({
       success: true,
       account: {
-        id: account.id,
-        name: account.name,
-        email: account.email,
-        role: account.role,
-        status: account.status
-      }
+        ...account.toObject(),
+        ...additionalInfo,
+      },
     });
   } catch (error) {
-    console.error('Get account error:', error);
-    res.status(400).json({ error: error.message });
+    console.error("Get account error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server" });
   }
 });
 

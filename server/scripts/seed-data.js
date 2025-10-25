@@ -64,7 +64,7 @@ async function seedDatabase() {
     // Create PDT accounts
     console.log('\n👤 Creating Phòng Đào Tạo accounts...');
     const pdtAccounts = [];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 20; i++) {
       const name = generateName();
       const account = await Account.create({
         name,
@@ -80,7 +80,8 @@ async function seedDatabase() {
     // Create BCN accounts
     console.log('\n👤 Creating Ban Chủ Nhiệm accounts...');
     const bcnAccounts = [];
-    for (let i = 1; i <= 5; i++) {
+    const departments = ['Công nghệ thông tin', 'Kinh tế', 'Kỹ thuật', 'Điện tử', 'Cơ khí'];
+    for (let i = 1; i <= 20; i++) {
       const name = generateName();
       const account = await Account.create({
         name,
@@ -93,7 +94,7 @@ async function seedDatabase() {
       
       await BanChuNhiem.create({
         account: account._id,
-        department: i <= 2 ? 'Công nghệ thông tin' : i <= 4 ? 'Kinh tế' : 'Kỹ thuật'
+        department: departments[(i - 1) % departments.length]
       });
       
       console.log(`  ✓ ${account.id} - ${account.name}`);
@@ -102,7 +103,7 @@ async function seedDatabase() {
     // Create GV accounts
     console.log('\n👤 Creating Giảng Viên accounts...');
     const gvAccounts = [];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 20; i++) {
       const name = generateName();
       const account = await Account.create({
         name,
@@ -115,7 +116,7 @@ async function seedDatabase() {
       
       await GiangVien.create({
         account: account._id,
-        department: i <= 2 ? 'Công nghệ thông tin' : i <= 4 ? 'Kinh tế' : 'Kỹ thuật',
+        department: departments[(i - 1) % departments.length],
         maxStudents: 5 + Math.floor(Math.random() * 6) // 5-10 students
       });
       
@@ -125,7 +126,8 @@ async function seedDatabase() {
     // Create SV accounts
     console.log('\n👤 Creating Sinh Viên accounts...');
     const svAccounts = [];
-    for (let i = 1; i <= 5; i++) {
+    const classes = ['DHKTPM15A', 'DHKTPM15B', 'DHKTPM16A', 'DHKTPM16B', 'DHKTPM17A', 'DHKTPM17B', 'DHKTPM18A', 'DHKTPM18B'];
+    for (let i = 1; i <= 20; i++) {
       const name = generateName();
       const account = await Account.create({
         name,
@@ -139,29 +141,52 @@ async function seedDatabase() {
       await SinhVien.create({
         account: account._id,
         internshipStatus: 'chua-duoc-huong-dan',
-        studentClass: `DHKTPM${15 + Math.floor(Math.random() * 3)}A`,
-        year: 2024 + Math.floor(Math.random() * 2)
+        studentClass: classes[(i - 1) % classes.length],
+        year: 2024 + Math.floor((i - 1) / 10)
       });
       
       console.log(`  ✓ ${account.id} - ${account.name}`);
     }
 
-    // Create Internship Subjects
+    // Create Internship Subjects (each BCN can only manage one subject)
     console.log('\n📚 Creating Internship Subjects...');
     const subjects = [];
     const subjectTemplates = [
-      { title: 'Thực tập tốt nghiệp CNTT', duration: '8 tuần', maxStudents: 30 },
-      { title: 'Thực tập doanh nghiệp Kinh tế', duration: '10 tuần', maxStudents: 25 },
-      { title: 'Thực tập kỹ thuật phần mềm', duration: '12 tuần', maxStudents: 20 },
-      { title: 'Thực tập Khoa học dữ liệu', duration: '8 tuần', maxStudents: 15 },
-      { title: 'Thực tập An toàn thông tin', duration: '10 tuần', maxStudents: 20 }
+      { title: 'Thực tập tốt nghiệp CNTT', duration: '8 tuần', maxStudents: 30, dept: 'Công nghệ thông tin', status: 'open' },
+      { title: 'Thực tập doanh nghiệp Kinh tế', duration: '10 tuần', maxStudents: 25, dept: 'Kinh tế', status: 'open' },
+      { title: 'Thực tập kỹ thuật phần mềm', duration: '12 tuần', maxStudents: 20, dept: 'Công nghệ thông tin', status: 'locked' },
+      { title: 'Thực tập Khoa học dữ liệu', duration: '8 tuần', maxStudents: 15, dept: 'Kỹ thuật', status: 'open' },
+      { title: 'Thực tập An toàn thông tin', duration: '10 tuần', maxStudents: 20, dept: 'Điện tử', status: 'open' },
+      { title: 'Thực tập Điện tử viễn thông', duration: '10 tuần', maxStudents: 25, dept: 'Điện tử', status: 'locked' },
+      { title: 'Thực tập Kỹ thuật cơ khí', duration: '12 tuần', maxStudents: 20, dept: 'Cơ khí', status: 'open' },
+      { title: 'Thực tập Kế toán doanh nghiệp', duration: '8 tuần', maxStudents: 30, dept: 'Kinh tế', status: 'locked' },
+      { title: 'Thực tập Quản trị kinh doanh', duration: '10 tuần', maxStudents: 25, dept: 'Kỹ thuật', status: 'locked' },
+      { title: 'Thực tập IoT và Embedded Systems', duration: '12 tuần', maxStudents: 15, dept: 'Cơ khí', status: 'locked' },
+      { title: 'Thực tập Web Development', duration: '10 tuần', maxStudents: 25, dept: 'Công nghệ thông tin', status: 'open' },
+      { title: 'Thực tập Mobile App Development', duration: '12 tuần', maxStudents: 20, dept: 'Kinh tế', status: 'open' },
+      { title: 'Thực tập DevOps', duration: '8 tuần', maxStudents: 15, dept: 'Kỹ thuật', status: 'open' },
+      { title: 'Thực tập Machine Learning', duration: '10 tuần', maxStudents: 15, dept: 'Điện tử', status: 'open' },
+      { title: 'Thực tập Blockchain', duration: '12 tuần', maxStudents: 20, dept: 'Cơ khí', status: 'open' }
     ];
 
-    for (let i = 0; i < 5; i++) {
+    // Use one BCN per subject to avoid conflicts
+    for (let i = 0; i < Math.min(subjectTemplates.length, bcnAccounts.length); i++) {
       const template = subjectTemplates[i];
       const now = new Date();
-      const regStart = new Date(now.getTime() + (i - 2) * 7 * 24 * 60 * 60 * 1000); // Stagger start dates
+      const regStart = new Date(now.getTime() + (i - 7) * 7 * 24 * 60 * 60 * 1000);
       const regEnd = new Date(regStart.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      // Get 2 lecturers for each subject
+      const lecturerIds = [
+        gvAccounts[i % gvAccounts.length]._id,
+        gvAccounts[(i + 1) % gvAccounts.length]._id
+      ];
+
+      // Get 2 students for each subject
+      const studentIds = [
+        svAccounts[i % svAccounts.length]._id,
+        svAccounts[(i + 10) % svAccounts.length]._id
+      ];
 
       const subject = await InternshipSubject.create({
         title: template.title,
@@ -170,30 +195,31 @@ async function seedDatabase() {
         maxStudents: template.maxStudents,
         registrationStartDate: regStart,
         registrationEndDate: regEnd,
-        manager: bcnAccounts[i]._id,
-        status: 'open',
-        lecturers: [gvAccounts[i % gvAccounts.length]._id],
-        students: i < svAccounts.length ? [svAccounts[i]._id] : []
+        manager: bcnAccounts[i]._id, // Each BCN manages exactly one subject
+        status: template.status,
+        lecturers: lecturerIds,
+        students: studentIds
       });
       subjects.push(subject);
       console.log(`  ✓ ${subject.id} - ${subject.title}`);
     }
 
-    // Update SinhVien and GiangVien with subject relationships
-    for (let i = 0; i < Math.min(5, svAccounts.length); i++) {
+    // Update SinhVien with subject relationships (each student gets one subject)
+    for (let i = 0; i < svAccounts.length; i++) {
       await SinhVien.findOneAndUpdate(
         { account: svAccounts[i]._id },
         { 
-          internshipSubject: subjects[i]._id,
+          internshipSubject: subjects[i % subjects.length]._id,
           supervisor: gvAccounts[i % gvAccounts.length]._id,
-          internshipStatus: 'duoc-huong-dan'
+          internshipStatus: i < 15 ? 'duoc-huong-dan' : 'chua-duoc-huong-dan'
         }
       );
     }
 
+    // Update GiangVien with managed students (each lecturer gets multiple students)
     for (let i = 0; i < gvAccounts.length; i++) {
       const studentIds = svAccounts
-        .slice(i, i + 1)
+        .filter((_, idx) => idx % gvAccounts.length === i)
         .map(acc => acc._id);
       
       await GiangVien.findOneAndUpdate(
@@ -206,7 +232,7 @@ async function seedDatabase() {
     }
 
     // Update BCN with subject relationships
-    for (let i = 0; i < bcnAccounts.length; i++) {
+    for (let i = 0; i < Math.min(bcnAccounts.length, subjects.length); i++) {
       await BanChuNhiem.findOneAndUpdate(
         { account: bcnAccounts[i]._id },
         { internshipSubject: subjects[i]._id }
@@ -294,17 +320,18 @@ async function seedDatabase() {
     const reportTypes = ['tuan', 'thang', 'quy', 'nam', 'khac'];
     const reportStatuses = ['draft', 'submitted', 'reviewed', 'approved'];
     
-    for (let i = 0; i < 5; i++) {
+    // Create 20 reports with varied data
+    for (let i = 0; i < 20; i++) {
       const report = await Report.create({
-        title: `Báo cáo ${reportTypes[i]} - Kỳ ${i + 1}`,
-        content: `<h2>Báo cáo tiến độ thực tập</h2><p>Nội dung báo cáo chi tiết về quá trình thực tập...</p>`,
-        reportType: reportTypes[i],
+        title: `Báo cáo ${reportTypes[i % reportTypes.length]} - Kỳ ${Math.floor(i / reportTypes.length) + 1}`,
+        content: `<h2>Báo cáo tiến độ thực tập - Kỳ ${Math.floor(i / reportTypes.length) + 1}</h2><p>Nội dung báo cáo chi tiết về quá trình thực tập, các hoạt động đã thực hiện và kết quả đạt được...</p>`,
+        reportType: reportTypes[i % reportTypes.length],
         status: reportStatuses[i % reportStatuses.length],
         instructor: gvAccounts[i % gvAccounts.length]._id,
         internshipSubject: subjects[i % subjects.length]._id,
-        submittedAt: i > 0 ? new Date() : null,
-        reviewedAt: i > 1 ? new Date() : null,
-        reviewNote: i > 1 ? 'Báo cáo tốt, cần bổ sung thêm thông tin' : '',
+        submittedAt: i > 4 ? new Date(Date.now() - (20 - i) * 24 * 60 * 60 * 1000) : null,
+        reviewedAt: i > 9 ? new Date(Date.now() - (15 - i) * 24 * 60 * 60 * 1000) : null,
+        reviewNote: i > 9 ? 'Báo cáo tốt, cần bổ sung thêm thông tin về tiến độ công việc' : '',
         attachments: []
       });
       console.log(`  ✓ ${report.id} - ${report.title}`);
@@ -312,68 +339,104 @@ async function seedDatabase() {
 
     // Create Internship Grades
     console.log('\n📊 Creating Internship Grades...');
-    for (let i = 0; i < Math.min(5, svAccounts.length); i++) {
+    
+    // Sample company data for internships
+    const companies = [
+      { name: 'FPT Software', address: '17 Duy Tân, Cầu Giấy, Hà Nội', supervisor: 'Nguyễn Văn An', email: 'nva@fpt.com.vn', phone: '0901234567' },
+      { name: 'Viettel Solutions', address: '6 Phạm Văn Bạch, Cầu Giấy, Hà Nội', supervisor: 'Trần Thị Bình', email: 'ttb@viettel.vn', phone: '0902345678' },
+      { name: 'VNG Corporation', address: 'Z06, đường số 13, Tân Thuận Đông, Quận 7, TP.HCM', supervisor: 'Lê Minh Chiến', email: 'lmc@vng.com.vn', phone: '0903456789' },
+      { name: 'Tiki Corporation', address: '52 Út Tịch, Phường 4, Tân Bình, TP.HCM', supervisor: 'Phạm Thị Dung', email: 'ptd@tiki.vn', phone: '0904567890' },
+      { name: 'MISA JSC', address: 'Tầng 5, Tòa nhà Lim Tower 3, Tố Hữu, Hà Nội', supervisor: 'Hoàng Văn Em', email: 'hve@misa.com.vn', phone: '0905678901' },
+      { name: 'Shopee Vietnam', address: 'Tòa nhà Viettel, 285 Cách Mạng Tháng 8, Quận 10, TP.HCM', supervisor: 'Đỗ Thị Phương', email: 'dtp@shopee.vn', phone: '0906789012' },
+      { name: 'Sendo Technology', address: 'Lầu 7, Vincom Center, 72 Lê Thánh Tôn, Quận 1, TP.HCM', supervisor: 'Vũ Văn Giang', email: 'vvg@sendo.vn', phone: '0907890123' },
+      { name: 'Base.vn', address: '71 Nguyễn Chí Thanh, Đống Đa, Hà Nội', supervisor: 'Bùi Thị Hương', email: 'bth@base.vn', phone: '0908901234' },
+      { name: 'VinID JSC', address: '458 Minh Khai, Hai Bà Trưng, Hà Nội', supervisor: 'Đinh Văn Ích', email: 'dvi@vinid.net', phone: '0909012345' },
+      { name: 'Teko Vietnam', address: '92 Nam Kỳ Khởi Nghĩa, Quận 1, TP.HCM', supervisor: 'Ngô Thị Kim', email: 'ntk@teko.vn', phone: '0910123456' }
+    ];
+    
+    // Sample project topics for thesis
+    const projectTopics = [
+      'Xây dựng hệ thống quản lý thư viện trực tuyến sử dụng React và Node.js',
+      'Phát triển ứng dụng di động quản lý chi tiêu cá nhân với React Native',
+      'Thiết kế và triển khai website bán hàng trực tuyến với giỏ hàng và thanh toán',
+      'Xây dựng chatbot hỗ trợ khách hàng sử dụng công nghệ AI và NLP',
+      'Phát triển hệ thống theo dõi sức khỏe với IoT và ứng dụng mobile',
+      'Thiết kế website tin tức với CMS và hệ thống phân quyền nâng cao',
+      'Xây dựng ứng dụng quản lý học tập trực tuyến (E-learning platform)',
+      'Phát triển hệ thống đặt phòng khách sạn với tích hợp thanh toán online',
+      'Thiết kế game giáo dục cho trẻ em sử dụng Unity hoặc Phaser',
+      'Xây dựng hệ thống quản lý nhân sự với dashboard và báo cáo thống kê'
+    ];
+    
+    for (let i = 0; i < 20; i++) {
       const now = new Date();
-      const startDate = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000); // 60 days ago
-      const endDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days from now
+      const startDate = new Date(now.getTime() - (60 + i * 5) * 24 * 60 * 60 * 1000);
+      const endDate = new Date(now.getTime() + (30 - i * 2) * 24 * 60 * 60 * 1000);
+      const isInternship = i < 10;
       
       const grade = await InternshipGrade.create({
-        student: svAccounts[i]._id,
+        student: svAccounts[i % svAccounts.length]._id,
         supervisor: gvAccounts[i % gvAccounts.length]._id,
         internshipSubject: subjects[i % subjects.length]._id,
-        workType: i % 2 === 0 ? 'thuc_tap' : 'do_an',
+        workType: isInternship ? 'thuc_tap' : 'do_an',
         startDate: startDate,
         endDate: endDate,
-        company: i % 2 === 0 ? {
-          name: `Công ty Công nghệ ${i + 1}`,
-          supervisorName: `Nguyễn Văn ${String.fromCharCode(65 + i)}`,
-          supervisorEmail: `supervisor${i + 1}@company.com`,
-          supervisorPhone: `090000000${i}`,
-          address: `${i + 1} Đường ABC, Quận ${i + 1}, TP.HCM`
+        company: isInternship ? {
+          name: companies[i % companies.length].name,
+          supervisorName: companies[i % companies.length].supervisor,
+          supervisorEmail: companies[i % companies.length].email,
+          supervisorPhone: companies[i % companies.length].phone,
+          address: companies[i % companies.length].address,
+          location: {
+            lat: 10.762622 + (Math.random() - 0.5) * 0.1,
+            lng: 106.660172 + (Math.random() - 0.5) * 0.1
+          }
         } : undefined,
+        projectTopic: isInternship ? undefined : projectTopics[(i - 10) % projectTopics.length],
         gradeComponents: [
           {
             type: 'supervisor_score',
-            score: 7.0 + Math.random() * 2,
+            score: 6.5 + Math.random() * 3,
             weight: 0.7,
             comment: 'Điểm đánh giá từ giảng viên hướng dẫn',
             gradedBy: 'supervisor'
           },
           {
             type: 'company_score',
-            score: 7.5 + Math.random() * 2,
+            score: 7.0 + Math.random() * 2.5,
             weight: 0.3,
-            comment: i % 2 === 0 ? 'Điểm đánh giá từ công ty' : '',
+            comment: isInternship ? 'Điểm đánh giá từ công ty' : 'Điểm đánh giá phản biện',
             gradedBy: 'company'
           }
         ],
         milestones: [
           {
             type: 'start',
-            title: i % 2 === 0 ? 'Bắt đầu thực tập' : 'Bắt đầu đồ án',
-            description: i % 2 === 0 ? 'Khởi tạo quá trình thực tập tại doanh nghiệp' : 'Khởi tạo dự án đồ án tốt nghiệp',
+            title: isInternship ? 'Bắt đầu thực tập' : 'Bắt đầu đồ án',
+            description: isInternship ? 'Khởi tạo quá trình thực tập tại doanh nghiệp' : 'Khởi tạo dự án đồ án tốt nghiệp',
             dueDate: startDate,
-            status: 'completed',
-            completedAt: startDate,
+            status: i < 15 ? 'completed' : 'pending',
+            completedAt: i < 15 ? startDate : undefined,
             isCustom: false
           }
         ],
-        status: i < 2 ? 'submitted' : i < 4 ? 'in_progress' : 'not_started',
-        submittedToBCN: i < 2,
-        submittedAt: i < 2 ? new Date() : undefined,
-        supervisorFinalComment: 'Sinh viên chăm chỉ, nhiệt tình trong quá trình thực tập'
+        status: i < 6 ? 'submitted' : i < 12 ? 'in_progress' : i < 18 ? 'draft_completed' : 'not_started',
+        submittedToBCN: i < 6,
+        submittedAt: i < 6 ? new Date(now.getTime() - (i * 2) * 24 * 60 * 60 * 1000) : undefined,
+        supervisorFinalComment: i < 12 ? 'Sinh viên chăm chỉ, nhiệt tình trong quá trình thực tập/làm đồ án' : undefined
       });
       
       // Calculate final grade
       grade.calculateFinalGrade();
       await grade.save();
       
-      console.log(`  ✓ Grade for ${svAccounts[i].name} - Final: ${grade.finalGrade?.toFixed(2)}`);
+      const workTypeName = isInternship ? 'Thực tập' : 'Đồ án';
+      console.log(`  ✓ Grade ${i + 1}/20 - ${workTypeName} for ${svAccounts[i % svAccounts.length].name} - Final: ${grade.finalGrade?.toFixed(2)}`);
     }
 
     // Create Chat Requests
     console.log('\n💬 Creating Chat Requests...');
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 20; i++) {
       const requester = svAccounts[i % svAccounts.length];
       const recipient = gvAccounts[i % gvAccounts.length];
       const requestId = `CR${Date.now()}${i}`;
@@ -392,15 +455,15 @@ async function seedDatabase() {
           role: recipient.role,
           email: recipient.email
         },
-        message: `Xin chào thầy/cô, em muốn trao đổi về vấn đề thực tập`,
+        message: `Xin chào thầy/cô, em muốn trao đổi về ${i % 3 === 0 ? 'vấn đề thực tập' : i % 3 === 1 ? 'đề tài đồ án' : 'tiến độ học tập'}`,
         requestType: 'chat',
-        priority: i === 0 ? 'high' : 'normal',
-        status: i < 2 ? 'accepted' : i < 4 ? 'pending' : 'declined'
+        priority: i % 5 === 0 ? 'high' : 'normal',
+        status: i < 10 ? 'accepted' : i < 15 ? 'pending' : 'declined'
       });
-      console.log(`  ✓ Chat request ${i + 1}`);
+      console.log(`  ✓ Chat request ${i + 1}/20`);
 
       // Create conversation if accepted
-      if (i < 2) {
+      if (i < 10) {
         const conversationId = `CONV${Date.now()}${i}`;
         await ChatConversation.create({
           conversationId: conversationId,
@@ -442,10 +505,10 @@ async function seedDatabase() {
     console.log(`  • ${svAccounts.length} Sinh Viên accounts`);
     console.log(`  • ${subjects.length} Internship Subjects`);
     console.log(`  • Page Headers and Sub Headers created`);
-    console.log(`  • 5 Reports`);
-    console.log(`  • 5 Internship Grades`);
-    console.log(`  • 5 Chat Requests`);
-    console.log(`  • 2 Chat Conversations`);
+    console.log(`  • 20 Reports`);
+    console.log(`  • 20 Internship Grades`);
+    console.log(`  • 20 Chat Requests`);
+    console.log(`  • 10 Chat Conversations`);
     console.log('\n🔑 Default password for all accounts: 123456');
     console.log('\n✅ You can now login with any account email and 123456');
 

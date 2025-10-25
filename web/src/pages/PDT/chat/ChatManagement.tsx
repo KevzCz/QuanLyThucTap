@@ -184,7 +184,10 @@ const ChatManagement: React.FC = () => {
   // Set up Socket.io connection  
   useEffect(() => {
     if (user) {
-      socketManager.connect();
+      // Socket is already connected in AuthProvider, just ensure authentication
+      if (!socketManager.connected) {
+        socketManager.connect();
+      }
       socketManager.authenticate({
         id: user.id,
         name: user.name,

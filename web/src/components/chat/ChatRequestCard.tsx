@@ -32,9 +32,18 @@ const ChatRequestCard: React.FC<ChatRequestCardProps> = ({
   // Determine if this request is assigned to current user
   const isAssignedToMe = request.assignedTo?.id === currentUserId;
 
+  // Get the user to display (recipient for own requests, sender for incoming)
+  const displayUser = isOwnRequest ? request.toUser : request.fromUser;
+
   // Get appropriate status indicators
   const getStatusInfo = () => {
     if (isOwnRequest) {
+      if (request.status === 'cancelled') {
+        return {
+          text: "Đã hủy",
+          className: "px-2 py-0.5 bg-gray-100 text-gray-800 rounded-full text-xs font-medium"
+        };
+      }
       return {
         text: "Yêu cầu của bạn",
         className: "px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium"
@@ -52,6 +61,13 @@ const ChatRequestCard: React.FC<ChatRequestCardProps> = ({
       return {
         text: "Đã từ chối",
         className: "px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-xs font-medium"
+      };
+    }
+    
+    if (request.status === 'cancelled') {
+      return {
+        text: "Đã hủy",
+        className: "px-2 py-0.5 bg-gray-100 text-gray-800 rounded-full text-xs font-medium"
       };
     }
     
@@ -83,18 +99,21 @@ const ChatRequestCard: React.FC<ChatRequestCardProps> = ({
         {/* Avatar */}
         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center flex-shrink-0">
           <span className="text-sm font-medium text-gray-700">
-            {request.fromUser.name.charAt(0).toUpperCase()}
+            {displayUser?.name.charAt(0).toUpperCase() || '?'}
           </span>
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-medium text-gray-900">{request.fromUser.name}</span>
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColor[request.fromUser.role]}`}>
-              {roleLabel[request.fromUser.role]}
+            {isOwnRequest && (
+              <span className="text-xs text-gray-500">Đến:</span>
+            )}
+            <span className="font-medium text-gray-900">{displayUser?.name || 'Không rõ'}</span>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColor[displayUser?.role || 'sinh-vien']}`}>
+              {roleLabel[displayUser?.role || 'sinh-vien']}
             </span>
-            {request.fromUser.isOnline && (
+            {displayUser?.isOnline && (
               <span className="w-2 h-2 bg-green-500 rounded-full" title="Đang online"></span>
             )}
             {statusInfo && (

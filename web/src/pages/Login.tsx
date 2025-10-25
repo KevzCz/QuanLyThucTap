@@ -2,6 +2,8 @@ import React, { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/UseAuth";
 import { useToast } from "../components/UI/Toast";
+import { useFormValidation } from "../hooks/useFormValidation";
+import { ValidatedInput } from "../components/UI/ValidatedInput";
 
 const REMEMBER_ME_KEY = 'qltt_remember_email';
 
@@ -16,6 +18,17 @@ const Login: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const { validate, validateAll, getFieldError, hasError, setFieldTouched, clearErrors } = useFormValidation({
+    email: {
+      required: 'Vui lòng nhập email',
+      email: 'Email không hợp lệ'
+    },
+    password: {
+      required: 'Vui lòng nhập mật khẩu',
+      minLength: { value: 6, message: 'Mật khẩu phải có ít nhất 6 ký tự' }
+    }
+  });
+
   // Load remembered email on mount
   useEffect(() => {
     const rememberedEmail = localStorage.getItem(REMEMBER_ME_KEY);
@@ -28,13 +41,16 @@ const Login: React.FC = () => {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     
-    if (!email || !password) {
-      setError("Vui lòng nhập email và mật khẩu");
+    // Validate all fields
+    const isValid = validateAll({ email, password });
+    if (!isValid) {
+      setError("Vui lòng kiểm tra lại thông tin nhập vào");
       return;
     }
 
     setIsLoading(true);
     setError("");
+    clearErrors();
 
     try {
       await login(email, password);
@@ -94,35 +110,40 @@ const Login: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-5">
             {/* Email */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Email của bạn
-              </label>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                  <svg viewBox="0 0 24 24" className="h-5 w-5">
-                    <path
-                      fill="currentColor"
-                      d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 4-8 5L4 8V6l8 5l8-5Z"
-                    />
-                  </svg>
-                </span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full h-12 rounded-xl border border-gray-300 pl-10 pr-3 text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
-                  placeholder="you@huflit.edu.vn"
-                  required
-                  autoComplete="email"
-                />
-              </div>
-            </div>
+            <ValidatedInput
+              label="Email của bạn"
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                validate('email', e.target.value, { email: e.target.value, password });
+              }}
+              onBlur={() => {
+                setFieldTouched('email');
+                validate('email', email, { email, password });
+              }}
+              error={getFieldError('email')}
+              touched={hasError('email')}
+              placeholder="you@huflit.edu.vn"
+              required
+              autoComplete="email"
+              disabled={isLoading}
+              icon={
+                <svg viewBox="0 0 24 24" className="h-5 w-5">
+                  <path
+                    fill="currentColor"
+                    d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Zm0 4-8 5L4 8V6l8 5l8-5Z"
+                  />
+                </svg>
+              }
+            />
 
             {/* Password */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-gray-700">Mật khẩu</label>
+                <label className="block text-sm font-medium text-gray-700">
+                  Mật khẩu <span className="text-red-500">*</span>
+                </label>
                 <button
                   type="button"
                   onClick={() => setShowPassword((s) => !s)}
@@ -131,24 +152,33 @@ const Login: React.FC = () => {
                   {showPassword ? "Ẩn" : "Hiện"} mật khẩu
                 </button>
               </div>
-              <div className="relative">
-                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+              <ValidatedInput
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  validate('password', e.target.value, { email, password: e.target.value });
+                }}
+                onBlur={() => {
+                  setFieldTouched('password');
+                  validate('password', password, { email, password });
+                }}
+                error={getFieldError('password')}
+                touched={hasError('password')}
+                placeholder="••••••••"
+                required
+                disabled={isLoading}
+                containerClassName=""
+                inputClassName="h-12 rounded-xl pl-10"
+                icon={
                   <svg viewBox="0 0 24 24" className="h-5 w-5">
                     <path
                       fill="currentColor"
                       d="M17 8h-1V6a4 4 0 1 0-8 0v2H7a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2ZM10 6a2 2 0 1 1 4 0v2h-4V6Z"
                     />
                   </svg>
-                </span>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full h-12 rounded-xl border border-gray-300 pl-10 pr-3 text-[15px] placeholder:text-gray-400 focus:outline-none focus:ring-4 focus:ring-indigo-200 focus:border-indigo-500 transition"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
+                }
+              />
             </div>
 
             {/* Helpers */}

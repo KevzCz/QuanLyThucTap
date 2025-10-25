@@ -8,6 +8,7 @@ import {
 } from "../index";
 import { apiClient } from "../../../utils/api";
 import { type InternshipSubject, type InternshipStatus } from "./InternshipSubjectTypes";
+import { useToast } from "../../../components/UI/Toast";
 /* --- Local helpers (UI only) --- */
 const statusChip = (s: InternshipStatus) =>
   s === "open" ? (
@@ -35,6 +36,7 @@ const IconBtn: React.FC<
 
 /* --- Page --- */
 const InternshipSubjectManagement: React.FC = () => {
+  const { showSuccess, showError } = useToast();
   // table/filter state
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<"all" | InternshipStatus>("all");
@@ -126,12 +128,14 @@ const InternshipSubjectManagement: React.FC = () => {
       setRows((prev) => prev.filter((r) => r.id !== selected.id));
       setTotal((prev) => prev - 1);
       setOpenDelete(false);
+      showSuccess("Xóa môn thực tập thành công");
 
       // Refresh to get accurate pagination
       loadInternshipSubjects();
     }  catch (err: Error | unknown) {
       console.error("Error deleting internship subject:", err);
       setError("Không thể xóa môn thực tập");
+      showError("Không thể xóa môn thực tập");
     }
   };
 
@@ -146,9 +150,11 @@ const InternshipSubjectManagement: React.FC = () => {
       const response = await apiClient.updateInternshipSubject(id, { status: nextStatus });
       setRows((prev) => prev.map((r) => (r.id === id ? response.subject : r)));
       setOpenConfirmStatus(false);
+      showSuccess(`Đã ${nextStatus === "open" ? "mở" : "khóa"} môn thực tập`);
     }  catch (err: Error | unknown) {
       console.error("Error updating status:", err);
       setError("Không thể cập nhật trạng thái");
+      showError("Không thể cập nhật trạng thái");
     }
   };
 

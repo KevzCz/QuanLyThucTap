@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
 import PageLayout from "../../../components/UI/PageLayout";
-import PageToolbar from "../../../components/UI/PageToolbar";
-import FilterButtonGroup from "../../../components/UI/FilterButtonGroup";
-import SearchInput from "../../../components/UI/SearchInput";
 import Pagination from "../../../components/UI/Pagination";
 import ViewReportDialog from "./ViewReportDialog";
+import { useToast } from "../../../components/UI/Toast";
 
 interface Report {
   _id: string;
@@ -33,12 +31,6 @@ interface Report {
   updatedAt: string;
 }
 
-interface Statistics {
-  total: number;
-  byStatus: Record<string, number>;
-  byType: Record<string, number>;
-}
-
 const ReportTypeLabels: Record<Report["reportType"], string> = {
   tuan: "Tuần",
   thang: "Tháng",
@@ -56,12 +48,8 @@ const StatusLabels: Record<Report["status"], string> = {
 };
 
 const ReportSummaryManagement: React.FC = () => {
+  const { showError } = useToast();
   const [reports, setReports] = useState<Report[]>([]);
-  const [statistics, setStatistics] = useState<Statistics>({
-    total: 0,
-    byStatus: {},
-    byType: {}
-  });
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | Report["status"]>("all");
@@ -95,10 +83,10 @@ const ReportSummaryManagement: React.FC = () => {
 
       const data = await response.json();
       setReports(data.reports);
-      setStatistics(data.statistics);
       setTotalPages(data.pagination.pages);
     } catch (error) {
       console.error("Load reports error:", error);
+      showError("Không thể tải danh sách báo cáo");
     } finally {
       setLoading(false);
     }
@@ -147,147 +135,131 @@ const ReportSummaryManagement: React.FC = () => {
   };
 
   return (
-    <PageLayout
-      title="Quản lý tổng kết"
-      breadcrumb={[
-        { label: "Trang chủ", path: "/pdt" },
-        { label: "Quản lý tổng kết" }
-      ]}
-    >
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-sm text-gray-600">Tổng báo cáo</div>
-          <div className="text-2xl font-bold text-gray-900 mt-1">{statistics.total}</div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-sm text-gray-600">Đã duyệt</div>
-          <div className="text-2xl font-bold text-green-600 mt-1">
-            {statistics.byStatus.approved || 0}
+    <>
+      {/* Search, Filters, and Export */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
+              <svg viewBox="0 0 24 24" className="h-4 w-4">
+                <path
+                  fill="currentColor"
+                  d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"
+                />
+              </svg>
+            </span>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo tiêu đề, giảng viên, môn..."
+              className="w-[320px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={loading}
+            />
           </div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-sm text-gray-600">Đang chờ xét</div>
-          <div className="text-2xl font-bold text-blue-600 mt-1">
-            {statistics.byStatus.submitted || 0}
-          </div>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 p-4">
-          <div className="text-sm text-gray-600">Bị từ chối</div>
-          <div className="text-2xl font-bold text-red-600 mt-1">
-            {statistics.byStatus.rejected || 0}
-          </div>
-        </div>
-      </div>
 
-      <PageToolbar>
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Tìm theo tiêu đề, giảng viên, môn..."
-        />
-        <div className="flex gap-2">
-          <button
-            onClick={exportToCSV}
-            className="h-9 px-4 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-medium"
-          >
-            📊 Xuất CSV
-          </button>
-        </div>
-      </PageToolbar>
-
-      {/* Filters */}
-      <div className="flex gap-4 mb-4">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Trạng thái</label>
-          <FilterButtonGroup
-            options={[
-              { key: "all", label: "Tất cả" },
-              { key: "submitted", label: "Đã gửi" },
-              { key: "reviewed", label: "Đã xem xét" },
-              { key: "approved", label: "Đã duyệt" },
-              { key: "rejected", label: "Bị từ chối" }
-            ]}
+          <select
             value={statusFilter}
-            onChange={(v) => {
-              setStatusFilter(v as typeof statusFilter);
+            onChange={(e) => {
+              setStatusFilter(e.target.value as typeof statusFilter);
               setPage(1);
             }}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Loại</label>
-          <FilterButtonGroup
-            options={[
-              { key: "all", label: "Tất cả" },
-              { key: "tuan", label: "Tuần" },
-              { key: "thang", label: "Tháng" },
-              { key: "quy", label: "Quý" },
-              { key: "nam", label: "Năm" }
-            ]}
+            disabled={loading}
+            className="h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="submitted">Đã gửi</option>
+            <option value="reviewed">Đã xem xét</option>
+            <option value="approved">Đã duyệt</option>
+            <option value="rejected">Bị từ chối</option>
+          </select>
+
+          <select
             value={typeFilter}
-            onChange={(v) => {
-              setTypeFilter(v as typeof typeFilter);
+            onChange={(e) => {
+              setTypeFilter(e.target.value as typeof typeFilter);
               setPage(1);
             }}
-          />
+            disabled={loading}
+            className="h-10 px-3 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            <option value="all">Tất cả loại</option>
+            <option value="tuan">Tuần</option>
+            <option value="thang">Tháng</option>
+            <option value="quy">Quý</option>
+            <option value="nam">Năm</option>
+          </select>
         </div>
+
+        <button
+          onClick={exportToCSV}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 h-10 text-white text-sm hover:bg-emerald-700 disabled:opacity-50"
+          title="Xuất CSV"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4">
+            <path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6m4 18H6V4h7v5h5v11m-7-2v-2H9v2h2m4 0v-4h-2v4h2m-8-8v6h2v-6H7Z" />
+          </svg>
+          Xuất CSV
+        </button>
       </div>
+
+      <PageLayout>
+      <div className="space-y-6">
 
       {/* Reports Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mã BC</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tiêu đề</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Loại</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Giảng viên</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Môn TT</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Trạng thái</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ngày tạo</th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Thao tác</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mã BC</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tiêu đề</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loại</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Giảng viên</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Môn TT</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trạng thái</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ngày tạo</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Thao tác</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-12 text-center text-gray-500 text-sm">
                   Đang tải...
                 </td>
               </tr>
             ) : filteredReports.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                <td colSpan={8} className="px-6 py-12 text-center text-gray-500 text-sm">
                   Không có báo cáo nào
                 </td>
               </tr>
             ) : (
               filteredReports.map((report) => (
-                <tr key={report._id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{report.id}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate">
+                <tr key={report._id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">{report.id}</td>
+                  <td className="px-6 py-4 text-sm text-gray-900 max-w-xs truncate">
                     {report.title}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
                     {ReportTypeLabels[report.reportType]}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{report.instructor.name}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
+                  <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">{report.instructor.name}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
                     {report.internshipSubject.title}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(report.status)}`}>
                       {StatusLabels[report.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
                     {new Date(report.createdAt).toLocaleDateString("vi-VN")}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => setViewingReport(report)}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
                     >
                       Xem
                     </button>
@@ -300,14 +272,14 @@ const ReportSummaryManagement: React.FC = () => {
       </div>
 
       {totalPages > 1 && (
-        <div className="mt-4">
-          <Pagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={setPage}
-          />
-        </div>
+        <Pagination
+          currentPage={page}
+          totalPages={totalPages}
+          onPageChange={setPage}
+        />
       )}
+      </div>
+      </PageLayout>
 
       {viewingReport && (
         <ViewReportDialog
@@ -316,7 +288,7 @@ const ReportSummaryManagement: React.FC = () => {
           onClose={() => setViewingReport(null)}
         />
       )}
-    </PageLayout>
+    </>
   );
 };
 

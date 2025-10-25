@@ -142,38 +142,72 @@ const GradeReviewDetail: React.FC = () => {
   }
 
   return (
-    <PageLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <button
-                  onClick={() => navigate('/grade-review')}
-                  className="text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                >
-                  <Icons.close className="w-4 h-4" />
-                  Quay lại
-                </button>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900">{grade.student?.name || 'Chưa có tên'}</h2>
-              <p className="text-gray-600">{grade.student?.id || '--'} • {grade.student?.email || '--'}</p>
-              <p className="text-gray-600">{grade.subject?.title || 'Chưa có môn học'}</p>
-              {grade.supervisor && (
-                <p className="text-gray-600">GVHD: {grade.supervisor.name}</p>
-              )}
+    <>
+      {/* Toolbar outside PageLayout */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <button
+          onClick={() => navigate('/grade-review')}
+          className="h-10 px-4 flex items-center gap-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          <Icons.close className="w-4 h-4" />
+          Quay lại
+        </button>
+        
+        <div className="flex-1 flex items-center gap-4">
+          <h2 className="text-xl font-bold text-gray-900">{grade.student?.name || 'Chưa có tên'}</h2>
+          {grade.supervisor && (
+            <span className="text-sm text-gray-600">GVHD: {grade.supervisor.name}</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getGradeStatusColor(grade.status)}`}>
+            {getGradeStatusText(grade.status)}
+          </span>
+          {grade.finalGrade && (
+            <div className="bg-white border border-gray-200 rounded-lg px-4 py-1">
+              <span className="text-lg font-bold text-gray-900">{grade.finalGrade.toFixed(1)}</span>
+              <span className="text-sm text-gray-500 ml-1">({grade.letterGrade})</span>
             </div>
-            <div className="text-right">
-              <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getGradeStatusColor(grade.status)}`}>
-                {getGradeStatusText(grade.status)}
-              </div>
-              {grade.finalGrade && (
-                <div className="mt-2">
-                  <div className="text-2xl font-bold text-gray-900">{grade.finalGrade.toFixed(1)}</div>
-                  <div className="text-sm text-gray-500">{grade.letterGrade}</div>
-                </div>
-              )}
+          )}
+          
+          {grade.status === 'submitted' && (
+            <>
+              <button
+                onClick={() => setShowRejectDialog(true)}
+                className="h-10 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                disabled={processing}
+              >
+                Từ chối
+              </button>
+              <button
+                onClick={() => setShowApproveDialog(true)}
+                className="h-10 px-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                disabled={processing}
+              >
+                Duyệt
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <PageLayout>
+      <div className="space-y-6">
+        {/* Student info */}
+        <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm text-gray-600">Mã sinh viên</p>
+              <p className="font-medium text-gray-900">{grade.student?.id || '--'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Email</p>
+              <p className="font-medium text-gray-900">{grade.student?.email || '--'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Môn thực tập</p>
+              <p className="font-medium text-gray-900">{grade.subject?.title || 'Chưa có môn học'}</p>
             </div>
           </div>
           
@@ -509,6 +543,7 @@ const GradeReviewDetail: React.FC = () => {
         )}
       </div>
     </PageLayout>
+    </>
   );
 };
 

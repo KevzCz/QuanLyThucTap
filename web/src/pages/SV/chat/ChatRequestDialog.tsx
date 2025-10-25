@@ -17,7 +17,7 @@ interface Props {
 
 const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, onDecline }) => {
   const { user } = useAuth();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [loading, setLoading] = useState(false);
 
   if (!request) return null;
@@ -32,11 +32,12 @@ const ChatRequestDialog: React.FC<Props> = ({ open, onClose, request, onAccept, 
     try {
       setLoading(true);
       await chatAPI.declineChatRequest(request.id, "Đã thu hồi yêu cầu");
+      showSuccess("Đã hủy yêu cầu", "Yêu cầu chat của bạn đã được hủy");
+      onDecline(request);
       onClose();
-      // The request will be removed from the list via socket events or parent component
     } catch (error) {
       console.error("Error revoking request:", error);
-      showError("Không thể thu hồi yêu cầu. Vui lòng thử lại.");
+      showError("Lỗi", "Không thể hủy yêu cầu chat. Vui lòng thử lại");
     } finally {
       setLoading(false);
     }

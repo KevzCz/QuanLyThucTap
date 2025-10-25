@@ -4,6 +4,7 @@ import { useNotifications } from "../../contexts/UseNotifications";
 import { Icons } from "../../components/UI/Icons";
 import { getStudentProgress, type InternshipGrade } from "../../services/gradeApi";
 import { apiClient } from "../../utils/api";
+import { useToast } from "../../components/UI/Toast";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import isoWeek from "dayjs/plugin/isoWeek";
@@ -24,6 +25,7 @@ interface DeadlineItem {
 const SVDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { notifications, isLoading: notificationsLoading } = useNotifications();
+  const { showError } = useToast();
   
   const [currentDate, setCurrentDate] = useState(dayjs());
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
@@ -72,10 +74,11 @@ const SVDashboard: React.FC = () => {
       setDeadlines([...milestoneDeadlines, ...submissionDeadlines]);
     } catch (error) {
       console.error("Failed to load progress:", error);
+      showError("Không thể tải lịch trình và tiến độ");
     } finally {
       setLoadingProgress(false);
     }
-  }, []);
+  }, [showError]);
 
   useEffect(() => {
     loadProgress();
@@ -163,11 +166,12 @@ const SVDashboard: React.FC = () => {
               {notifications.slice(0, 3).map((notif) => (
                 <div
                   key={notif._id}
+                  onClick={() => notif.link && navigate(notif.link)}
                   className={`p-3 rounded-lg border transition-all ${
                     notif.isRead 
                       ? "bg-gray-50 border-gray-200" 
                       : "bg-blue-50 border-blue-200"
-                  }`}
+                  } ${notif.link ? "cursor-pointer hover:shadow-md" : ""}`}
                 >
                   <div className="flex items-start gap-2">
                     <div className="text-lg">

@@ -12,6 +12,7 @@ import {
 } from "../index";
 import { apiClient, type CreateAccountDTO, type UpdateAccountDTO  } from "../../../utils/api";
 import NotificationDialog from "../../../components/NotificationDialog";
+import { useToast } from "../../../components/UI/Toast";
 
 const statusChip = (s: Status) =>
   s === "open" ? (
@@ -39,6 +40,7 @@ const IconBtn: React.FC<
 
 /* --- Page --- */
 const AccountManagement: React.FC = () => {
+  const { showSuccess, showError } = useToast();
   
   // table/filter state
   const [query, setQuery] = useState("");
@@ -113,6 +115,7 @@ const AccountManagement: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 'Không thể tải danh sách tài khoản';
       setError(errorMessage);
       showNotification("error", "Lỗi tải dữ liệu", errorMessage, error instanceof Error ? error.stack : undefined);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -146,10 +149,12 @@ const onCreate = async (acc: Omit<Account, 'id'> & { password: string }) => {
     await apiClient.createAccount(accountData);
     setOpenCreate(false);
     showNotification("success", "Thành công", "Tài khoản đã được tạo thành công");
+    showSuccess("Tài khoản đã được tạo thành công");
     fetchAccounts();
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Không thể tạo tài khoản";
     showNotification("error", "Lỗi tạo tài khoản", msg, error instanceof Error ? error.stack : undefined);
+    showError(msg);
     throw error;
   }
 };
@@ -166,10 +171,12 @@ const onCreate = async (acc: Omit<Account, 'id'> & { password: string }) => {
     await apiClient.updateAccount(acc.id, updates);
     setOpenEdit(false);
     showNotification("success", "Thành công", "Tài khoản đã được cập nhật thành công");
+    showSuccess("Tài khoản đã được cập nhật thành công");
     fetchAccounts();
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Không thể cập nhật tài khoản";
     showNotification("error", "Lỗi cập nhật tài khoản", msg, error instanceof Error ? error.stack : undefined);
+    showError(msg);
     throw error;
   }
 };

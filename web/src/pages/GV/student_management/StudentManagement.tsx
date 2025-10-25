@@ -9,6 +9,7 @@ import SearchInput from "../../../components/UI/SearchInput";
 import Pagination from "../../../components/UI/Pagination";
 import { useDebounce } from "../../../hooks/useDebounce";
 import EmptyState from "../../../components/UI/EmptyState";
+import { useToast } from "../../../components/UI/Toast";
 
 export type GVStudentStatus = "duoc-huong-dan" | "chua-duoc-huong-dan" | "dang-lam-do-an" | "dang-thuc-tap" | "hoan-thanh";
 
@@ -46,6 +47,8 @@ const IconBtn: React.FC<React.PropsWithChildren<{ title?: string; className?: st
 );
 
 const StudentManagement: React.FC = () => {
+  const { showSuccess, showError } = useToast();
+  
   // Backend data
   const [students, setStudents] = useState<GVStudent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -134,19 +137,18 @@ const StudentManagement: React.FC = () => {
 
   const [openRequests, setOpenRequests] = useState(false);
 
-  const [flash, setFlash] = useState<string | null>(null);
-
   const handleSendAddRequest = async (students: Array<{ id: string; name: string }>) => {
     try {
       await apiClient.createRequest({
         students,
         type: 'add-student'
       });
-      setFlash("Đã gửi yêu cầu thêm sinh viên lên BCN.");
-      window.setTimeout(() => setFlash(null), 3500);
+      showSuccess("Đã gửi yêu cầu thêm sinh viên lên BCN");
     } catch (err) {
       console.error("Send add request error:", err);
-      setError(err instanceof Error ? err.message : "Không thể gửi yêu cầu");
+      const errorMessage = err instanceof Error ? err.message : "Không thể gửi yêu cầu";
+      setError(errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -156,11 +158,12 @@ const StudentManagement: React.FC = () => {
         students: [student],
         type: 'remove-student'
       });
-      setFlash("Đã gửi yêu cầu xóa sinh viên lên BCN.");
-      window.setTimeout(() => setFlash(null), 3500);
+      showSuccess("Đã gửi yêu cầu xóa sinh viên lên BCN");
     } catch (err) {
       console.error("Send remove request error:", err);
-      setError(err instanceof Error ? err.message : "Không thể gửi yêu cầu");
+      const errorMessage = err instanceof Error ? err.message : "Không thể gửi yêu cầu";
+      setError(errorMessage);
+      showError(errorMessage);
     }
   };
 
@@ -214,10 +217,6 @@ const StudentManagement: React.FC = () => {
             </button>
           </div>
         </div>
-      )}
-
-      {flash && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">{flash}</div>
       )}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">

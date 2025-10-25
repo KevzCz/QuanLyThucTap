@@ -4,6 +4,8 @@ import type { Account, Role, Status } from "./AccountTypes";
 import { roleLabel } from "./AccountTypes";
 import { useToast } from "../../../components/UI/Toast";
 import LoadingButton from "../../../components/UI/LoadingButton";
+import { useFormValidation } from "../../../hooks/useFormValidation";
+import { ValidatedInput } from "../../../components/UI/ValidatedInput";
 
 interface Props {
   open: boolean;
@@ -21,6 +23,20 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const { validate, validateAll, getFieldError, setFieldTouched, clearErrors } = useFormValidation({
+    name: {
+      required: 'Vui lòng nhập tên',
+      minLength: { value: 2, message: 'Tên phải có ít nhất 2 ký tự' }
+    },
+    email: {
+      required: 'Vui lòng nhập email',
+      email: 'Email không hợp lệ'
+    },
+    password: {
+      minLength: { value: 6, message: 'Mật khẩu phải có ít nhất 6 ký tự' }
+    }
+  });
+
   useEffect(() => {
     if (account) {
       setName(account.name ?? "");
@@ -28,18 +44,17 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
       setStatus(account.status);
       setEmail(account.email ?? "");
       setPassword("");
+      clearErrors();
     }
-  }, [account, open]);
+  }, [account, open, clearErrors]);
 
   const submit = async () => {
     if (!account) return;
     
-    if (!name.trim()) {
-      showWarning("Vui lòng nhập tên");
-      return;
-    }
-    if (!email.trim()) {
-      showWarning("Vui lòng nhập email");
+    // Validate required fields
+    const isValid = validateAll({ name, email, password });
+    if (!isValid) {
+      showWarning("Vui lòng kiểm tra lại thông tin nhập vào");
       return;
     }
 
@@ -54,11 +69,6 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
       };
       
       if (password.trim()) {
-        if (password.length < 6) {
-          showWarning("Mật khẩu phải có ít nhất 6 ký tự");
-          setIsSubmitting(false);
-          return;
-        }
         updates.password = password;
       }
       
@@ -123,10 +133,14 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Tên <span className="text-red-500">*</span>
             </label>
-            <input 
-              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+            <ValidatedInput
               value={name} 
-              onChange={e => setName(e.target.value)}
+              onChange={e => {
+                setName(e.target.value);
+                validate('name', e.target.value, { name, email, password });
+              }}
+              onBlur={() => setFieldTouched('name')}
+              error={getFieldError('name')}
               disabled={isSubmitting}
             />
           </div>
@@ -151,11 +165,15 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Email <span className="text-red-500">*</span>
               </label>
-              <input 
+              <ValidatedInput
                 type="email"
-                className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
                 value={email} 
-                onChange={e => setEmail(e.target.value)}
+                onChange={e => {
+                  setEmail(e.target.value);
+                  validate('email', e.target.value, { name, email, password });
+                }}
+                onBlur={() => setFieldTouched('email')}
+                error={getFieldError('email')}
                 disabled={isSubmitting}
               />
             </div>
@@ -165,11 +183,15 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Đặt lại mật khẩu (tuỳ chọn)
             </label>
-            <input 
+            <ValidatedInput
               type="password" 
-              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
               value={password} 
-              onChange={e => setPassword(e.target.value)} 
+              onChange={e => {
+                setPassword(e.target.value);
+                validate('password', e.target.value, { name, email, password });
+              }}
+              onBlur={() => setFieldTouched('password')}
+              error={getFieldError('password')}
               placeholder="Để trống nếu không đổi mật khẩu"
               disabled={isSubmitting}
             />
