@@ -373,22 +373,22 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
       }
       widthClass="max-w-2xl"
     >
-      <div className="flex flex-col h-96">
+      <div className="flex flex-col h-[500px] sm:h-96">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 touch-manipulation">
           {messages.map((message) => {
             const isOwn = message.senderId === currentUser.id;
             const sender = isOwn ? currentUser : otherUser;
             
             return (
               <div key={message.id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
-                <div className={`flex gap-2 max-w-xs ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
-                  <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs">
+                <div className={`flex gap-2 sm:gap-2.5 max-w-[85%] sm:max-w-xs ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                  <div className="w-7 h-7 sm:w-6 sm:h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs sm:text-xs">
                       {sender?.name.charAt(0)}
                     </span>
                   </div>
-                  <div className={`rounded-lg px-3 py-2 ${
+                  <div className={`rounded-lg px-3 sm:px-3 py-2.5 sm:py-2 ${
                     isOwn 
                       ? "bg-blue-600 text-white" 
                       : "bg-gray-100 text-gray-900"
@@ -441,20 +441,20 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
 
         {/* Input */}
         {isConversationActive ? (
-          <div className="border-t border-gray-200 p-4">
+          <div className="border-t border-gray-200 p-3 sm:p-4">
             {selectedFiles.length > 0 && (
               <div className="mb-3 space-y-2 max-h-32 overflow-y-auto">
                 {selectedFiles.map((file) => (
-                  <div key={file.name} className="p-2 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
+                  <div key={file.name} className="p-2.5 sm:p-2 bg-gray-50 rounded-lg border border-gray-200 flex items-center gap-3">
                     {filePreviews.has(file.name) ? (
                       <img 
                         src={filePreviews.get(file.name)} 
                         alt="Preview" 
-                        className="w-10 h-10 object-cover rounded" 
+                        className="w-12 h-12 sm:w-10 sm:h-10 object-cover rounded" 
                       />
                     ) : (
-                      <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
-                        <svg viewBox="0 0 24 24" className="h-5 w-5 text-gray-500">
+                      <div className="w-12 h-12 sm:w-10 sm:h-10 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                        <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-5 sm:w-5 text-gray-500">
                           <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
                         </svg>
                       </div>
@@ -465,10 +465,10 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
                     </div>
                     <button
                       onClick={() => handleRemoveFile(file.name)}
-                      className="p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0"
+                      className="p-1.5 sm:p-1 text-gray-400 hover:text-red-600 rounded flex-shrink-0 touch-manipulation"
                       title="Xóa file"
                     >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4">
+                      <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-4 sm:w-4">
                         <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
                       </svg>
                     </button>
@@ -487,7 +487,7 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
               />
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="px-3 py-2.5 sm:py-2 text-gray-600 hover:bg-gray-100 rounded-lg touch-manipulation"
                 title="Đính kèm tệp (Ctrl+V để dán)"
               >
                 📎
@@ -499,22 +499,22 @@ const ChatDialog: React.FC<Props> = ({ open, onClose, conversation, currentUser,
                 onKeyPress={handleKeyPress}
                 onPaste={handlePaste}
                 placeholder="Nhập tin nhắn hoặc dán ảnh (Ctrl+V)..."
-                className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2.5 sm:py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation min-h-[44px] sm:min-h-[38px]"
                 rows={1}
               />
               <button
                 onClick={handleSendMessage}
                 disabled={!newMessage.trim() && selectedFiles.length === 0}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                className="px-4 py-2.5 sm:py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed touch-manipulation"
               >
-                <svg viewBox="0 0 24 24" className="h-4 w-4">
+                <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-4 sm:w-4">
                   <path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
                 </svg>
               </button>
             </div>
           </div>
         ) : (
-          <div className="border-t border-gray-200 p-4 bg-gray-50">
+          <div className="border-t border-gray-200 p-3 sm:p-4 bg-gray-50">
             <div className="text-center text-gray-500">
               <span className="text-sm">Cuộc trò chuyện đã kết thúc</span>
             </div>

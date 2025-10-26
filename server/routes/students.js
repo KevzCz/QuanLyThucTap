@@ -14,25 +14,19 @@ router.get("/test", (req, res) => {
 // Get student's assigned instructor
 router.get("/my-instructor", authenticate, authorize(["sinh-vien"]), async (req, res) => {
   try {
-    console.log("Student my-instructor endpoint hit by:", req.account.email);
-    
     // Find the student's profile
     const student = await SinhVien.findOne({ account: req.account._id })
       .populate('internshipSubject', 'id title')
       .lean();
-
-    console.log("Found student:", student ? "Yes" : "No");
 
     if (!student) {
       return res.json({
         success: true,
         instructor: null,
         subject: null,
-        message: "Student profile not found"
+        message: "Không tìm thấy hồ sơ sinh viên"
       });
     }
-
-    console.log("Student has supervisor:", student.supervisor ? "Yes" : "No");
 
     // If student has a supervisor, get their account info
     if (student.supervisor) {
@@ -56,7 +50,6 @@ router.get("/my-instructor", authenticate, authorize(["sinh-vien"]), async (req,
       }
     }
 
-    // No assigned supervisor
     res.json({
       success: true,
       instructor: null,
@@ -64,14 +57,14 @@ router.get("/my-instructor", authenticate, authorize(["sinh-vien"]), async (req,
         id: student.internshipSubject.id,
         title: student.internshipSubject.title
       } : null,
-      message: "No supervisor assigned"
+      message: "Chưa được phân công giảng viên hướng dẫn"
     });
 
   } catch (error) {
     console.error("Get student instructor error:", error);
     res.status(500).json({ 
       success: false, 
-      error: "Internal server error",
+      error: "Lỗi server",
       details: error.message 
     });
   }
@@ -80,15 +73,10 @@ router.get("/my-instructor", authenticate, authorize(["sinh-vien"]), async (req,
 // Get student's assigned instructor (alternative route)
 router.get('/assigned-instructor', authSV, async (req, res) => {
   try {
-    console.log("Getting assigned instructor for student:", req.account.id);
-    
     // Find the student profile
     const student = await SinhVien.findOne({ account: req.account._id })
       .populate('internshipSubject', 'id title')
       .lean();
-
-    console.log("Found student profile:", student ? "Yes" : "No");
-    console.log("Student supervisor:", student?.supervisor);
 
     if (!student) {
       return res.json({
@@ -110,20 +98,15 @@ router.get('/assigned-instructor', authSV, async (req, res) => {
     }
 
     // Get the supervisor's account details
-    // First find the GiangVien profile, then get their account
     const supervisor = await GiangVien.findById(student.supervisor)
       .populate('account', 'id name email')
       .lean();
-
-    console.log("Found supervisor profile:", supervisor ? "Yes" : "No");
 
     if (!supervisor || !supervisor.account) {
       // If supervisor ObjectId doesn't match a GiangVien, it might be an Account ObjectId directly
       const supervisorAccount = await Account.findById(student.supervisor)
         .select('id name email role')
         .lean();
-
-      console.log("Found supervisor account directly:", supervisorAccount ? "Yes" : "No");
 
       if (supervisorAccount && supervisorAccount.role === 'giang-vien') {
         return res.json({
@@ -167,7 +150,7 @@ router.get('/assigned-instructor', authSV, async (req, res) => {
     console.error('Error getting student assigned instructor:', error);
     res.status(500).json({ 
       success: false, 
-      error: 'Internal server error: ' + error.message
+      error: 'Lỗi server: ' + error.message
     });
   }
 });

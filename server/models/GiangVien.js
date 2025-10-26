@@ -55,4 +55,9 @@ GiangVienSchema.virtual('currentStudentCount').get(function() {
   return this.managedStudents ? this.managedStudents.length : 0;
 });
 
+// Add indexes for better query performance
+GiangVienSchema.index({ account: 1 });
+GiangVienSchema.index({ internshipSubject: 1 });
+GiangVienSchema.index({ managedStudents: 1 });
+
 export default mongoose.model("GiangVien", GiangVienSchema);

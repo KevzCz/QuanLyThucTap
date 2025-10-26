@@ -114,8 +114,12 @@ ReportSchema.pre('validate', async function (next) {
 });
 
 // Index for efficient queries
+ReportSchema.index({ id: 1 });
 ReportSchema.index({ instructor: 1, createdAt: -1 });
 ReportSchema.index({ internshipSubject: 1, status: 1 });
 ReportSchema.index({ status: 1, createdAt: -1 });
+ReportSchema.index({ reportType: 1, status: 1 });
+ReportSchema.index({ createdAt: -1 });
+ReportSchema.index({ title: 'text' }); // Text index for search
 
 export default mongoose.model("Report", ReportSchema);

@@ -15,12 +15,23 @@ router.post("/", ...authGV, async (req, res) => {
   try {
     const { students, type, reviewNote } = req.body;
 
+    // Validate students
     if (!students || !Array.isArray(students) || students.length === 0) {
       return res.status(400).json({ error: "Danh sách sinh viên là bắt buộc" });
     }
 
+    if (students.length > 50) {
+      return res.status(400).json({ error: "Tối đa 50 sinh viên mỗi yêu cầu" });
+    }
+
+    // Validate type
     if (!type || !["add-student", "remove-student"].includes(type)) {
       return res.status(400).json({ error: "Loại yêu cầu không hợp lệ" });
+    }
+
+    // Validate reviewNote length
+    if (reviewNote && reviewNote.length > 500) {
+      return res.status(400).json({ error: "Ghi chú không được vượt quá 500 ký tự" });
     }
 
     // Find lecturer profile
@@ -35,6 +46,12 @@ router.post("/", ...authGV, async (req, res) => {
     for (const student of students) {
       if (!student.id || !student.name) {
         return res.status(400).json({ error: "Thông tin sinh viên không đầy đủ" });
+      }
+      if (student.id.length > 20) {
+        return res.status(400).json({ error: "Mã sinh viên không hợp lệ" });
+      }
+      if (student.name.length > 100) {
+        return res.status(400).json({ error: "Tên sinh viên quá dài" });
       }
     }
 
@@ -72,7 +89,6 @@ router.post("/", ...authGV, async (req, res) => {
       }
     } catch (notifError) {
       console.error('Error sending notification:', notifError);
-      // Don't fail the request creation if notification fails
     }
 
     res.status(201).json({
@@ -130,7 +146,8 @@ router.get("/bcn/pending", ...authBCN, async (req, res) => {
 
     // Find BCN's managed subject
     const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject');
+      .populate('internshipSubject')
+      .lean();
 
     if (!bcnProfile || !bcnProfile.internshipSubject) {
       return res.json({
@@ -146,10 +163,12 @@ router.get("/bcn/pending", ...authBCN, async (req, res) => {
     };
     
     if (type && type !== "all") query.type = type;
+    
     if (search) {
+      const sanitizedSearch = search.slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { name: new RegExp(search, "i") },
-        { idgv: new RegExp(search, "i") }
+        { name: new RegExp(sanitizedSearch, "i") },
+        { idgv: new RegExp(sanitizedSearch, "i") }
       ];
     }
 
@@ -158,7 +177,8 @@ router.get("/bcn/pending", ...authBCN, async (req, res) => {
         .populate('internshipSubject', 'id title')
         .sort({ createdAt: -1 })
         .limit(limitNum)
-        .skip((pageNum - 1) * limitNum),
+        .skip((pageNum - 1) * limitNum)
+        .lean(),
       Request.countDocuments(query)
     ]);
 
@@ -220,6 +240,11 @@ router.get("/:id", authenticate, async (req, res) => {
 router.put("/:id/accept", ...authBCN, async (req, res) => {
   try {
     const { reviewNote } = req.body;
+
+    // Validate reviewNote length
+    if (reviewNote && reviewNote.length > 500) {
+      return res.status(400).json({ error: "Ghi chú không được vượt quá 500 ký tự" });
+    }
 
     const request = await Request.findById(req.params.id)
       .populate('internshipSubject');
@@ -338,6 +363,11 @@ router.put("/:id/accept", ...authBCN, async (req, res) => {
 router.put("/:id/reject", ...authBCN, async (req, res) => {
   try {
     const { reviewNote } = req.body;
+
+    // Validate reviewNote length
+    if (reviewNote && reviewNote.length > 500) {
+      return res.status(400).json({ error: "Ghi chú không được vượt quá 500 ký tự" });
+    }
 
     const request = await Request.findById(req.params.id)
       .populate('internshipSubject');

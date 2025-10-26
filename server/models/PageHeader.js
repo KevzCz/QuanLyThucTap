@@ -54,9 +54,11 @@ PageHeaderSchema.virtual('subs', {
 });
 
 // Indexes for performance - Remove unique constraint to avoid conflicts during reordering
-PageHeaderSchema.index({ internshipSubject: 1, order: 1 }); // Already removed unique: true
-PageHeaderSchema.index({ instructor: 1, internshipSubject: 1 }); // For teacher-specific queries
-PageHeaderSchema.index({ pageType: 1, internshipSubject: 1 }); // For page type filtering
+PageHeaderSchema.index({ internshipSubject: 1, order: 1 });
+PageHeaderSchema.index({ instructor: 1, internshipSubject: 1 });
+PageHeaderSchema.index({ pageType: 1, internshipSubject: 1 });
+PageHeaderSchema.index({ isActive: 1 });
+PageHeaderSchema.index({ createdAt: -1 });
 
 // Add a compound unique index that includes pageType and instructor to allow both khoa and teacher pages
 PageHeaderSchema.index({ 

@@ -40,4 +40,8 @@ BanChuNhiemSchema.virtual('accountDetails', {
   justOne: true
 });
 
+// Add indexes for better query performance
+BanChuNhiemSchema.index({ account: 1 });
+BanChuNhiemSchema.index({ internshipSubject: 1 });
+
 export default mongoose.model("BanChuNhiem", BanChuNhiemSchema);

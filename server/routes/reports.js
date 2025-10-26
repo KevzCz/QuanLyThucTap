@@ -14,9 +14,20 @@ router.get("/teacher", ...authGV, async (req, res) => {
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
 
+    // Validate inputs
+    if (status && status !== "all" && !["draft", "submitted", "reviewed", "approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Trạng thái không hợp lệ" });
+    }
+
+    const validTypes = ["tuan", "thang", "quy", "nam", "khac"];
+    if (reportType && reportType !== "all" && !validTypes.includes(reportType)) {
+      return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
+    }
+
     // Find lecturer profile
     const lecturerProfile = await GiangVien.findOne({ account: req.account._id })
-      .populate('internshipSubject', 'id title');
+      .populate('internshipSubject', 'id title')
+      .lean();
 
     if (!lecturerProfile || !lecturerProfile.internshipSubject) {
       return res.json({
@@ -41,7 +52,8 @@ router.get("/teacher", ...authGV, async (req, res) => {
         .populate('reviewedBy', 'id name email')
         .sort({ createdAt: -1 })
         .limit(limitNum)
-        .skip((pageNum - 1) * limitNum),
+        .skip((pageNum - 1) * limitNum)
+        .lean(),
       Report.countDocuments(query)
     ]);
 
@@ -65,8 +77,30 @@ router.post("/teacher", ...authGV, async (req, res) => {
   try {
     const { title, content, reportType, attachments } = req.body;
 
+    // Validate required fields
     if (!title || !content || !reportType) {
       return res.status(400).json({ error: "Tiêu đề, nội dung và loại báo cáo là bắt buộc" });
+    }
+
+    // Validate title length
+    if (title.length < 5 || title.length > 200) {
+      return res.status(400).json({ error: "Tiêu đề phải từ 5 đến 200 ký tự" });
+    }
+
+    // Validate content length
+    if (content.length < 10 || content.length > 10000) {
+      return res.status(400).json({ error: "Nội dung phải từ 10 đến 10000 ký tự" });
+    }
+
+    // Validate reportType
+    const validTypes = ["tuan", "thang", "quy", "nam", "khac"];
+    if (!validTypes.includes(reportType)) {
+      return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
+    }
+
+    // Validate attachments
+    if (attachments && (!Array.isArray(attachments) || attachments.length > 10)) {
+      return res.status(400).json({ error: "Tối đa 10 tệp đính kèm" });
     }
 
     // Find lecturer profile
@@ -104,6 +138,29 @@ router.post("/teacher", ...authGV, async (req, res) => {
 router.put("/teacher/:id", ...authGV, async (req, res) => {
   try {
     const { title, content, reportType, attachments } = req.body;
+
+    // Validate title length if provided
+    if (title && (title.length < 5 || title.length > 200)) {
+      return res.status(400).json({ error: "Tiêu đề phải từ 5 đến 200 ký tự" });
+    }
+
+    // Validate content length if provided
+    if (content && (content.length < 10 || content.length > 10000)) {
+      return res.status(400).json({ error: "Nội dung phải từ 10 đến 10000 ký tự" });
+    }
+
+    // Validate reportType if provided
+    if (reportType) {
+      const validTypes = ["tuan", "thang", "quy", "nam", "khac"];
+      if (!validTypes.includes(reportType)) {
+        return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
+      }
+    }
+
+    // Validate attachments if provided
+    if (attachments && (!Array.isArray(attachments) || attachments.length > 10)) {
+      return res.status(400).json({ error: "Tối đa 10 tệp đính kèm" });
+    }
 
     const report = await Report.findOne({ 
       _id: req.params.id,
@@ -246,7 +303,8 @@ router.get("/bcn", ...authBCN, async (req, res) => {
   try {
     // Find BCN's managed subject
     const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject');
+      .populate('internshipSubject')
+      .lean();
 
     if (!bcnProfile || !bcnProfile.internshipSubject) {
       return res.json({
@@ -260,7 +318,8 @@ router.get("/bcn", ...authBCN, async (req, res) => {
       internshipSubject: bcnProfile.internshipSubject._id
     })
       .select('status reportType createdAt')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
     res.json({
       success: true,
@@ -268,7 +327,7 @@ router.get("/bcn", ...authBCN, async (req, res) => {
     });
   } catch (error) {
     console.error("Get BCN reports error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: "Lỗi server khi tải danh sách báo cáo" });
   }
 });
 
@@ -279,9 +338,20 @@ router.get("/bcn/review", ...authBCN, async (req, res) => {
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
 
+    // Validate inputs
+    if (status && status !== "all" && !["draft", "submitted", "reviewed", "approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Trạng thái không hợp lệ" });
+    }
+
+    const validTypes = ["tuan", "thang", "quy", "nam", "khac"];
+    if (reportType && reportType !== "all" && !validTypes.includes(reportType)) {
+      return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
+    }
+
     // Find BCN's managed subject
     const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject');
+      .populate('internshipSubject')
+      .lean();
 
     if (!bcnProfile || !bcnProfile.internshipSubject) {
       return res.json({
@@ -297,10 +367,12 @@ router.get("/bcn/review", ...authBCN, async (req, res) => {
     
     if (status && status !== "all") query.status = status;
     if (reportType && reportType !== "all") query.reportType = reportType;
-    if (search) {
+    
+    // Sanitize search input
+    if (search && typeof search === "string" && search.trim()) {
+      const sanitizedSearch = search.trim().slice(0, 100);
       query.$or = [
-        { title: new RegExp(search, "i") },
-        { content: new RegExp(search, "i") }
+        { title: new RegExp(sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") }
       ];
     }
 
@@ -311,7 +383,8 @@ router.get("/bcn/review", ...authBCN, async (req, res) => {
         .populate('reviewedBy', 'id name email')
         .sort({ createdAt: -1 })
         .limit(limitNum)
-        .skip((pageNum - 1) * limitNum),
+        .skip((pageNum - 1) * limitNum)
+        .lean(),
       Report.countDocuments(query)
     ]);
 
@@ -326,7 +399,7 @@ router.get("/bcn/review", ...authBCN, async (req, res) => {
     });
   } catch (error) {
     console.error("Get BCN reports error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: "Lỗi server khi tải danh sách báo cáo" });
   }
 });
 
@@ -438,9 +511,20 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Chỉ Phòng Đào Tạo mới có quyền truy cập" });
     }
 
-    const { page = 1, limit = 20, status, reportType, subjectId, instructorId, startDate, endDate } = req.query;
+    const { page = 1, limit = 20, status, reportType, subjectId, instructorId, startDate, endDate, search } = req.query;
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
+
+    // Validate status
+    if (status && status !== "all" && !["draft", "submitted", "reviewed", "approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Trạng thái không hợp lệ" });
+    }
+
+    // Validate reportType
+    const validTypes = ["tuan", "thang", "quy", "nam", "khac"];
+    if (reportType && reportType !== "all" && !validTypes.includes(reportType)) {
+      return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
+    }
 
     // Build query
     const query = {};
@@ -448,50 +532,71 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
     if (reportType && reportType !== "all") query.reportType = reportType;
     if (subjectId) query.internshipSubject = subjectId;
     if (instructorId) query.instructor = instructorId;
+    
+    // Date range validation
     if (startDate || endDate) {
       query.createdAt = {};
-      if (startDate) query.createdAt.$gte = new Date(startDate);
-      if (endDate) query.createdAt.$lte = new Date(endDate);
+      if (startDate) {
+        const start = new Date(startDate);
+        if (isNaN(start.getTime())) {
+          return res.status(400).json({ error: "Ngày bắt đầu không hợp lệ" });
+        }
+        query.createdAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        if (isNaN(end.getTime())) {
+          return res.status(400).json({ error: "Ngày kết thúc không hợp lệ" });
+        }
+        query.createdAt.$lte = end;
+      }
     }
 
-    const [reports, total, statistics] = await Promise.all([
+    // Sanitize search input
+    if (search && typeof search === "string" && search.trim()) {
+      const sanitizedSearch = search.trim().slice(0, 100);
+      query.$or = [
+        { title: new RegExp(sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") }
+      ];
+    }
+
+    const [reports, total] = await Promise.all([
       Report.find(query)
         .populate('instructor', 'id name email')
         .populate('internshipSubject', 'id title')
         .populate('reviewedBy', 'id name email')
         .sort({ createdAt: -1 })
         .limit(limitNum)
-        .skip((pageNum - 1) * limitNum),
-      Report.countDocuments(query),
-      Report.aggregate([
-        { $match: query },
-        {
-          $group: {
-            _id: null,
-            totalReports: { $sum: 1 },
-            byStatus: {
-              $push: "$status"
-            },
-            byType: {
-              $push: "$reportType"
-            },
-            bySubject: {
-              $push: "$internshipSubject"
-            }
-          }
-        }
-      ])
+        .skip((pageNum - 1) * limitNum)
+        .lean(),
+      Report.countDocuments(query)
     ]);
 
-    // Calculate statistics
-    const stats = statistics[0] || { totalReports: 0, byStatus: [], byType: [], bySubject: [] };
+    // Get statistics efficiently
+    const statistics = await Report.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: null,
+          totalReports: { $sum: 1 },
+          statusCounts: {
+            $push: "$status"
+          },
+          typeCounts: {
+            $push: "$reportType"
+          }
+        }
+      }
+    ]);
+
+    const stats = statistics[0] || { totalReports: 0, statusCounts: [], typeCounts: [] };
     
-    const statusCounts = stats.byStatus.reduce((acc, status) => {
+    const statusCounts = stats.statusCounts.reduce((acc, status) => {
       acc[status] = (acc[status] || 0) + 1;
       return acc;
     }, {});
 
-    const typeCounts = stats.byType.reduce((acc, type) => {
+    const typeCounts = stats.typeCounts.reduce((acc, type) => {
       acc[type] = (acc[type] || 0) + 1;
       return acc;
     }, {});
@@ -511,8 +616,8 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Get PDT report statistics error:", error);
-    res.status(400).json({ error: error.message });
+    console.error("Get PDT statistics error:", error);
+    res.status(500).json({ error: "Lỗi server khi tải thống kê báo cáo" });
   }
 });
 

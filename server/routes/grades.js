@@ -15,10 +15,16 @@ router.get("/supervisor/students", authenticate, authorize(["giang-vien"]), asyn
   try {
     const { status } = req.query;
     
+    // Validate status
+    if (status && status !== 'all' && !['not_started', 'in_progress', 'draft_completed', 'submitted', 'approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, error: "Trạng thái không hợp lệ" });
+    }
+    
     // Get supervisor's managed students
     const students = await SinhVien.find({ supervisor: req.account._id })
       .populate('account', 'id name email')
-      .populate('internshipSubject', 'id title');
+      .populate('internshipSubject', 'id title')
+      .lean();
 
     if (!students.length) {
       return res.json({
@@ -38,7 +44,8 @@ router.get("/supervisor/students", authenticate, authorize(["giang-vien"]), asyn
     const grades = await InternshipGrade.find(query)
       .populate('student', 'id name email')
       .populate('internshipSubject', 'id title')
-      .sort({ updatedAt: -1 });
+      .sort({ updatedAt: -1 })
+      .lean();
 
     // Create grade records for students who don't have them yet
     const existingStudentAccountIds = grades.map(g => g.student._id.toString());
@@ -47,16 +54,15 @@ router.get("/supervisor/students", authenticate, authorize(["giang-vien"]), asyn
     );
 
     for (const student of studentsWithoutGrades) {
-      // Determine work type based on internship subject or student preference
-      const workType = student.workType || 'thuc_tap'; // Default to internship
+      const workType = student.workType || 'thuc_tap';
       
       const newGrade = new InternshipGrade({
         student: student.account._id,
         supervisor: req.account._id,
         internshipSubject: student.internshipSubject._id,
         workType: workType,
-        startDate: new Date(), // Should be set based on internship period
-        endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days from now
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
         milestones: InternshipGrade.createDefaultMilestones(
           workType,
           new Date(),
@@ -66,30 +72,31 @@ router.get("/supervisor/students", authenticate, authorize(["giang-vien"]), asyn
       });
       
       await newGrade.save();
-      grades.push(await InternshipGrade.findById(newGrade._id)
+      const populatedGrade = await InternshipGrade.findById(newGrade._id)
         .populate('student', 'id name email')
         .populate('internshipSubject', 'id title')
-      );
+        .lean();
+      grades.push(populatedGrade);
     }
 
     res.json({
       success: true,
       grades: grades.map(grade => ({
         id: grade._id,
-        student: {
+        student: grade.student ? {
           id: grade.student.id,
           name: grade.student.name,
           email: grade.student.email
-        },
-        subject: {
+        } : null,
+        subject: grade.internshipSubject ? {
           id: grade.internshipSubject.id,
           title: grade.internshipSubject.title
-        },
+        } : null,
         workType: grade.workType,
         status: grade.status,
         finalGrade: grade.finalGrade,
         letterGrade: grade.letterGrade,
-        progressPercentage: grade.getProgressPercentage(),
+        progressPercentage: grade.progressPercentage || grade.getProgressPercentage?.() || 0,
         submittedToBCN: grade.submittedToBCN,
         startDate: grade.startDate,
         endDate: grade.endDate,
@@ -209,7 +216,22 @@ router.put("/students/:studentId/milestones/:milestoneId", authenticate, authori
     const { studentId, milestoneId } = req.params;
     const { status, supervisorNotes, submittedDocuments } = req.body;
 
-    // First find the student account by their ID (e.g., "SV0001")
+    // Validate status if provided
+    if (status && !['pending', 'in_progress', 'completed', 'overdue'].includes(status)) {
+      return res.status(400).json({ success: false, error: "Trạng thái milestone không hợp lệ" });
+    }
+
+    // Validate supervisorNotes length if provided
+    if (supervisorNotes && supervisorNotes.length > 1000) {
+      return res.status(400).json({ success: false, error: "Ghi chú không được vượt quá 1000 ký tự" });
+    }
+
+    // Validate submittedDocuments if provided
+    if (submittedDocuments && (!Array.isArray(submittedDocuments) || submittedDocuments.length > 10)) {
+      return res.status(400).json({ success: false, error: "Tối đa 10 tài liệu đính kèm" });
+    }
+
+    // Find the student account by their ID (e.g., "SV0001")
     const studentAccount = await Account.findOne({ id: studentId });
     if (!studentAccount) {
       return res.status(404).json({ success: false, error: "Không tìm thấy sinh viên" });
@@ -280,7 +302,37 @@ router.put("/students/:studentId/grades", authenticate, authorize(["giang-vien"]
     const { studentId } = req.params;
     const { gradeComponents, supervisorFinalComment, gradingNotes, gradingFiles } = req.body;
 
-    // First find the student account by their ID (e.g., "SV0001")
+    // Validate gradeComponents if provided
+    if (gradeComponents) {
+      if (!Array.isArray(gradeComponents)) {
+        return res.status(400).json({ success: false, error: "Thành phần điểm phải là mảng" });
+      }
+      for (const component of gradeComponents) {
+        if (component.score !== undefined && (component.score < 0 || component.score > 10)) {
+          return res.status(400).json({ success: false, error: "Điểm phải từ 0 đến 10" });
+        }
+        if (component.weight !== undefined && (component.weight < 0 || component.weight > 100)) {
+          return res.status(400).json({ success: false, error: "Trọng số phải từ 0 đến 100" });
+        }
+      }
+    }
+
+    // Validate supervisorFinalComment length if provided
+    if (supervisorFinalComment && supervisorFinalComment.length > 2000) {
+      return res.status(400).json({ success: false, error: "Nhận xét không được vượt quá 2000 ký tự" });
+    }
+
+    // Validate gradingNotes length if provided
+    if (gradingNotes && gradingNotes.length > 2000) {
+      return res.status(400).json({ success: false, error: "Ghi chú không được vượt quá 2000 ký tự" });
+    }
+
+    // Validate gradingFiles if provided
+    if (gradingFiles && (!Array.isArray(gradingFiles) || gradingFiles.length > 10)) {
+      return res.status(400).json({ success: false, error: "Tối đa 10 tệp đính kèm" });
+    }
+
+    // Find the student account by their ID (e.g., "SV0001")
     const studentAccount = await Account.findOne({ id: studentId });
     if (!studentAccount) {
       return res.status(404).json({ success: false, error: "Không tìm thấy sinh viên" });
@@ -939,7 +991,7 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Chỉ Phòng Đào Tạo mới có quyền truy cập" });
     }
 
-    const { page = 1, limit = 20, status, workType, subjectId, supervisorId } = req.query;
+    const { page = 1, limit = 20, status, workType, subjectId, supervisorId, search } = req.query;
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
 
@@ -950,7 +1002,127 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
     if (subjectId) query.internshipSubject = subjectId;
     if (supervisorId) query.supervisor = supervisorId;
 
-    const [grades, total, statistics] = await Promise.all([
+    // Handle text search
+    let grades;
+    if (search) {
+      grades = await InternshipGrade.find(query)
+        .populate('student', 'id name email')
+        .populate('supervisor', 'id name email')
+        .populate('internshipSubject', 'id title')
+        .sort({ updatedAt: -1 });
+      
+      const searchLower = search.toLowerCase();
+      grades = grades.filter(grade => 
+        grade.student?.name.toLowerCase().includes(searchLower) ||
+        grade.supervisor?.name.toLowerCase().includes(searchLower) ||
+        grade.internshipSubject?.title.toLowerCase().includes(searchLower)
+      );
+      
+      const total = grades.length;
+      grades = grades.slice((pageNum - 1) * limitNum, pageNum * limitNum);
+      
+      const statistics = await InternshipGrade.aggregate([
+        { $match: query },
+        {
+          $group: {
+            _id: null,
+            totalGrades: { $sum: 1 },
+            byStatus: { $push: "$status" },
+            byWorkType: { $push: "$workType" },
+            finalGrades: { $push: "$finalGrade" },
+            letterGrades: { $push: "$letterGrade" },
+            submittedCount: {
+              $sum: { $cond: [{ $eq: ["$submittedToBCN", true] }, 1, 0] }
+            },
+            approvedCount: {
+              $sum: { $cond: [{ $eq: ["$status", "approved"] }, 1, 0] }
+            }
+          }
+        }
+      ]);
+
+      const stats = statistics[0] || { 
+        totalGrades: 0, 
+        byStatus: [], 
+        byWorkType: [], 
+        finalGrades: [],
+        letterGrades: [],
+        submittedCount: 0,
+        approvedCount: 0
+      };
+      
+      const statusCounts = stats.byStatus.reduce((acc, status) => {
+        acc[status] = (acc[status] || 0) + 1;
+        return acc;
+      }, {});
+
+      const workTypeCounts = stats.byWorkType.reduce((acc, type) => {
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {});
+
+      const letterGradeCounts = stats.letterGrades.filter(g => g).reduce((acc, grade) => {
+        acc[grade] = (acc[grade] || 0) + 1;
+        return acc;
+      }, {});
+
+      const validGrades = stats.finalGrades.filter(g => g !== null && g !== undefined);
+      const averageGrade = validGrades.length > 0 
+        ? (validGrades.reduce((sum, g) => sum + g, 0) / validGrades.length).toFixed(2)
+        : 0;
+
+      const passCount = validGrades.filter(g => g >= 5.0).length;
+      const passRate = validGrades.length > 0 
+        ? ((passCount / validGrades.length) * 100).toFixed(1)
+        : 0;
+
+      return res.json({
+        success: true,
+        grades: grades.map(grade => ({
+          id: grade._id,
+          student: grade.student ? {
+            id: grade.student.id,
+            name: grade.student.name,
+            email: grade.student.email
+          } : null,
+          supervisor: grade.supervisor ? {
+            id: grade.supervisor.id,
+            name: grade.supervisor.name
+          } : null,
+          subject: grade.internshipSubject ? {
+            id: grade.internshipSubject.id,
+            title: grade.internshipSubject.title
+          } : null,
+          workType: grade.workType,
+          status: grade.status,
+          finalGrade: grade.finalGrade,
+          letterGrade: grade.letterGrade,
+          progressPercentage: grade.progressPercentage || 0,
+          submittedToBCN: grade.submittedToBCN,
+          startDate: grade.startDate,
+          endDate: grade.endDate,
+          updatedAt: grade.updatedAt
+        })),
+        pagination: {
+          page: pageNum,
+          pages: Math.max(1, Math.ceil(total / limitNum)),
+          total
+        },
+        statistics: {
+          total: stats.totalGrades,
+          byStatus: statusCounts,
+          byWorkType: workTypeCounts,
+          byLetterGrade: letterGradeCounts,
+          averageGrade: Number(averageGrade),
+          passRate: Number(passRate),
+          submittedCount: stats.submittedCount,
+          approvedCount: stats.approvedCount,
+          totalFinalized: validGrades.length
+        }
+      });
+    }
+
+    const [gradesResult, total, statistics] = await Promise.all([
       InternshipGrade.find(query)
         .populate('student', 'id name email')
         .populate('supervisor', 'id name email')
@@ -979,6 +1151,8 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
         }
       ])
     ]);
+
+    grades = gradesResult;
 
     // Calculate statistics
     const stats = statistics[0] || { 
@@ -1022,19 +1196,19 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       success: true,
       grades: grades.map(grade => ({
         id: grade._id,
-        student: {
+        student: grade.student ? {
           id: grade.student.id,
           name: grade.student.name,
           email: grade.student.email
-        },
-        supervisor: {
+        } : null,
+        supervisor: grade.supervisor ? {
           id: grade.supervisor.id,
           name: grade.supervisor.name
-        },
-        subject: {
+        } : null,
+        subject: grade.internshipSubject ? {
           id: grade.internshipSubject.id,
           title: grade.internshipSubject.title
-        },
+        } : null,
         workType: grade.workType,
         status: grade.status,
         finalGrade: grade.finalGrade,

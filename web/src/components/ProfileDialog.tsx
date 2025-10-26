@@ -387,6 +387,9 @@ const ProfileDialog: React.FC<Props> = ({ open, onClose }) => {
                   </label>
                   <ValidatedInput
                     type="password"
+                    name="current-password-verify"
+                    autoComplete="off"
+                    data-form-type="other"
                     value={currentPassword}
                     onChange={(e) => {
                       setCurrentPassword(e.target.value);
@@ -404,6 +407,7 @@ const ProfileDialog: React.FC<Props> = ({ open, onClose }) => {
                   </label>
                   <ValidatedInput
                     type="password"
+                    autoComplete="new-password"
                     value={newPassword}
                     onChange={(e) => {
                       setNewPassword(e.target.value);
@@ -424,6 +428,7 @@ const ProfileDialog: React.FC<Props> = ({ open, onClose }) => {
                   </label>
                   <ValidatedInput
                     type="password"
+                    autoComplete="new-password"
                     value={confirmPassword}
                     onChange={(e) => {
                       setConfirmPassword(e.target.value);

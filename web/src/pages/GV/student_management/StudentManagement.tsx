@@ -41,7 +41,7 @@ const StatusChip: React.FC<{ v: GVStudentStatus }> = ({ v }) => {
 };
 
 const IconBtn: React.FC<React.PropsWithChildren<{ title?: string; className?: string; onClick?: () => void }>> = ({ title, className = "", onClick, children }) => (
-  <button type="button" title={title} onClick={onClick} className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-white shadow ${className}`}>
+  <button type="button" title={title} onClick={onClick} className={`inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-md text-white shadow touch-manipulation ${className}`}>
     {children}
   </button>
 );
@@ -172,8 +172,8 @@ const StudentManagement: React.FC = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex items-center gap-2">
-          <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-          <span className="text-gray-500">Đang tải danh sách sinh viên...</span>
+          <div className="animate-spin h-4 w-4 sm:h-5 sm:w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+          <span className="text-gray-500 text-xs sm:text-sm">Đang tải danh sách sinh viên...</span>
         </div>
       </div>
     );
@@ -182,13 +182,13 @@ const StudentManagement: React.FC = () => {
   // Show no lecturer assigned message
   if (!loading && !currentLecturer && !error) {
     return (
-      <div className="text-center py-12">
-        <div className="text-4xl mb-4">👨‍🏫</div>
-        <div className="text-gray-700 font-medium mb-2">Chưa có phân công hướng dẫn</div>
-        <div className="text-gray-500 text-sm mb-4">Bạn chưa được phân công làm giảng viên hướng dẫn thực tập nào.</div>
+      <div className="text-center py-12 px-4">
+        <div className="text-3xl sm:text-4xl mb-4">👨‍🏫</div>
+        <div className="text-gray-700 font-medium mb-2 text-sm sm:text-base">Chưa có phân công hướng dẫn</div>
+        <div className="text-gray-500 text-xs sm:text-sm mb-4">Bạn chưa được phân công làm giảng viên hướng dẫn thực tập nào.</div>
         <button
           onClick={loadManagedStudents}
-          className="text-blue-600 hover:text-blue-700 text-sm underline"
+          className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm underline touch-manipulation"
         >
           Tải lại
         </button>
@@ -201,17 +201,17 @@ const StudentManagement: React.FC = () => {
       {/* Error Alert */}
       {error && (
         <div className="rounded-md bg-red-50 border border-red-200 p-3">
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-xs sm:text-sm text-red-700">{error}</p>
           <div className="mt-2 flex gap-2">
             <button
               onClick={() => setError("")}
-              className="text-xs text-red-600 hover:text-red-800"
+              className="text-xs text-red-600 hover:text-red-800 touch-manipulation"
             >
               Đóng
             </button>
             <button
               onClick={loadManagedStudents}
-              className="text-xs text-red-600 hover:text-red-800 underline"
+              className="text-xs text-red-600 hover:text-red-800 underline touch-manipulation"
             >
               Thử lại
             </button>
@@ -219,113 +219,108 @@ const StudentManagement: React.FC = () => {
         </div>
       )}
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">
-          <SearchInput
-            value={query}
-            onChange={(value) => { 
-              setQuery(value); 
-              setPage(1); 
-            }}
-            placeholder="Tìm kiếm tên sinh viên"
-            width="w-[260px]"
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 flex-wrap">
+        <SearchInput
+          value={query}
+          onChange={(value) => { 
+            setQuery(value); 
+            setPage(1); 
+          }}
+          placeholder="Tìm kiếm tên sinh viên"
+          width="w-full sm:w-[260px]"
+        />
+
+        <div className="relative w-full sm:w-auto">
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value as "all" | GVStudentStatus); setPage(1); }}
+            className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-xs sm:text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none w-full sm:min-w-[180px] touch-manipulation"
+          >
+            <option value="all">Tất cả trạng thái</option>
+            <option value="duoc-huong-dan">Được hướng dẫn</option>
+            <option value="chua-duoc-huong-dan">Chưa được hướng dẫn</option>
+            <option value="dang-thuc-tap">Đang thực tập</option>
+            <option value="dang-lam-do-an">Đang làm đồ án</option>
+            <option value="hoan-thanh">Hoàn thành</option>
+          </select>
+          <span className="absolute inset-y-0 right-3 flex items-center text-gray-400 pointer-events-none">
+            <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
+          </span>
+        </div>
+
+        <div className="w-full sm:flex-1 sm:min-w-[280px] sm:max-w-[500px]">
+          <input 
+            disabled 
+            value={currentLecturer ? `${currentLecturer.subjectTitle || 'Chưa có môn thực tập'} (${currentLecturer.name})` : 'Đang tải...'} 
+            className="h-10 rounded-full border border-gray-300 bg-white px-4 sm:px-6 text-xs sm:text-sm text-gray-700 text-center w-full cursor-not-allowed" 
           />
-
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as "all" | GVStudentStatus); setPage(1); }}
-              className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[180px]"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              <option value="duoc-huong-dan">Được hướng dẫn</option>
-              <option value="chua-duoc-huong-dan">Chưa được hướng dẫn</option>
-              <option value="dang-thuc-tap">Đang thực tập</option>
-              <option value="dang-lam-do-an">Đang làm đồ án</option>
-              <option value="hoan-thanh">Hoàn thành</option>
-            </select>
-            <span className="absolute inset-y-0 right-3 flex items-center text-gray-400 pointer-events-none">
-              <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
-            </span>
-          </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="order-2 sm:order-1">
-            <input 
-              disabled 
-              value={currentLecturer ? `${currentLecturer.subjectTitle || 'Chưa có môn thực tập'} (${currentLecturer.name})` : 'Đang tải...'} 
-              className="h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center min-w-[280px] max-w-[400px] w-full" 
-            />
-          </div>
+        <button
+          type="button"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 h-10 text-white text-xs sm:text-sm hover:bg-blue-700 touch-manipulation w-full sm:w-auto"
+          onClick={() => setOpenRequests(true)}
+          title="Xem yêu cầu đã gửi"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0">
+            <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+          </svg>
+          Yêu cầu
+        </button>
 
-          <div className="order-1 sm:order-2 flex items-center gap-2">
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 h-10 text-white text-sm hover:bg-blue-700"
-              onClick={() => setOpenRequests(true)}
-              title="Xem yêu cầu đã gửi"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4">
-                <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
-              </svg>
-              Yêu cầu
-            </button>
-
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 h-10 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 min-w-[100px]"
-              onClick={() => setOpenAdd(true)}
-              disabled={!currentLecturer}
-              title="Thêm sinh viên"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
-              Thêm
-            </button>
-          </div>
-        </div>
-
+        <button
+          type="button"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 h-10 text-white text-xs sm:text-sm hover:bg-emerald-700 touch-manipulation w-full sm:w-auto"
+          onClick={() => setOpenAdd(true)}
+          disabled={!currentLecturer}
+          title="Thêm sinh viên"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4 flex-shrink-0"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
+          Thêm
+        </button>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr className="text-left text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3 w-[120px]">Mã SV</th>
-              <th className="px-4 py-3">Tên sinh viên</th>
-              <th className="px-4 py-3 w-[160px]">Trạng thái</th>
-              <th className="px-4 py-3 w-[140px]">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {current.map((s, idx) => (
-              <tr key={`${s.id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
-                <td className="px-4 py-3 font-mono text-gray-700">{s.id}</td>
-                <td className="px-4 py-3 text-gray-800">{s.name}</td>
-                <td className="px-4 py-3"><StatusChip v={s.status} /></td>
-                <td className="px-2 py-2">
-                  <div className="flex items-center gap-2">
-                    <IconBtn
-                      title="Xem"
-                      className="bg-sky-500 hover:bg-sky-600"
-                      onClick={() => { setViewing(s); setOpenView(true); }}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"/></svg>
-                    </IconBtn>
-
-                    <IconBtn
-                      title="Gửi yêu cầu xóa khỏi danh sách"
-                      className="bg-rose-500 hover:bg-rose-600"
-                      onClick={() => { setRemoving(s); setOpenRemove(true); }}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
-                    </IconBtn>
-                  </div>
-                </td>
+        <div className="overflow-x-auto touch-manipulation">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr className="text-left text-[10px] sm:text-xs font-semibold text-gray-600">
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[90px] sm:w-[120px]">Mã SV</th>
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[140px]">Tên sinh viên</th>
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[140px] sm:w-[160px]">Trạng thái</th>
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[100px] sm:w-[140px]">Thao tác</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-xs sm:text-sm">
+              {current.map((s, idx) => (
+                <tr key={`${s.id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
+                  <td className="px-3 sm:px-4 py-2 sm:py-3 font-mono text-gray-700 text-[10px] sm:text-sm">{s.id}</td>
+                  <td className="px-3 sm:px-4 py-2 sm:py-3 text-gray-800">{s.name}</td>
+                  <td className="px-3 sm:px-4 py-2 sm:py-3"><StatusChip v={s.status} /></td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <IconBtn
+                        title="Xem"
+                        className="bg-sky-500 hover:bg-sky-600 touch-manipulation"
+                        onClick={() => { setViewing(s); setOpenView(true); }}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4"><path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"/></svg>
+                      </IconBtn>
+
+                      <IconBtn
+                        title="Gửi yêu cầu xóa khỏi danh sách"
+                        className="bg-rose-500 hover:bg-rose-600 touch-manipulation"
+                        onClick={() => { setRemoving(s); setOpenRemove(true); }}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
+                      </IconBtn>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {current.length === 0 && !loading && (
           <div className="py-8">

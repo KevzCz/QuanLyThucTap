@@ -36,7 +36,7 @@ const IconBtn: React.FC<
     type="button"
     title={title}
     onClick={onClick}
-    className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-white shadow ${className}`}
+    className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-white shadow touch-manipulation ${className}`}
   >
     {children}
   </button>
@@ -162,15 +162,15 @@ const RequestManagement: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 sm:space-y-4">
 
       {/* Error Alert */}
       {error && (
-        <div className="rounded-md bg-red-50 border border-red-200 p-3">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="rounded-md bg-red-50 border border-red-200 p-2.5 sm:p-3">
+          <p className="text-xs sm:text-sm text-red-700">{error}</p>
           <button
             onClick={() => setError("")}
-            className="mt-2 text-xs text-red-600 hover:text-red-800"
+            className="mt-2 text-xs text-red-600 hover:text-red-800 touch-manipulation"
           >
             Đóng
           </button>
@@ -178,125 +178,125 @@ const RequestManagement: React.FC = () => {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <SearchInput
-            value={query}
-            onChange={(value) => {
-              setQuery(value);
-            }}
-            placeholder="Tìm kiếm tên giảng viên / yêu cầu"
-            width="w-[260px]"
-          />
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center flex-wrap">
+        <SearchInput
+          value={query}
+          onChange={(value) => {
+            setQuery(value);
+          }}
+          placeholder="Tìm kiếm tên giảng viên / yêu cầu"
+          width="w-full sm:w-[260px]"
+        />
 
-          <FilterButtonGroup
-            options={filterOptions}
-            value={filter}
-            onChange={(value) => {
-              setFilter(value);
-            }}
-          />
-        </div>
+        <FilterButtonGroup
+          options={filterOptions}
+          value={filter}
+          onChange={(value) => {
+            setFilter(value);
+          }}
+        />
 
-        <SubjectPill value={subjectInfo ? `${subjectInfo.title} (${subjectInfo.id})` : "Đang tải..."} />
-
-        {/* right side kept empty to match spacing */}
-        <div className="w-[96px]" />
+        <SubjectPill 
+          value={subjectInfo ? `${subjectInfo.title} (${subjectInfo.id})` : "Đang tải..."} 
+          className="w-full sm:w-auto"
+        />
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr className="text-left text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3 w-[120px]">Mã GV</th>
-              <th className="px-4 py-3">Tên</th>
-              <th className="px-4 py-3 w-[200px]">Yêu cầu</th>
-              <th className="px-4 py-3 w-[140px]">Ngày tạo</th>
-              <th className="px-4 py-3 w-[160px]">THAO TÁC</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-gray-500">
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-                    Đang tải...
-                  </div>
-                </td>
+      <div className="overflow-hidden rounded-lg sm:rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr className="text-left text-xs font-semibold text-gray-600">
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[100px] sm:w-[120px]">Mã GV</th>
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[150px]">Tên</th>
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[160px] sm:w-[200px]">Yêu cầu</th>
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[120px] sm:w-[140px]">Ngày tạo</th>
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[140px] sm:w-[160px]">THAO TÁC</th>
               </tr>
-            ) : current.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-2">
-                  <EmptyState
-                    icon={requests.length === 0 ? "📝" : "🔍"}
-                    title={requests.length === 0 ? "Không có yêu cầu nào" : "Không tìm thấy yêu cầu"}
-                    description={
-                      requests.length === 0
-                        ? "Các yêu cầu từ giảng viên sẽ xuất hiện ở đây"
-                        : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
-                    }
-                  />
-                </td>
-              </tr>
-            ) : (
-              current.map((r, idx) => (
-                <tr key={`${r._id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
-                  <td className="px-4 py-3 font-mono text-gray-700">{r.idgv}</td>
-                  <td className="px-4 py-3 text-gray-800">{r.name}</td>
-                  <td className="px-4 py-3 text-gray-700">{kindText[r.kind]}</td>
-                  <td className="px-4 py-3 text-gray-700">{r.createdAt}</td>
-                  <td className="px-2 py-2">
-                    <div className="flex items-center gap-2">
-                      <IconBtn
-                        title="Xem"
-                        className="bg-sky-500 hover:bg-sky-600"
-                        onClick={() => {
-                          setViewing(r);
-                          setOpenView(true);
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4">
-                          <path
-                            fill="currentColor"
-                            d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
-                          />
-                        </svg>
-                      </IconBtn>
-
-                      <IconBtn
-                        title="Chấp nhận"
-                        className="bg-emerald-500 hover:bg-emerald-600"
-                        onClick={() => {
-                          setApproving(r);
-                          setOpenApprove(true);
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4">
-                          <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                        </svg>
-                      </IconBtn>
-
-                      <IconBtn
-                        title="Từ chối yêu cầu"
-                        className="bg-rose-500 hover:bg-rose-600"
-                        onClick={() => {
-                          setDeleting(r);
-                          setOpenDelete(true);
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4">
-                          <path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z" />
-                        </svg>
-                      </IconBtn>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-xs sm:text-sm">
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-3 sm:px-4 py-6 sm:py-8 text-center text-gray-500">
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+                      Đang tải...
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : current.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-3 sm:px-4 py-2">
+                    <EmptyState
+                      icon={requests.length === 0 ? "📝" : "🔍"}
+                      title={requests.length === 0 ? "Không có yêu cầu nào" : "Không tìm thấy yêu cầu"}
+                      description={
+                        requests.length === 0
+                          ? "Các yêu cầu từ giảng viên sẽ xuất hiện ở đây"
+                          : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
+                      }
+                    />
+                  </td>
+                </tr>
+              ) : (
+                current.map((r, idx) => (
+                  <tr key={`${r._id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-mono text-gray-700">{r.idgv}</td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-gray-800">{r.name}</td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700">{kindText[r.kind]}</td>
+                    <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700">{r.createdAt}</td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-1.5 sm:gap-2">
+                        <IconBtn
+                          title="Xem"
+                          className="bg-sky-500 hover:bg-sky-600"
+                          onClick={() => {
+                            setViewing(r);
+                            setOpenView(true);
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4">
+                            <path
+                              fill="currentColor"
+                              d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"
+                            />
+                          </svg>
+                        </IconBtn>
+
+                        <IconBtn
+                          title="Chấp nhận"
+                          className="bg-emerald-500 hover:bg-emerald-600"
+                          onClick={() => {
+                            setApproving(r);
+                            setOpenApprove(true);
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4">
+                            <path fill="currentColor" d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                          </svg>
+                        </IconBtn>
+
+                        <IconBtn
+                          title="Từ chối yêu cầu"
+                          className="bg-rose-500 hover:bg-rose-600"
+                          onClick={() => {
+                            setDeleting(r);
+                            setOpenDelete(true);
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4">
+                            <path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z" />
+                          </svg>
+                        </IconBtn>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Pagination */}
         {pageCount > 1 && (

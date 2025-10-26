@@ -7,15 +7,15 @@ interface Grade {
     id: string;
     name: string;
     email: string;
-  };
+  } | null;
   supervisor: {
     id: string;
     name: string;
-  };
+  } | null;
   subject: {
     id: string;
     title: string;
-  };
+  } | null;
   workType: "thuc_tap" | "do_an";
   status: "not_started" | "in_progress" | "draft_completed" | "submitted" | "approved" | "rejected";
   finalGrade?: number;
@@ -72,7 +72,7 @@ const ViewGradeDialog: React.FC<Props> = ({ open, grade, onClose }) => {
   return (
     <StandardDialog
       open={open}
-      title={`Chi tiết điểm - ${grade.student.name}`}
+      title={`Chi tiết điểm - ${grade.student?.name || "Không xác định"}`}
       onClose={onClose}
     >
       <div className="space-y-4">
@@ -90,22 +90,22 @@ const ViewGradeDialog: React.FC<Props> = ({ open, grade, onClose }) => {
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Sinh viên</label>
-            <div className="text-sm font-semibold text-gray-900">{grade.student.name}</div>
-            <div className="text-xs text-gray-500">{grade.student.id}</div>
-            <div className="text-xs text-gray-500">{grade.student.email}</div>
+            <div className="text-sm font-semibold text-gray-900">{grade.student?.name || "—"}</div>
+            <div className="text-xs text-gray-500">{grade.student?.id || "—"}</div>
+            <div className="text-xs text-gray-500">{grade.student?.email || "—"}</div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Giảng viên hướng dẫn</label>
-            <div className="text-sm font-semibold text-gray-900">{grade.supervisor.name}</div>
-            <div className="text-xs text-gray-500">{grade.supervisor.id}</div>
+            <div className="text-sm font-semibold text-gray-900">{grade.supervisor?.name || "—"}</div>
+            <div className="text-xs text-gray-500">{grade.supervisor?.id || "—"}</div>
           </div>
         </div>
 
         {/* Subject */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Môn thực tập</label>
-          <div className="text-sm text-gray-900">{grade.subject.title}</div>
-          <div className="text-xs text-gray-500">{grade.subject.id}</div>
+          <div className="text-sm text-gray-900">{grade.subject?.title || "—"}</div>
+          <div className="text-xs text-gray-500">{grade.subject?.id || "—"}</div>
         </div>
 
         {/* Timeline */}

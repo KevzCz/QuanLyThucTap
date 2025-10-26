@@ -47,7 +47,7 @@ const IconBtn: React.FC<
     type="button"
     title={title}
     onClick={onClick}
-    className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-white shadow ${className}`}
+    className={`inline-flex h-7 w-7 items-center justify-center rounded-md text-white shadow touch-manipulation ${className}`}
   >
     {children}
   </button>
@@ -243,14 +243,14 @@ const InternshipSubjectManagement: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 sm:space-y-4">
       {/* Error Alert */}
       {error && (
-        <div className="rounded-md bg-red-50 border border-red-200 p-3">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="rounded-md bg-red-50 border border-red-200 p-2.5 sm:p-3">
+          <p className="text-xs sm:text-sm text-red-700">{error}</p>
           <button
             onClick={() => setError("")}
-            className="mt-2 text-xs text-red-600 hover:text-red-800"
+            className="mt-2 text-xs text-red-600 hover:text-red-800 touch-manipulation"
           >
             Đóng
           </button>
@@ -258,36 +258,34 @@ const InternshipSubjectManagement: React.FC = () => {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <SearchInput
-            value={query}
-            onChange={(value) => {
-              setQuery(value);
-              setPage(1);
-            }}
-            placeholder="Tìm kiếm tên sinh viên / giảng viên"
-            width="w-[300px]"
-          />
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sm:items-center flex-wrap">
+        <SearchInput
+          value={query}
+          onChange={(value) => {
+            setQuery(value);
+            setPage(1);
+          }}
+          placeholder="Tìm kiếm tên sinh viên / giảng viên"
+          width="w-full sm:w-[300px]"
+        />
 
-          <FilterButtonGroup
-            options={filterOptions}
-            value={roleFilter}
-            onChange={(value) => {
-              setRoleFilter(value);
-              setPage(1);
-            }}
-          />
-        </div>
+        <FilterButtonGroup
+          options={filterOptions}
+          value={roleFilter}
+          onChange={(value) => {
+            setRoleFilter(value);
+            setPage(1);
+          }}
+        />
 
         <SubjectPill 
           value={subjectData ? `${subjectData.title} (${subjectData.id})` : "Đang tải..."}
-          className="min-w-[200px] max-w-[400px]"
+          className="w-full sm:w-auto"
         />
 
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 h-9 text-white text-sm hover:bg-emerald-700"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 h-9 text-white text-sm hover:bg-emerald-700 touch-manipulation w-full sm:w-auto sm:ml-auto"
           onClick={() => setOpenAddChooser(true)}
           title="Thêm"
         >
@@ -300,85 +298,87 @@ const InternshipSubjectManagement: React.FC = () => {
 
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr className="text-left text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3 w-[120px]">Mã</th>
-              <th className="px-4 py-3">Tên</th>
-              <th className="px-4 py-3 w-[140px]">Vai trò</th>
-              <th className="px-4 py-3 w-[220px]">Trạng thái</th>
-              <th className="px-4 py-3 w-[160px]">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {current.map((p, idx) => (
-              <tr key={`${p.id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
-                <td className="px-4 py-3 font-mono text-gray-700">{p.id}</td>
-                <td className="px-4 py-3 text-gray-800">{p.name}</td>
-                <td className="px-4 py-3 text-gray-700">{roleLabel[p.role]}</td>
-                <td className="px-4 py-3">
-                  <StatusChip v={p.status} />
-                </td>
-                <td className="px-2 py-2">
-                  <div className="flex items-center gap-2">
-                    <IconBtn
-                      className="bg-sky-500 hover:bg-sky-600"
-                      title="Xem"
-                      onClick={() => {
-                        setViewing(p);
-                        setOpenView(true);
-                      }}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"/></svg>
-                    </IconBtn>
-
-                    {p.role === "sinh-vien" && (
+      <div className="overflow-hidden rounded-lg sm:rounded-xl border border-gray-200 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr className="text-left text-xs font-semibold text-gray-600">
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[100px] sm:w-[120px]">Mã</th>
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[150px]">Tên</th>
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[120px] sm:w-[140px]">Vai trò</th>
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[180px] sm:w-[220px]">Trạng thái</th>
+                <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[140px] sm:w-[160px]">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-xs sm:text-sm">
+              {current.map((p, idx) => (
+                <tr key={`${p.id}__${(page - 1) * pageSize + idx}`} className="hover:bg-gray-50/50">
+                  <td className="px-3 sm:px-4 py-2.5 sm:py-3 font-mono text-gray-700">{p.id}</td>
+                  <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-gray-800">{p.name}</td>
+                  <td className="px-3 sm:px-4 py-2.5 sm:py-3 text-gray-700">{roleLabel[p.role]}</td>
+                  <td className="px-3 sm:px-4 py-2.5 sm:py-3">
+                    <StatusChip v={p.status} />
+                  </td>
+                  <td className="px-2 py-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       <IconBtn
-                        className="bg-emerald-500 hover:bg-emerald-600"
-                        title="Sửa GV hướng dẫn"
+                        className="bg-sky-500 hover:bg-sky-600"
+                        title="Xem"
                         onClick={() => {
-                          setEditingSv(p);
-                          setOpenEditAdvisor(true);
+                          setViewing(p);
+                          setOpenView(true);
                         }}
                       >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11ZM20.7 7.04a1 1 0 0 0 0-1.41L18.37 3.3a1 1 0 0 0-1.41 0L15.1 5.16l3.33 3.33l2.27-1.45Z"/></svg>
+                        <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"/></svg>
                       </IconBtn>
-                    )}
 
-                    <IconBtn
-                      className="bg-rose-500 hover:bg-rose-600"
-                      title="Xóa khỏi danh sách"
-                      onClick={() => removeParticipant(p)}
-                    >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
-                    </IconBtn>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {current.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-2">
-                  <EmptyState
-                    icon={participants.length === 0 ? "👥" : "🔍"}
-                    title={participants.length === 0 ? "Chưa có thành viên" : "Không tìm thấy thành viên"}
-                    description={
-                      participants.length === 0
-                        ? "Thêm giảng viên và sinh viên vào môn thực tập"
-                        : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
-                    }
-                    action={
-                      participants.length === 0
-                        ? { label: "Thêm thành viên", onClick: () => setOpenAddChooser(true) }
-                        : undefined
-                    }
-                  />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+                      {p.role === "sinh-vien" && (
+                        <IconBtn
+                          className="bg-emerald-500 hover:bg-emerald-600"
+                          title="Sửa GV hướng dẫn"
+                          onClick={() => {
+                            setEditingSv(p);
+                            setOpenEditAdvisor(true);
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11ZM20.7 7.04a1 1 0 0 0 0-1.41L18.37 3.3a1 1 0 0 0-1.41 0L15.1 5.16l3.33 3.33l2.27-1.45Z"/></svg>
+                        </IconBtn>
+                      )}
+
+                      <IconBtn
+                        className="bg-rose-500 hover:bg-rose-600"
+                        title="Xóa khỏi danh sách"
+                        onClick={() => removeParticipant(p)}
+                      >
+                        <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
+                      </IconBtn>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {current.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-3 sm:px-4 py-2">
+                    <EmptyState
+                      icon={participants.length === 0 ? "👥" : "🔍"}
+                      title={participants.length === 0 ? "Chưa có thành viên" : "Không tìm thấy thành viên"}
+                      description={
+                        participants.length === 0
+                          ? "Thêm giảng viên và sinh viên vào môn thực tập"
+                          : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
+                      }
+                      action={
+                        participants.length === 0
+                          ? { label: "Thêm thành viên", onClick: () => setOpenAddChooser(true) }
+                          : undefined
+                      }
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         {/* Pagination */}
         {pageCount > 1 && (

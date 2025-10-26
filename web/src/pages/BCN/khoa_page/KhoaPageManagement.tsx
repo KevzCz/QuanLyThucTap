@@ -499,41 +499,41 @@ const KhoaPageManagement: React.FC = () => {
                 onDragLeave={handleHeaderDragLeave}
                 onDrop={(e) => handleHeaderDrop(e, h.id)}
               >
-                <div className="flex items-center gap-2 px-4 py-4 bg-gray-50">
+                <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-3 sm:py-4 bg-gray-50">
                   {/* Enhanced drag handle */}
                   <div 
-                    className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors" 
+                    className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors touch-manipulation" 
                     title="Kéo để sắp xếp lại thứ tự"
                   >
-                    <span>⋮⋮</span>
+                    <span className="text-xs sm:text-sm">⋮⋮</span>
                   </div>
                   
                   <ChevronButton open={open} onClick={() => setExpanded((m) => ({ ...m, [h.id]: !open }))} />
-                  <h3 className="text-lg font-bold flex-1">{h.title}</h3>
+                  <h3 className="text-sm sm:text-lg font-bold flex-1 min-w-0 truncate">{h.title}</h3>
                   <Tag>{AudienceText[h.audience]}</Tag>
                   
                   {/* Order indicator */}
-                  <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full font-mono">
+                  <span className="hidden sm:inline-flex text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full font-mono">
                     #{h.order}
                   </span>
                   
-                  <button className="ml-2 h-8 w-8 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors" title="Sửa header" onClick={() => setEditHeader(h)}>
-                    <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
+                  <button className="ml-1 sm:ml-2 h-7 w-7 sm:h-8 sm:w-8 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors touch-manipulation" title="Sửa header" onClick={() => setEditHeader(h)}>
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
                   </button>
-                  <button className="h-8 w-8 grid place-items-center rounded-md bg-cyan-600 text-white hover:bg-cyan-700 transition-colors" title="Thêm sub-header" onClick={() => setCreateUnder(h)}>
-                    <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
+                  <button className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center rounded-md bg-cyan-600 text-white hover:bg-cyan-700 transition-colors touch-manipulation" title="Thêm sub-header" onClick={() => setCreateUnder(h)}>
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4"><path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/></svg>
                   </button>
                   <button
-                    className="h-8 w-8 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors"
+                    className="h-7 w-7 sm:h-8 sm:w-8 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors touch-manipulation"
                     title="Xóa header"
                     onClick={()=>setConfirmDelHeader(h)}
                   >
-                    <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
                   </button>
                 </div>
 
                 {open && (
-                  <div className="px-6 pb-4 space-y-2">
+                  <div className="px-3 sm:px-6 pb-3 sm:pb-4 space-y-2">
                   {h.subs.sort((a,b)=>a.order-b.order).map((s)=>{
                     const isSubBeingDragged = draggedSub?.subId === s.id;
                     const isSubDragTarget = dragOverSub?.subId === s.id && dragOverSub?.headerId === h.id;
@@ -541,7 +541,7 @@ const KhoaPageManagement: React.FC = () => {
                     return (
                     <div 
                       key={s.id} 
-                      className={`flex items-center py-3 px-3 rounded-lg transition-all duration-200 ${
+                      className={`flex items-center py-2.5 sm:py-3 px-2.5 sm:px-3 rounded-lg transition-all duration-200 ${
                         isSubBeingDragged ? 'opacity-40 scale-95 shadow-lg bg-gray-100' : 'hover:bg-gray-50'
                       } ${
                         isSubDragTarget ? 'ring-2 ring-blue-500 ring-opacity-50 bg-blue-50' : ''
@@ -554,30 +554,30 @@ const KhoaPageManagement: React.FC = () => {
                       onDrop={(e) => handleSubDrop(e, h.id, s.id)}
                     >
                       {/* Enhanced drag handle for sub-headers */}
-                      <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors mr-2" title="Kéo để sắp xếp lại thứ tự">
-                        <span>⋮⋮</span>
+                      <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1 rounded hover:bg-gray-200 transition-colors mr-1.5 sm:mr-2 touch-manipulation" title="Kéo để sắp xếp lại thứ tự">
+                        <span className="text-xs">⋮⋮</span>
                       </div>
                       
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                       {/* icon by kind */}
                       {s.kind === "thong-bao" ? (
-                        <span className="shrink-0 text-blue-600" title="Thông báo">🔔</span>
+                        <span className="shrink-0 text-blue-600 text-sm sm:text-base" title="Thông báo">🔔</span>
                       ) : s.kind === "nop-file" ? (
-                        <span className="shrink-0 text-orange-600" title="Nộp file">📤</span>
+                        <span className="shrink-0 text-orange-600 text-sm sm:text-base" title="Nộp file">📤</span>
                       ) : s.kind === "file" ? (
-                        <span className="shrink-0 text-green-600" title="File tải xuống">📎</span>
+                        <span className="shrink-0 text-green-600 text-sm sm:text-base" title="File tải xuống">📎</span>
                       ) : (
-                        <span className="shrink-0 w-4 grid place-items-center text-gray-400" aria-hidden title="Mục">•</span>
+                        <span className="shrink-0 w-3 sm:w-4 grid place-items-center text-gray-400 text-xs sm:text-sm" aria-hidden title="Mục">•</span>
                       )}
 
                       {/* label */}
                       {(s.kind === "van-ban" || s.kind === "thuong") ? (
-                        <span className="text-gray-900 whitespace-pre-line">
+                        <span className="text-xs sm:text-sm text-gray-900 whitespace-pre-line line-clamp-2">
                           {htmlToTextWithBreaks(s.content || s.title) || "(Nội dung trống)"}
                         </span>
                       ) : (
                         <button
-                          className="truncate text-left text-gray-900 hover:underline"
+                          className="truncate text-left text-xs sm:text-sm text-gray-900 hover:underline touch-manipulation"
                           onClick={() => gotoSub(h, s)}
                         >
                           {s.title}
@@ -586,13 +586,13 @@ const KhoaPageManagement: React.FC = () => {
                     </div>
 
                       {/* right meta & actions */}
-                      <div className="ml-4 flex items-center gap-3 shrink-0">
-                        {/* Order indicator */}
-                        <span className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full font-mono">
+                      <div className="ml-2 sm:ml-4 flex items-center gap-1.5 sm:gap-3 shrink-0 flex-wrap">
+                        {/* Order indicator - hide on mobile */}
+                        <span className="hidden sm:inline-flex text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full font-mono">
                           #{s.order}
                         </span>
                         
-                        <span className="inline-flex rounded-full bg-gray-100 text-gray-700 px-2.5 py-0.5 text-xs font-medium">
+                        <span className="hidden sm:inline-flex rounded-full bg-gray-100 text-gray-700 px-2.5 py-0.5 text-xs font-medium">
                           {{
                             "thuong": "Thường",
                             "thong-bao": "Thông báo",
@@ -603,24 +603,24 @@ const KhoaPageManagement: React.FC = () => {
                         </span>
 
                         {s.kind === "nop-file" && (
-                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                          <span className="text-[10px] sm:text-xs text-gray-500 whitespace-nowrap">
                             {s.startAt ? `${dayjs(s.startAt).format("DD/MM")}` : "?"} - {s.endAt ? `${dayjs(s.endAt).format("DD/MM")}` : "?"}
                           </span>
                         )}
 
                         <button
-                          className="h-7 w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                          className="h-6 w-6 sm:h-7 sm:w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors touch-manipulation"
                           title="Sửa sub-header"
                           onClick={()=>setEditSub({ headerId: h.id, sub: s })}
                         >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/></svg>
                         </button>
                         <button
-                          className="h-7 w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors"
+                          className="h-6 w-6 sm:h-7 sm:w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 transition-colors touch-manipulation"
                           title="Xóa"
                           onClick={()=>setConfirmDelSub({ header: h, sub: s })}
                         >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
                         </button>
                       </div>
                     </div>
@@ -632,7 +632,7 @@ const KhoaPageManagement: React.FC = () => {
           })}
           
           {filtered.length === 0 && !loading && (
-            <div className="py-12">
+            <div className="py-8 sm:py-12">
               <EmptyState
                 icon={data.length === 0 ? "📄" : "🔍"}
                 title={data.length === 0 ? "Chưa có nội dung trang" : "Không tìm thấy kết quả"}

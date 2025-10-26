@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Modal from "../../../util/Modal";
 import { apiClient } from "../../../utils/api";
 import { useToast } from "../../../components/UI/Toast";
+import Pagination from "../../../components/UI/Pagination";
 
 interface Request {
   _id: string;
@@ -209,28 +210,11 @@ const GVRequestsDialog: React.FC<Props> = ({ open, onClose }) => {
           </div>
         )}
 
-        {/* Pagination */}
-        {pageCount > 1 && (
-          <div className="flex items-center justify-center gap-2 pt-4">
-            <button
-              className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-              disabled={page === 1}
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-            >
-              ‹
-            </button>
-            <span className="text-sm text-gray-700">
-              <span className="font-semibold">{page}</span> / {pageCount}
-            </span>
-            <button
-              className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40"
-              disabled={page === pageCount}
-              onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-            >
-              ›
-            </button>
-          </div>
-        )}
+        <Pagination
+          currentPage={page}
+          totalPages={pageCount}
+          onPageChange={setPage}
+        />
       </div>
     </Modal>
   );

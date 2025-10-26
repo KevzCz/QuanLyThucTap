@@ -16,7 +16,8 @@ router.get('/teacher/managed', authGV, async (req, res) => {
     // Find the teacher's profile
     const giangVien = await GiangVien.findOne({ account: req.account._id })
       .populate('account', 'name email')
-      .populate('internshipSubject', 'id title');
+      .populate('internshipSubject', 'id title')
+      .lean();
 
     if (!giangVien) {
       return res.json({
@@ -34,7 +35,7 @@ router.get('/teacher/managed', authGV, async (req, res) => {
     // Find the page structure for this subject
     const pageStructure = await PageHeader.findOne({
       subjectId: giangVien.internshipSubject?.id || giangVien.internshipSubject?._id
-    });
+    }).lean();
 
     const response = {
       success: true,
@@ -54,7 +55,7 @@ router.get('/teacher/managed', authGV, async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error('Error getting teacher page structure:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res.status(500).json({ success: false, error: 'Lỗi server' });
   }
 });
 
@@ -64,10 +65,26 @@ router.post('/teacher/subjects/:subjectId/headers', authGV, async (req, res) => 
     const { subjectId } = req.params;
     const { title, order, audience } = req.body;
 
+    // Validate title
+    if (!title || title.length < 2 || title.length > 200) {
+      return res.status(400).json({ success: false, error: 'Tiêu đề phải từ 2 đến 200 ký tự' });
+    }
+
+    // Validate order
+    if (order === undefined || !Number.isInteger(Number(order)) || Number(order) < 0) {
+      return res.status(400).json({ success: false, error: 'Thứ tự phải là số nguyên không âm' });
+    }
+
+    // Validate audience
+    const validAudiences = ['tat-ca', 'sinh-vien', 'giang-vien'];
+    if (!audience || !validAudiences.includes(audience)) {
+      return res.status(400).json({ success: false, error: 'Đối tượng không hợp lệ' });
+    }
+
     // Verify teacher manages this subject
     const subjectDoc = await InternshipSubject.findOne({ id: subjectId });
     if (!subjectDoc) {
-      return res.status(404).json({ success: false, error: 'Subject not found' });
+      return res.status(404).json({ success: false, error: 'Không tìm thấy môn thực tập' });
     }
 
     const giangVien = await GiangVien.findOne({ 
@@ -76,7 +93,7 @@ router.post('/teacher/subjects/:subjectId/headers', authGV, async (req, res) => 
     });
 
     if (!giangVien) {
-      return res.status(403).json({ success: false, error: 'You do not manage this subject' });
+      return res.status(403).json({ success: false, error: 'Bạn không quản lý môn thực tập này' });
     }
 
     // Find or create page structure
@@ -91,7 +108,7 @@ router.post('/teacher/subjects/:subjectId/headers', authGV, async (req, res) => 
     const newHeader = {
       _id: new mongoose.Types.ObjectId(),
       title,
-      order,
+      order: Number(order),
       audience,
       subs: []
     };
@@ -109,7 +126,7 @@ router.post('/teacher/subjects/:subjectId/headers', authGV, async (req, res) => 
 
   } catch (error) {
     console.error('Error creating header:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res.status(500).json({ success: false, error: 'Lỗi server' });
   }
 });
 
@@ -119,26 +136,42 @@ router.put('/teacher/headers/:headerId', authGV, async (req, res) => {
     const { headerId } = req.params;
     const { title, order, audience } = req.body;
 
+    // Validate title if provided
+    if (title && (title.length < 2 || title.length > 200)) {
+      return res.status(400).json({ success: false, error: 'Tiêu đề phải từ 2 đến 200 ký tự' });
+    }
+
+    // Validate order if provided
+    if (order !== undefined && (!Number.isInteger(Number(order)) || Number(order) < 0)) {
+      return res.status(400).json({ success: false, error: 'Thứ tự phải là số nguyên không âm' });
+    }
+
+    // Validate audience if provided
+    const validAudiences = ['tat-ca', 'sinh-vien', 'giang-vien'];
+    if (audience && !validAudiences.includes(audience)) {
+      return res.status(400).json({ success: false, error: 'Đối tượng không hợp lệ' });
+    }
+
     const pageStructure = await PageHeader.findOne({
       'headers._id': headerId
     });
 
     if (!pageStructure) {
-      return res.status(404).json({ success: false, error: 'Header not found' });
+      return res.status(404).json({ success: false, error: 'Không tìm thấy header' });
     }
 
     const header = pageStructure.headers.id(headerId);
     if (header) {
-      header.title = title;
-      header.order = order;
-      header.audience = audience;
+      if (title) header.title = title;
+      if (order !== undefined) header.order = Number(order);
+      if (audience) header.audience = audience;
       await pageStructure.save();
     }
 
     res.json({ success: true });
   } catch (error) {
     console.error('Error updating header:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res.status(500).json({ success: false, error: 'Lỗi server' });
   }
 });
 
@@ -152,7 +185,7 @@ router.delete('/teacher/headers/:headerId', authGV, async (req, res) => {
     });
 
     if (!pageStructure) {
-      return res.status(404).json({ success: false, error: 'Header not found' });
+      return res.status(404).json({ success: false, error: 'Không tìm thấy header' });
     }
 
     pageStructure.headers.id(headerId).remove();
@@ -161,7 +194,7 @@ router.delete('/teacher/headers/:headerId', authGV, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting header:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res.status(500).json({ success: false, error: 'Lỗi server' });
   }
 });
 
@@ -171,24 +204,53 @@ router.post('/teacher/headers/:headerId/subs', authGV, async (req, res) => {
     const { headerId } = req.params;
     const { title, content, order, kind, audience, startAt, endAt, fileUrl, fileName } = req.body;
 
+    // Validate title
+    if (!title || title.length < 2 || title.length > 200) {
+      return res.status(400).json({ success: false, error: 'Tiêu đề phải từ 2 đến 200 ký tự' });
+    }
+
+    // Validate order
+    if (order === undefined || !Number.isInteger(Number(order)) || Number(order) < 0) {
+      return res.status(400).json({ success: false, error: 'Thứ tự phải là số nguyên không âm' });
+    }
+
+    // Validate kind
+    const validKinds = ['van-ban', 'nop-file', 'duong-dan'];
+    if (!kind || !validKinds.includes(kind)) {
+      return res.status(400).json({ success: false, error: 'Loại nội dung không hợp lệ' });
+    }
+
+    // Validate audience
+    const validAudiences = ['tat-ca', 'sinh-vien', 'giang-vien'];
+    if (!audience || !validAudiences.includes(audience)) {
+      return res.status(400).json({ success: false, error: 'Đối tượng không hợp lệ' });
+    }
+
+    // Validate dates for nop-file kind
+    if (kind === 'nop-file') {
+      if (startAt && endAt && new Date(startAt) >= new Date(endAt)) {
+        return res.status(400).json({ success: false, error: 'Ngày kết thúc phải sau ngày bắt đầu' });
+      }
+    }
+
     const pageStructure = await PageHeader.findOne({
       'headers._id': headerId
     });
 
     if (!pageStructure) {
-      return res.status(404).json({ success: false, error: 'Header not found' });
+      return res.status(404).json({ success: false, error: 'Không tìm thấy header' });
     }
 
     const header = pageStructure.headers.id(headerId);
     if (!header) {
-      return res.status(404).json({ success: false, error: 'Header not found' });
+      return res.status(404).json({ success: false, error: 'Không tìm thấy header' });
     }
 
     const newSub = {
       _id: new mongoose.Types.ObjectId(),
       title,
       content,
-      order,
+      order: Number(order),
       kind,
       audience,
       startAt,
@@ -207,7 +269,7 @@ router.post('/teacher/headers/:headerId/subs', authGV, async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating sub-header:', error);
-    res.status(500).json({ success: false, error: 'Internal server error' });
+    res.status(500).json({ success: false, error: 'Lỗi server' });
   }
 });
 

@@ -10,9 +10,16 @@ import UserProfileDialog from "../UserProfileDialog";
 const BellIcon = () => (
   <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12 2a6 6 0 0 0-6 6v3.28l-1.62 3.24A1 1 0 0 0 5.28 16h13.44a1 1 0 0 0 .9-1.48L18 11.28V8a6 6 0 0 0-6-6zm0 20a3 3 0 0 0 2.995-2.824L15 19h-6a3 3 0 0 0 2.824 2.995L12 22z"/></svg>
 );
-const UserIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-5 0-9 2.5-9 5.5V22h18v-2.5C21 16.5 17 14 12 14z"/></svg>
+const LogoutIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
 );
+const MenuIcon = () => (
+  <svg viewBox="0 0 24 24" className="h-6 w-6"><path fill="currentColor" d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+);
+
+interface HeaderProps {
+  onMenuToggle?: () => void;
+}
 
 
 function roleName(role: string) {
@@ -91,7 +98,7 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
   return { breadcrumb: "Trang chủ", title: "Trang chủ" };
 }
 
-const Header: React.FC = () => {
+const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const { unreadCount } = useNotifications();
@@ -118,62 +125,83 @@ const Header: React.FC = () => {
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
-      <div className="px-6 py-4 flex items-center justify-between">
-        <div>
-          <div className="text-sm text-gray-500">{roleName(user.role)} / {breadcrumb}</div>
-          <h1 className="text-[15px] font-semibold text-gray-800 mt-1">{title}</h1>
+      <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
+        {/* Left section with menu button and page title */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          {/* Mobile menu button */}
+          <button
+            onClick={onMenuToggle}
+            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-600 flex-shrink-0"
+            aria-label="Toggle menu"
+          >
+            <MenuIcon />
+          </button>
+
+          {/* Page info */}
+          <div className="min-w-0 flex-1">
+            <div className="text-xs sm:text-sm text-gray-500 truncate">
+              <span className="hidden sm:inline">{roleName(user.role)} / </span>
+              {breadcrumb}
+            </div>
+            <h1 className="text-sm sm:text-[15px] font-semibold text-gray-800 mt-0.5 sm:mt-1 truncate">{title}</h1>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {/* Notification Button with Dropdown */}
+        {/* Right section with actions */}
+        <div className="flex items-center gap-1.5 sm:gap-2 md:gap-3 flex-shrink-0">
+          {/* Notification Button */}
           <div className="relative">
             <button 
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative h-9 w-9 rounded-md border border-gray-300 bg-white text-gray-700 flex items-center justify-center hover:bg-gray-50" 
+              className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-md border border-gray-300 bg-white text-gray-700 flex items-center justify-center hover:bg-gray-50 touch-manipulation" 
               title="Thông báo"
             >
               <BellIcon />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 rounded-full bg-red-500 text-white text-[10px] sm:text-xs font-bold flex items-center justify-center">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
             </button>
 
-            {/* Notification Dropdown Panel */}
             <NotificationListDialog 
               open={showNotifications} 
               onClose={() => setShowNotifications(false)} 
             />
           </div>
 
-          <GlobalSearch onUserProfileClick={handleUserProfileClick} />
+          {/* Global Search - hidden on small screens */}
+          <div className="hidden sm:block">
+            <GlobalSearch onUserProfileClick={handleUserProfileClick} />
+          </div>
 
-          <div className="flex items-center gap-2">
+          {/* User profile and logout */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            {/* Profile button */}
             <button
               onClick={() => setShowProfile(true)}
-              className="inline-flex items-center gap-2 px-3 h-9 rounded-full border border-gray-300 bg-white hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 h-8 sm:h-9 rounded-full border border-gray-300 bg-white hover:bg-gray-50 transition-colors touch-manipulation"
             >
-              <div className="w-6 h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold">
+              <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0">
                 {user.name.charAt(0).toUpperCase()}
               </div>
-              <span className="text-sm font-medium text-gray-800">{user.name}</span>
+              <span className="hidden md:inline text-sm font-medium text-gray-800 truncate max-w-[100px]">{user.name}</span>
             </button>
+
+            {/* Logout button */}
             <button 
               onClick={handleLogout}
-              className="inline-flex items-center gap-2 px-3 h-9 rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-50"
+              className="inline-flex items-center gap-2 px-2 sm:px-3 h-8 sm:h-9 rounded-md border border-gray-300 bg-white text-gray-800 hover:bg-gray-50 touch-manipulation"
+              title="Đăng xuất"
             >
-              <UserIcon />
-              <span className="text-sm font-medium">Đăng xuất</span>
+              <LogoutIcon />
+              <span className="hidden md:inline text-sm font-medium">Đăng xuất</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Profile Dialog */}
       <ProfileDialog open={showProfile} onClose={() => setShowProfile(false)} />
-      
-      {/* User Profile Dialog */}
       <UserProfileDialog 
         open={showUserProfile} 
         onClose={() => setShowUserProfile(false)} 

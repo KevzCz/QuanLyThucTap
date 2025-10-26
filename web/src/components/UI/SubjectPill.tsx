@@ -9,16 +9,14 @@ interface SubjectPillProps {
 const SubjectPill: React.FC<SubjectPillProps> = ({ 
   value, 
   disabled = true, 
-  className = "min-w-[220px] max-w-[320px]" 
+  className = "" 
 }) => (
-  <div className="flex-1 flex justify-center px-4">
-    <input
-      disabled={disabled}
-      value={value}
-      className={`h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center w-full ${className} ${
-        disabled ? 'cursor-not-allowed' : ''
-      }`}
-    />
+  <div 
+    className={`h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center flex items-center justify-center whitespace-nowrap ${className} ${
+      disabled ? 'cursor-not-allowed' : ''
+    }`}
+  >
+    {value}
   </div>
 );
 

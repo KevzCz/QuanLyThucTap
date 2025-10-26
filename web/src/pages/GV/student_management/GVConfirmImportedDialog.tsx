@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Modal from "../../../util/Modal";
+import Pagination from "../../../components/UI/Pagination";
 
 interface RowLite { id: string; name: string }
 
@@ -55,11 +56,11 @@ const GVConfirmImportedDialog: React.FC<Props> = ({ open, onClose, advisorName, 
           </tbody>
         </table>
 
-        <div className="flex items-center justify-center gap-2 border-t bg-white px-4 py-3">
-          <button className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>‹</button>
-          <span className="text-sm text-gray-700"><span className="font-semibold">{page}</span> / {pageCount}</span>
-          <button className="h-8 w-8 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-40" disabled={page === pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>›</button>
-        </div>
+        <Pagination
+          currentPage={page}
+          totalPages={pageCount}
+          onPageChange={setPage}
+        />
       </div>
     </Modal>
   );

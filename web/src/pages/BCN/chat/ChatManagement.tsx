@@ -354,11 +354,11 @@ const ChatManagement: React.FC = () => {
       )}
 
       {/* Tabs and Search */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center justify-between">
+        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg overflow-x-auto w-full sm:w-auto">
           <button
             onClick={() => setActiveTab("requests")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+            className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap touch-manipulation ${
               activeTab === "requests"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
@@ -368,7 +368,7 @@ const ChatManagement: React.FC = () => {
           </button>
           <button
             onClick={() => setActiveTab("conversations")}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition ${
+            className={`px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium transition whitespace-nowrap touch-manipulation ${
               activeTab === "conversations"
                 ? "bg-white text-gray-900 shadow-sm"
                 : "text-gray-600 hover:text-gray-900"
@@ -378,8 +378,8 @@ const ChatManagement: React.FC = () => {
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto">
             <span className="absolute inset-y-0 left-3 flex items-center text-gray-400">
               <svg viewBox="0 0 24 24" className="h-4 w-4">
                 <path fill="currentColor" d="M10 2a8 8 0 1 1-5.3 13.9l-3.4 3.4 1.4 1.4 3.4-3.4A8 8 0 0 1 10 2m0 2a6 6 0 1 0 0 12A6 6 0 0 0 10 4z"/>
@@ -389,13 +389,13 @@ const ChatManagement: React.FC = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Tìm kiếm..."
-              className="w-[300px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full sm:w-[300px] h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation"
             />
           </div>
           
           <button
             onClick={() => setOpenCreateChat(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base touch-manipulation whitespace-nowrap"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4">
               <path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
@@ -452,39 +452,39 @@ const ChatManagement: React.FC = () => {
               </div>
             ) : (
               filteredConversations.map((conversation) => (
-                <div key={conversation.id} className="p-4 hover:bg-gray-50 cursor-pointer"
+                <div key={conversation.id} className="p-3 sm:p-4 hover:bg-gray-50 cursor-pointer touch-manipulation"
                      onClick={() => handleOpenConversation(conversation)}>
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                      <span className="text-sm font-medium">
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs sm:text-sm font-medium">
                         {conversation.participants.find(p => p.role !== "ban-chu-nhiem")?.name.charAt(0)}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-1.5 sm:gap-2 mb-1 flex-wrap">
                         {conversation.participants.filter(p => p.role !== "ban-chu-nhiem").map(participant => (
                           <React.Fragment key={participant.id}>
-                            <span className="font-medium text-gray-900">{participant.name}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleColor[participant.role]}`}>
+                            <span className="font-medium text-gray-900 text-sm sm:text-base truncate">{participant.name}</span>
+                            <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium ${roleColor[participant.role]}`}>
                               {roleLabel[participant.role]}
                             </span>
                             {participant.isOnline && (
-                              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-green-500 rounded-full"></span>
                             )}
                           </React.Fragment>
                         ))}
                       </div>
                       {conversation.lastMessage && (
-                        <p className="text-gray-600 text-sm line-clamp-1 mb-1">
+                        <p className="text-gray-600 text-xs sm:text-sm line-clamp-1 mb-1">
                           {conversation.lastMessage.content}
                         </p>
                       )}
-                      <div className="text-xs text-gray-500">
+                      <div className="text-[10px] sm:text-xs text-gray-500">
                         {dayjs(conversation.updatedAt).fromNow()}
                       </div>
                     </div>
                     {conversation.unreadCount > 0 && (
-                      <div className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-medium">
+                      <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-[10px] sm:text-xs font-medium flex-shrink-0">
                         {conversation.unreadCount}
                       </div>
                     )}

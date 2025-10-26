@@ -16,12 +16,20 @@ router.get("/", authenticate, async (req, res) => {
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
 
+    // Validate status
+    if (status && status !== "all" && !["open", "locked"].includes(status)) {
+      return res.status(400).json({ error: "Trạng thái không hợp lệ" });
+    }
+
     const query = {};
     if (status && status !== "all") query.status = status;
-    if (search) {
+    
+    // Sanitize search input
+    if (search && typeof search === "string" && search.trim()) {
+      const sanitizedSearch = search.trim().slice(0, 100);
       query.$or = [
-        { title: new RegExp(search, "i") },
-        { id: new RegExp(search, "i") }
+        { title: new RegExp(sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") },
+        { id: new RegExp(sanitizedSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") }
       ];
     }
 
@@ -32,13 +40,20 @@ router.get("/", authenticate, async (req, res) => {
         .populate('students', 'id name email')
         .sort({ createdAt: -1 })
         .limit(limitNum)
-        .skip((pageNum - 1) * limitNum),
+        .skip((pageNum - 1) * limitNum)
+        .lean(),
       InternshipSubject.countDocuments(query)
     ]);
 
+    // Add currentStudents count (virtuals not included with .lean())
+    const subjectsWithCount = subjects.map(subject => ({
+      ...subject,
+      currentStudents: subject.students ? subject.students.length : 0
+    }));
+
     res.json({
       success: true,
-      subjects,
+      subjects: subjectsWithCount,
       pagination: {
         page: pageNum,
         pages: Math.max(1, Math.ceil(total / limitNum)),
@@ -47,7 +62,7 @@ router.get("/", authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error("Get internship subjects error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: "Lỗi server khi tải danh sách môn thực tập" });
   }
 });
 
@@ -58,17 +73,21 @@ router.get("/available-managers", ...authPDT, async (req, res) => {
     const managers = await Account.find({ 
       role: "ban-chu-nhiem", 
       status: "open" 
-    }).select('id name email');
+    }).select('id name email').lean();
 
     // Get managers already assigned to active subjects
     const assignedSubjects = await InternshipSubject.find({ 
       status: "open" 
-    }).populate('manager', 'id');
+    }).select('manager').lean();
 
-    const assignedManagerIds = assignedSubjects.map(s => s.manager.id);
+    const assignedManagerIds = assignedSubjects
+      .map(s => s.manager?.toString())
+      .filter(Boolean);
     
     // Filter out assigned managers
-    const available = managers.filter(m => !assignedManagerIds.includes(m.id));
+    const available = managers.filter(m => 
+      !assignedManagerIds.includes(m._id.toString())
+    );
 
     res.json({
       success: true,
@@ -76,7 +95,7 @@ router.get("/available-managers", ...authPDT, async (req, res) => {
     });
   } catch (error) {
     console.error("Get available managers error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: "Lỗi server khi tải danh sách ban chủ nhiệm" });
   }
 });
 
@@ -93,25 +112,74 @@ router.post("/", ...authPDT, async (req, res) => {
       managerId 
     } = req.body;
 
+    // Validate required fields
     if (!title || !maxStudents || !managerId) {
       return res.status(400).json({ error: "Tên môn, số lượng sinh viên và ban chủ nhiệm là bắt buộc" });
     }
 
+    // Validate title
+    if (typeof title !== "string" || title.trim().length < 3 || title.trim().length > 200) {
+      return res.status(400).json({ error: "Tên môn phải từ 3-200 ký tự" });
+    }
+
+    // Validate maxStudents
+    const maxStudentsNum = Number(maxStudents);
+    if (!Number.isInteger(maxStudentsNum) || maxStudentsNum < 1 || maxStudentsNum > 1000) {
+      return res.status(400).json({ error: "Số lượng sinh viên phải từ 1-1000" });
+    }
+
+    // Validate duration if provided
+    if (duration !== undefined && duration !== null) {
+      const durationNum = Number(duration);
+      if (!Number.isInteger(durationNum) || durationNum < 1 || durationNum > 52) {
+        return res.status(400).json({ error: "Thời gian phải từ 1-52 tuần" });
+      }
+    }
+
+    // Validate dates if provided
+    if (registrationStartDate && registrationEndDate) {
+      const startDate = new Date(registrationStartDate);
+      const endDate = new Date(registrationEndDate);
+      
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return res.status(400).json({ error: "Ngày không hợp lệ" });
+      }
+      
+      if (endDate <= startDate) {
+        return res.status(400).json({ error: "Ngày kết thúc phải sau ngày bắt đầu" });
+      }
+    }
+
     // Find manager account
-    const manager = await Account.findOne({ id: managerId, role: "ban-chu-nhiem" });
+    const manager = await Account.findOne({ 
+      id: managerId, 
+      role: "ban-chu-nhiem",
+      status: "open"
+    }).lean();
+    
     if (!manager) {
-      return res.status(400).json({ error: "Không tìm thấy ban chủ nhiệm" });
+      return res.status(400).json({ error: "Không tìm thấy ban chủ nhiệm hoặc tài khoản đã bị khóa" });
+    }
+
+    // Check if manager already manages an active subject
+    const existingSubject = await InternshipSubject.findOne({
+      manager: manager._id,
+      status: "open"
+    }).lean();
+
+    if (existingSubject) {
+      return res.status(400).json({ error: "Ban chủ nhiệm này đã quản lý một môn thực tập đang mở" });
     }
 
     const subjectData = {
-      title,
-      maxStudents,
+      title: title.trim(),
+      maxStudents: maxStudentsNum,
       manager: manager._id
     };
 
     // Add optional fields if provided
-    if (description) subjectData.description = description;
-    if (duration) subjectData.duration = duration;
+    if (description && description.trim()) subjectData.description = description.trim();
+    if (duration) subjectData.duration = Number(duration);
     if (registrationStartDate) subjectData.registrationStartDate = new Date(registrationStartDate);
     if (registrationEndDate) subjectData.registrationEndDate = new Date(registrationEndDate);
 
@@ -359,7 +427,8 @@ router.get("/:id", authenticate, async (req, res) => {
 router.get("/bcn/managed", ...authBCN, async (req, res) => {
   try {
     const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject');
+      .populate('internshipSubject')
+      .lean();
 
     if (!bcnProfile || !bcnProfile.internshipSubject) {
       return res.json({ success: true, subject: null });
@@ -368,33 +437,40 @@ router.get("/bcn/managed", ...authBCN, async (req, res) => {
     const subject = await InternshipSubject.findById(bcnProfile.internshipSubject)
       .populate('manager', 'id name email')
       .populate('lecturers', 'id name email')
-      .populate('students', 'id name email');
+      .populate('students', 'id name email')
+      .lean();
 
     if (!subject) {
       return res.json({ success: true, subject: null });
     }
 
-    const lecturerDetails = await Promise.all(
-      subject.lecturers.map(async (lecturer) => {
-        const gvProfile = await GiangVien.findOne({ account: lecturer._id })
-          .populate('managedStudents', 'id name email');
-        return {
-          ...lecturer.toObject(),
-          managedStudents: gvProfile?.managedStudents || []
-        };
-      })
-    );
+    // Fetch lecturer details with their managed students efficiently
+    const lecturerIds = subject.lecturers.map(l => l._id);
+    const gvProfiles = await GiangVien.find({ account: { $in: lecturerIds } })
+      .populate('managedStudents', 'id name email')
+      .lean();
+
+    const gvMap = new Map(gvProfiles.map(gv => [gv.account.toString(), gv]));
+
+    const lecturerDetails = subject.lecturers.map(lecturer => {
+      const gvProfile = gvMap.get(lecturer._id.toString());
+      return {
+        ...lecturer,
+        managedStudents: gvProfile?.managedStudents || []
+      };
+    });
 
     res.json({
       success: true,
       subject: {
-        ...subject.toObject(),
+        ...subject,
+        currentStudents: subject.students ? subject.students.length : 0,
         lecturers: lecturerDetails
       }
     });
   } catch (error) {
     console.error("Get BCN managed subject error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: "Lỗi server khi tải thông tin môn thực tập" });
   }
 });
 
@@ -404,8 +480,9 @@ router.post("/:id/lecturers", ...authBCN, async (req, res) => {
   try {
     const { lecturerId } = req.body;
 
-    if (!lecturerId) {
-      return res.status(400).json({ error: "Lecturer ID is required" });
+    // Validate input
+    if (!lecturerId || typeof lecturerId !== "string" || lecturerId.trim().length < 3) {
+      return res.status(400).json({ error: "ID giảng viên không hợp lệ" });
     }
 
     const subject = await InternshipSubject.findOne({ id: req.params.id });
@@ -417,19 +494,25 @@ router.post("/:id/lecturers", ...authBCN, async (req, res) => {
     const bcnProfile = await BanChuNhiem.findOne({ 
       account: req.account._id,
       internshipSubject: subject._id 
-    });
+    }).lean();
+    
     if (!bcnProfile) {
       return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
     }
 
     // Find lecturer account
-    const lecturer = await Account.findOne({ id: lecturerId, role: "giang-vien" });
+    const lecturer = await Account.findOne({ 
+      id: lecturerId.trim(), 
+      role: "giang-vien",
+      status: "open"
+    }).lean();
+    
     if (!lecturer) {
-      return res.status(400).json({ error: "Không tìm thấy giảng viên" });
+      return res.status(400).json({ error: "Không tìm thấy giảng viên hoặc tài khoản đã bị khóa" });
     }
 
     // Check if lecturer already in subject
-    if (subject.lecturers.includes(lecturer._id)) {
+    if (subject.lecturers.some(l => l.toString() === lecturer._id.toString())) {
       return res.status(400).json({ error: "Giảng viên đã tham gia môn thực tập này" });
     }
 
@@ -537,8 +620,14 @@ router.post("/:id/students", ...authBCN, async (req, res) => {
   try {
     const { studentId, supervisorId } = req.body;
 
-    if (!studentId) {
-      return res.status(400).json({ error: "Student ID is required" });
+    // Validate student ID
+    if (!studentId || typeof studentId !== "string" || studentId.trim().length < 3) {
+      return res.status(400).json({ error: "ID sinh viên không hợp lệ" });
+    }
+
+    // Validate supervisor ID if provided
+    if (supervisorId && (typeof supervisorId !== "string" || supervisorId.trim().length < 3)) {
+      return res.status(400).json({ error: "ID giảng viên hướng dẫn không hợp lệ" });
     }
 
     const subject = await InternshipSubject.findOne({ id: req.params.id });
@@ -550,7 +639,8 @@ router.post("/:id/students", ...authBCN, async (req, res) => {
     const bcnProfile = await BanChuNhiem.findOne({ 
       account: req.account._id,
       internshipSubject: subject._id 
-    });
+    }).lean();
+    
     if (!bcnProfile) {
       return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
     }
@@ -561,25 +651,45 @@ router.post("/:id/students", ...authBCN, async (req, res) => {
     }
 
     // Find student account
-    const student = await Account.findOne({ id: studentId, role: "sinh-vien" });
+    const student = await Account.findOne({ 
+      id: studentId.trim(), 
+      role: "sinh-vien",
+      status: "open"
+    }).lean();
+    
     if (!student) {
-      return res.status(400).json({ error: "Không tìm thấy sinh viên" });
+      return res.status(400).json({ error: "Không tìm thấy sinh viên hoặc tài khoản đã bị khóa" });
     }
 
     // Check if student already in subject
-    if (subject.students.includes(student._id)) {
+    if (subject.students.some(s => s.toString() === student._id.toString())) {
       return res.status(400).json({ error: "Sinh viên đã tham gia môn thực tập này" });
+    }
+
+    // Check if student already in another subject
+    const existingEnrollment = await SinhVien.findOne({
+      account: student._id,
+      internshipSubject: { $ne: null }
+    }).lean();
+
+    if (existingEnrollment) {
+      return res.status(400).json({ error: "Sinh viên đã tham gia môn thực tập khác" });
     }
 
     let supervisor = null;
     if (supervisorId) {
-      supervisor = await Account.findOne({ id: supervisorId, role: "giang-vien" });
+      supervisor = await Account.findOne({ 
+        id: supervisorId.trim(), 
+        role: "giang-vien",
+        status: "open"
+      }).lean();
+      
       if (!supervisor) {
-        return res.status(400).json({ error: "Không tìm thấy giảng viên hướng dẫn" });
+        return res.status(400).json({ error: "Không tìm thấy giảng viên hướng dẫn hoặc tài khoản đã bị khóa" });
       }
       
       // Verify supervisor is in this subject
-      if (!subject.lecturers.includes(supervisor._id)) {
+      if (!subject.lecturers.some(l => l.toString() === supervisor._id.toString())) {
         return res.status(400).json({ error: "Giảng viên hướng dẫn chưa tham gia môn thực tập này" });
       }
     }
@@ -931,7 +1041,7 @@ router.get("/student/assigned-instructor", authenticate, async (req, res) => {
     res.json(response);
   } catch (error) {
     console.error("Get student assigned instructor error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ success: false, error: "Lỗi server" });
   }
 });
 
@@ -944,28 +1054,31 @@ router.get("/student/available", authenticate, async (req, res) => {
 
     // Check if student is already registered
     const studentProfile = await SinhVien.findOne({ account: req.account._id })
-      .populate('internshipSubject', 'id title');
+      .populate('internshipSubject', 'id title')
+      .lean();
 
     const subjects = await InternshipSubject.find({ status: 'open' })
       .populate('manager', 'id name email')
       .populate('lecturers', 'id name email')
       .populate('students', 'id name email')
-      .sort({ registrationStartDate: 1 });
+      .sort({ registrationStartDate: 1 })
+      .lean();
 
     // Transform data for frontend compatibility
     const transformedSubjects = subjects.map(subject => ({
-      ...subject.toObject(),
-      name: subject.title, // Legacy compatibility
-      code: subject.id,    // Legacy compatibility
-      bcnManager: {        // Legacy compatibility
+      ...subject,
+      currentStudents: subject.students ? subject.students.length : 0,
+      name: subject.title,
+      code: subject.id,
+      bcnManager: {
         id: subject.manager.id,
         name: subject.manager.name
       },
-      instructors: subject.lecturers.map(lecturer => ({ // Legacy compatibility
+      instructors: subject.lecturers.map(lecturer => ({
         id: lecturer.id,
         name: lecturer.name,
-        studentCount: 0, // Will be calculated if needed
-        maxStudents: 10  // Default value
+        studentCount: 0,
+        maxStudents: 10
       }))
     }));
 
@@ -980,7 +1093,7 @@ router.get("/student/available", authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error("Get student subjects error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ success: false, error: "Lỗi server" });
   }
 });
 
@@ -992,8 +1105,14 @@ router.post("/student/register", authenticate, async (req, res) => {
     }
 
     const { subjectId } = req.body;
-    if (!subjectId) {
-      return res.status(400).json({ error: 'Subject ID is required' });
+    
+    // Validate subjectId
+    if (!subjectId || typeof subjectId !== 'string' || subjectId.trim().length === 0) {
+      return res.status(400).json({ error: 'Mã môn thực tập là bắt buộc' });
+    }
+
+    if (subjectId.length > 20) {
+      return res.status(400).json({ error: 'Mã môn thực tập không hợp lệ' });
     }
 
     // Check if student is already registered for any subject
@@ -1003,21 +1122,31 @@ router.post("/student/register", authenticate, async (req, res) => {
     }
 
     // Find the subject
-    const subject = await InternshipSubject.findOne({ id: subjectId });
+    const subject = await InternshipSubject.findOne({ id: subjectId.trim() });
     if (!subject) {
       return res.status(404).json({ error: 'Không tìm thấy môn thực tập' });
     }
 
+    // Check if subject is open
+    if (subject.status !== 'open') {
+      return res.status(400).json({ error: 'Môn thực tập không mở đăng ký' });
+    }
+
     // Check registration status
     const now = new Date();
-    if (now < new Date(subject.registrationStartDate)) {
+    if (subject.registrationStartDate && now < new Date(subject.registrationStartDate)) {
       return res.status(400).json({ error: 'Chưa đến thời gian đăng ký' });
     }
-    if (now > new Date(subject.registrationEndDate)) {
+    if (subject.registrationEndDate && now > new Date(subject.registrationEndDate)) {
       return res.status(400).json({ error: 'Đã hết thời gian đăng ký' });
     }
     if (subject.currentStudents >= subject.maxStudents) {
       return res.status(400).json({ error: 'Môn thực tập đã đầy' });
+    }
+
+    // Check if student is already in the subject's students array
+    if (subject.students.some(s => s.toString() === req.account._id.toString())) {
+      return res.status(400).json({ error: 'Bạn đã đăng ký môn thực tập này' });
     }
 
     // Register student

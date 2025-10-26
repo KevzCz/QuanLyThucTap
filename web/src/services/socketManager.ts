@@ -44,16 +44,13 @@ class SocketManager {
 
   connect(serverUrl: string = 'http://localhost:3001') {
     if (this.socket && this.socket.connected) {
-      console.log('🔌 Socket already connected, reusing existing connection');
       return this.socket;
     }
 
     if (this.socket) {
-      console.log('🔌 Disconnecting old socket before reconnecting');
       this.socket.disconnect();
     }
 
-    console.log('🔌 Creating new socket connection');
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       withCredentials: true

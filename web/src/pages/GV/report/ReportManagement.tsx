@@ -215,8 +215,8 @@ setReports(prev => prev.map(r =>
     return (
       <div className="flex items-center justify-center py-12">
         <div className="flex items-center gap-2">
-          <div className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
-          <span className="text-gray-500">Đang tải danh sách báo cáo...</span>
+          <div className="animate-spin h-4 w-4 sm:h-5 sm:w-5 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+          <span className="text-gray-500 text-xs sm:text-sm">Đang tải danh sách báo cáo...</span>
         </div>
       </div>
     );
@@ -224,13 +224,13 @@ setReports(prev => prev.map(r =>
 
   if (error || !currentLecturer) {
     return (
-      <div className="text-center py-12">
-        <div className="text-4xl mb-4">📋</div>
-        <div className="text-gray-700 font-medium mb-2">Không thể tải báo cáo</div>
-        <div className="text-gray-500 text-sm mb-4">{error}</div>
+      <div className="text-center py-12 px-4">
+        <div className="text-3xl sm:text-4xl mb-4">📋</div>
+        <div className="text-gray-700 font-medium mb-2 text-sm sm:text-base">Không thể tải báo cáo</div>
+        <div className="text-gray-500 text-xs sm:text-sm mb-4">{error}</div>
         <button
           onClick={loadReports}
-          className="text-blue-600 hover:text-blue-700 text-sm underline"
+          className="text-blue-600 hover:text-blue-700 text-xs sm:text-sm underline touch-manipulation"
         >
           Thử lại
         </button>
@@ -239,160 +239,148 @@ setReports(prev => prev.map(r =>
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Header and filters */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1">
-          <SearchInput
-            value={query}
-            onChange={(value) => {
-              setQuery(value);
-              setPage(1);
-            }}
-            placeholder="Tìm kiếm báo cáo..."
-            width="w-[280px]"
-          />
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 flex-wrap sm:items-center">
+        <SearchInput
+          value={query}
+          onChange={(value) => {
+            setQuery(value);
+            setPage(1);
+          }}
+          placeholder="Tìm kiếm báo cáo..."
+          width="w-full sm:w-[280px]"
+        />
 
-          <div className="flex gap-2">
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value as "all" | TeacherReport["status"]);
-                setPage(1);
-              }}
-              className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[140px]"
-            >
-              <option value="all">Tất cả trạng thái</option>
-              {Object.entries(StatusLabels).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value as "all" | TeacherReport["status"]);
+            setPage(1);
+          }}
+          className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-xs sm:text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none w-full sm:w-auto sm:min-w-[140px] touch-manipulation"
+        >
+          <option value="all">Tất cả trạng thái</option>
+          {Object.entries(StatusLabels).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
 
-            <select
-              value={typeFilter}
-              onChange={(e) => {
-                setTypeFilter(e.target.value as "all" | TeacherReport["reportType"]);
-                setPage(1);
-              }}
-              className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[140px]"
-            >
-              <option value="all">Tất cả loại</option>
-              {Object.entries(ReportTypeLabels).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-          </div>
+        <select
+          value={typeFilter}
+          onChange={(e) => {
+            setTypeFilter(e.target.value as "all" | TeacherReport["reportType"]);
+            setPage(1);
+          }}
+          className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-xs sm:text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none w-full sm:w-auto sm:min-w-[140px] touch-manipulation"
+        >
+          <option value="all">Tất cả loại</option>
+          {Object.entries(ReportTypeLabels).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+
+        <div className="w-full sm:w-auto whitespace-nowrap h-10 rounded-full border border-gray-300 bg-white px-4 sm:px-6 text-xs sm:text-sm text-gray-700 text-center flex items-center justify-center">
+          {currentLecturer.subjectTitle || 'Chưa có môn thực tập'} ({currentLecturer.name})
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="order-2 sm:order-1">
-            <input
-              disabled
-              value={`${currentLecturer.subjectTitle || 'Chưa có môn thực tập'} (${currentLecturer.name})`}
-              className="h-10 rounded-full border border-gray-300 bg-white px-6 text-sm text-gray-700 text-center min-w-[280px] max-w-[400px] w-full"
-            />
-          </div>
-
-          <div className="order-1 sm:order-2">
-            <button
-              onClick={() => setOpenCreate(true)}
-              className="inline-flex items-center gap-2 rounded-md bg-emerald-600 px-4 h-10 text-white text-sm hover:bg-emerald-700"
-              disabled={!currentLecturer}
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4">
-                <path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z"/>
-              </svg>
-              Tạo báo cáo
-            </button>
-          </div>
-        </div>
+        <button
+          onClick={() => setOpenCreate(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 h-10 text-white text-xs sm:text-sm hover:bg-emerald-700 w-full sm:w-auto sm:ml-auto touch-manipulation"
+          disabled={!currentLecturer}
+        >
+          <span className="text-base sm:text-lg">+</span>
+          Tạo báo cáo
+        </button>
       </div>
 
       {/* Reports table */}
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr className="text-left text-xs font-semibold text-gray-600">
-              <th className="px-4 py-3">Tiêu đề</th>
-              <th className="px-4 py-3 w-[120px]">Loại</th>
-              <th className="px-4 py-3 w-[120px]">Trạng thái</th>
-              <th className="px-4 py-3 w-[140px]">Ngày tạo</th>
-              <th className="px-4 py-3 w-[140px]">Thao tác</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {current.map((report) => (
-              <tr key={report._id} className="hover:bg-gray-50/50">
-                <td className="px-4 py-3">
-                  <div className="font-medium text-gray-900">{report.title}</div>
-                  <div className="text-xs text-gray-500 mt-1 line-clamp-2">
-                    {report.content ? report.content.replace(/<[^>]*>/g, '').slice(0, 100) + '...' : 'Không có nội dung'}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-2 py-1 text-xs font-medium">
-                    {ReportTypeLabels[report.reportType] || "Không xác định"}
-                  </span>
-                </td>
-                                <td className="px-4 py-3">
-                                  <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ring-1 ring-inset ${StatusColors[report.status]}`}>
-                                    {StatusLabels[report.status]}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3">{dayjs(report.createdAt).format("DD/MM/YYYY")}</td>
-                                <td className="px-4 py-3">
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      onClick={() => setViewingReport(report)}
-                                      className="h-7 w-7 grid place-items-center rounded-md bg-blue-600 text-white hover:bg-blue-700"
-                                      title="Xem"
-                                    >
-                                      <svg viewBox="0 0 24 24" className="h-4 w-4">
-                                        <path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"/>
-                                      </svg>
-                                    </button>
-                
-                                    {(report.status === "draft" || report.status === "rejected") && (
-                                      <button
-                                        onClick={() => setEditingReport(report)}
-                                        className="h-7 w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700"
-                                        title="Sửa"
-                                      >
-                                        <svg viewBox="0 0 24 24" className="h-4 w-4">
-                                          <path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11Z"/>
-                                        </svg>
-                                      </button>
-                                    )}
-                
-                                    {report.status === "draft" && (
-                                      <button
-                                        onClick={() => handleSubmitReport(report._id)}
-                                        className="h-7 w-7 grid place-items-center rounded-md bg-orange-600 text-white hover:bg-orange-700"
-                                        title="Gửi báo cáo"
-                                      >
-                                        <svg viewBox="0 0 24 24" className="h-4 w-4">
-                                          <path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
-                                        </svg>
-                                      </button>
-                                    )}
-                
-                                    {report.status === "draft" && (
-                                      <button
-                                        onClick={() => setDeletingReport(report)}
-                                        className="h-7 w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700"
-                                        title="Xóa"
-                                      >
-                                        <svg viewBox="0 0 24 24" className="h-4 w-4">
-                                          <path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/>
-                                        </svg>
-                                      </button>
-                                    )}
-                                  </div>
-                </td>
+        <div className="overflow-x-auto touch-manipulation">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr className="text-left text-[10px] sm:text-xs font-semibold text-gray-600">
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[200px]">Tiêu đề</th>
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[110px] sm:w-[120px]">Loại</th>
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[110px] sm:w-[120px]">Trạng thái</th>
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[110px] sm:w-[140px]">Ngày tạo</th>
+                <th className="px-3 sm:px-4 py-2 sm:py-3 min-w-[120px] sm:w-[140px]">Thao tác</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-xs sm:text-sm">
+              {current.map((report) => (
+                <tr key={report._id} className="hover:bg-gray-50/50">
+                  <td className="px-3 sm:px-4 py-2 sm:py-3">
+                    <div className="font-medium text-gray-900 text-xs sm:text-sm">{report.title}</div>
+                    <div className="text-[10px] sm:text-xs text-gray-500 mt-1 line-clamp-2">
+                      {report.content ? report.content.replace(/<[^>]*>/g, '').slice(0, 100) + '...' : 'Không có nội dung'}
+                    </div>
+                  </td>
+                  <td className="px-3 sm:px-4 py-2 sm:py-3">
+                    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium">
+                      {ReportTypeLabels[report.reportType] || "Không xác định"}
+                    </span>
+                  </td>
+                  <td className="px-3 sm:px-4 py-2 sm:py-3">
+                    <span className={`inline-flex items-center rounded-full px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium ring-1 ring-inset ${StatusColors[report.status]}`}>
+                      {StatusLabels[report.status]}
+                    </span>
+                  </td>
+                  <td className="px-3 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs">{dayjs(report.createdAt).format("DD/MM/YYYY")}</td>
+                  <td className="px-2 sm:px-4 py-2 sm:py-3">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setViewingReport(report)}
+                        className="h-6 w-6 sm:h-7 sm:w-7 grid place-items-center rounded-md bg-blue-600 text-white hover:bg-blue-700 touch-manipulation"
+                        title="Xem"
+                      >
+                        <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4">
+                          <path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"/>
+                        </svg>
+                      </button>
+  
+                      {(report.status === "draft" || report.status === "rejected") && (
+                        <button
+                          onClick={() => setEditingReport(report)}
+                          className="h-6 w-6 sm:h-7 sm:w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 touch-manipulation"
+                          title="Sửa"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4">
+                            <path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11 Z"/>
+                          </svg>
+                        </button>
+                      )}
+  
+                      {report.status === "draft" && (
+                        <button
+                          onClick={() => handleSubmitReport(report._id)}
+                          className="h-6 w-6 sm:h-7 sm:w-7 grid place-items-center rounded-md bg-orange-600 text-white hover:bg-orange-700 touch-manipulation"
+                          title="Gửi báo cáo"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4">
+                            <path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+                          </svg>
+                        </button>
+                      )}
+  
+                      {report.status === "draft" && (
+                        <button
+                          onClick={() => setDeletingReport(report)}
+                          className="h-6 w-6 sm:h-7 sm:w-7 grid place-items-center rounded-md bg-rose-600 text-white hover:bg-rose-700 touch-manipulation"
+                          title="Xóa"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 sm:h-4 sm:w-4">
+                            <path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/>
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
 
         {current.length === 0 && !loading && (
           <div className="py-12">

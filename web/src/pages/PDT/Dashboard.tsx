@@ -277,9 +277,9 @@ const PDTDashboard: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-4 max-h-[calc(100vh-180px)] overflow-hidden">
+    <div className="flex flex-col gap-4">
       {/* Notifications - Full Width */}
-      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 flex-shrink-0">
+      <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-base font-semibold text-gray-800 flex items-center gap-2">
             <span className="text-lg">🔔</span>
@@ -297,7 +297,7 @@ const PDTDashboard: React.FC = () => {
         ) : notifications.length === 0 ? (
           <div className="text-center py-4 text-gray-500">Không có thông báo mới</div>
         ) : (
-          <div className="space-y-2 max-h-[120px] overflow-y-auto">
+          <div className="space-y-2">
             {notifications.slice(0, 3).map((notif) => (
               <div
                 key={notif._id}
@@ -328,11 +328,11 @@ const PDTDashboard: React.FC = () => {
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left Column - Statistics Cards */}
-        <div className="lg:col-span-1 overflow-y-auto">
+        <div className="lg:col-span-1">
           {/* Quick Stats */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 h-full">
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
             <div className="space-y-3">
               <div 
                 className="flex items-center justify-between p-3 bg-blue-50 rounded-lg cursor-pointer hover:bg-blue-100 transition-colors"
@@ -385,15 +385,15 @@ const PDTDashboard: React.FC = () => {
         </div>
 
         {/* Middle Column - Chart */}
-        <div className="lg:col-span-1 overflow-y-auto">
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 h-full flex items-center justify-center">
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 flex items-center justify-center">
             <CircleDiagram statistics={statistics} />
           </div>
         </div>
 
         {/* Right Column - Chat Requests */}
-        <div className="lg:col-span-1 overflow-y-auto">
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 h-full flex flex-col">
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold text-gray-800 flex items-center gap-2">
                 <span className="text-lg">💬</span>
@@ -419,7 +419,7 @@ const PDTDashboard: React.FC = () => {
                 <p>Không có yêu cầu đang chờ</p>
               </div>
             ) : (
-              <div className="space-y-3 flex-1 overflow-y-auto">
+              <div className="space-y-3">
                 {chatRequests.slice(0, 5).map((request) => (
                   <ChatRequestCard
                     key={request.id}

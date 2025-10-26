@@ -9,6 +9,22 @@ export interface Account {
   status: Status;
 }
 
+export interface CreateAccountDTO {
+  name: string;
+  email: string;
+  role: Role;
+  status: Status;
+  password: string;
+}
+
+export interface UpdateAccountDTO {
+  name: string;
+  email: string;
+  role: Role;
+  status: Status;
+  password?: string;
+}
+
 export const roleLabel: Record<Role, string> = {
   "phong-dao-tao": "Phòng Đào Tạo",
   "ban-chu-nhiem": "Ban chủ nhiệm",

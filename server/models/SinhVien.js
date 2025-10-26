@@ -62,4 +62,11 @@ SinhVienSchema.virtual('accountDetails', {
   justOne: true
 });
 
+// Add indexes for better query performance
+SinhVienSchema.index({ account: 1 });
+SinhVienSchema.index({ internshipSubject: 1 });
+SinhVienSchema.index({ supervisor: 1 });
+SinhVienSchema.index({ internshipStatus: 1 });
+SinhVienSchema.index({ year: 1 });
+
 export default mongoose.model("SinhVien", SinhVienSchema);

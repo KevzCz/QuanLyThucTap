@@ -16,9 +16,7 @@ import {
   updateSubmissionStatus,
   deleteSubmission
 } from "../../../services/pageApi";
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { apiClient } from "../../../utils/api";
-import { resolveFileHref /*, buildDownloadHref */ } from "../../../utils/fileLinks";
+import { resolveFileHref } from "../../../utils/fileLinks";
 const KhoaSubUpload: React.FC = () => {
   const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
   const { subId } = useParams();
@@ -66,6 +64,7 @@ const toggleGroup = (key: string) =>
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subId]);
 
   const loadData = async () => {
@@ -270,21 +269,21 @@ const toggleGroup = (key: string) =>
   const ended = end && now.isAfter(end);
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <button className="text-sm text-blue-600 hover:underline" onClick={() => navigate("/bcn-page")}>
+    <div className="space-y-3 sm:space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <button className="text-xs sm:text-sm text-blue-600 hover:underline text-left touch-manipulation" onClick={() => navigate("/bcn-page")}>
           ← Quay lại trang khoa
         </button>
-        <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
+        <span className="inline-flex items-center gap-2 rounded-full border px-3 h-8 sm:h-9 text-xs sm:text-sm text-gray-700">
           <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "CNTT - TT2025"}
         </span>
       </div>
 
       {/* Tabs */}
       {canReview && (
-        <div className="flex gap-2 border-b border-gray-200">
+        <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
           <button
-            className={`px-4 py-2 font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap touch-manipulation ${
               activeTab === "submit"
                 ? "text-blue-600 border-b-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
@@ -294,7 +293,7 @@ const toggleGroup = (key: string) =>
             Nộp file & Mô tả
           </button>
           <button
-            className={`px-4 py-2 font-medium transition-colors ${
+            className={`px-3 sm:px-4 py-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap touch-manipulation ${
               activeTab === "view"
                 ? "text-blue-600 border-b-2 border-blue-600"
                 : "text-gray-600 hover:text-gray-900"
@@ -307,15 +306,15 @@ const toggleGroup = (key: string) =>
       )}
 
       {activeTab === "submit" && (
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-5">
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-extrabold text-blue-700">
+        <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white shadow-sm p-3 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-0">
+            <h1 className="text-base sm:text-xl font-extrabold text-blue-700 break-words">
               <span className="mr-2" aria-hidden title="Nộp file">{icon}</span>
               {sub.title}
             </h1>
             {canEdit && (
               <button
-                className={`h-9 px-3 rounded-md text-white ${
+                className={`h-9 px-3 rounded-md text-white text-xs sm:text-sm touch-manipulation ${
                   editing ? "bg-emerald-600 hover:bg-emerald-700" : "bg-gray-700 hover:bg-gray-800"
                 }`}
                 onClick={() => (editing ? handleSave() : setEditing(true))}
@@ -327,14 +326,14 @@ const toggleGroup = (key: string) =>
           </div>
 
           {/* Time status */}
-          <div className="mt-2 flex items-center gap-4">
-            <div className="flex items-center gap-2">
+          <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <input
                 type="datetime-local"
                 disabled={!editing}
                 value={sub.startAt ?? ""}
                 onChange={(e) => setSub((s) => (s ? { ...s, startAt: e.target.value } : s))}
-                className="h-9 rounded-md border border-gray-300 px-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full sm:w-auto h-9 rounded-md border border-gray-300 px-2 text-xs sm:text-sm disabled:bg-gray-100 disabled:text-gray-500 touch-manipulation"
                 title="Start"
               />
               <input
@@ -342,12 +341,12 @@ const toggleGroup = (key: string) =>
                 disabled={!editing}
                 value={sub.endAt ?? ""}
                 onChange={(e) => setSub((s) => (s ? { ...s, endAt: e.target.value } : s))}
-                className="h-9 rounded-md border border-gray-300 px-2 text-sm disabled:bg-gray-100 disabled:text-gray-500"
+                className="w-full sm:w-auto h-9 rounded-md border border-gray-300 px-2 text-xs sm:text-sm disabled:bg-gray-100 disabled:text-gray-500 touch-manipulation"
                 title="End"
               />
             </div>
 
-            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+            <div className={`px-3 py-1 rounded-full text-xs font-medium inline-flex items-center justify-center ${
               isActive ? "bg-green-100 text-green-700" :
               notStarted ? "bg-yellow-100 text-yellow-700" :
               "bg-red-100 text-red-700"
@@ -356,7 +355,7 @@ const toggleGroup = (key: string) =>
             </div>
           </div>
 
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-[10px] sm:text-xs text-gray-500 break-words">
             {start ? `Bắt đầu: ${start.format("dddd, DD MMM YYYY, HH:mm")}` : "Chưa đặt thời gian bắt đầu"} · {" "}
             {end ? `Kết thúc: ${end.format("dddd, DD MMM YYYY, HH:mm")}` : "Chưa đặt thời gian kết thúc"}
           </p>
@@ -539,20 +538,20 @@ const toggleGroup = (key: string) =>
       )}
 
       {activeTab === "view" && canReview && (
-  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-    <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-      <h2 className="font-semibold text-gray-900">
+  <div className="rounded-xl sm:rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+    <div className="bg-gray-50 px-3 sm:px-4 py-3 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <h2 className="font-semibold text-sm sm:text-base text-gray-900">
         Tất cả bài nộp ({submissions.length})
       </h2>
-      <div className="text-sm text-gray-600">
+      <div className="text-xs sm:text-sm text-gray-600">
         {groupedSubmissions.length} người nộp
       </div>
     </div>
 
     {submissions.length === 0 ? (
-      <div className="p-8 text-center text-gray-500">
-        <div className="text-4xl mb-2">📭</div>
-        <p>Chưa có bài nộp nào</p>
+      <div className="p-6 sm:p-8 text-center text-gray-500">
+        <div className="text-3xl sm:text-4xl mb-2">📭</div>
+        <p className="text-sm sm:text-base">Chưa có bài nộp nào</p>
       </div>
     ) : (
       <div className="divide-y divide-gray-200">
@@ -571,14 +570,14 @@ const toggleGroup = (key: string) =>
           const pending = total - accepted - reviewed - rejected;
 
           return (
-            <div key={key} className="p-4">
+            <div key={key} className="p-3 sm:p-4">
               {/* Group header */}
               <button
                 onClick={() => toggleGroup(key)}
-                className="w-full flex items-center justify-between"
+                className="w-full flex items-center justify-between touch-manipulation"
               >
-                <div className="flex items-center gap-3 text-left">
-                  <div className="h-9 w-9 rounded-full bg-blue-100 text-blue-700 grid place-items-center font-semibold">
+                <div className="flex items-center gap-2 sm:gap-3 text-left">
+                  <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-blue-100 text-blue-700 grid place-items-center font-semibold text-xs sm:text-sm">
                     {(group.submitter?.name || "?")
                       .split(" ")
                       .map((n: string) => n[0])
@@ -586,15 +585,15 @@ const toggleGroup = (key: string) =>
                       .join("")
                       .toUpperCase()}
                   </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-xs sm:text-sm text-gray-900 truncate">
                       {group.submitter?.name}{" "}
                       <span className="text-gray-500 font-normal">
                         ({group.submitter?.id})
                       </span>
                     </div>
-                    <div className="text-xs text-gray-500">
-                      {total} file •{" "}
+                    <div className="text-[10px] sm:text-xs text-gray-500 flex flex-wrap gap-1">
+                      <span>{total} file</span> •{" "}
                       <span className="text-emerald-600">{accepted} duyệt</span>{" "}
                       · <span className="text-blue-600">{reviewed} đã xem</span>{" "}
                       · <span className="text-amber-600">{pending} chờ</span> ·{" "}
@@ -602,7 +601,7 @@ const toggleGroup = (key: string) =>
                     </div>
                   </div>
                 </div>
-                <div className="text-gray-400">
+                <div className="text-gray-400 text-lg">
                   {expandedGroups[key] ? "▾" : "▸"}
                 </div>
               </button>
@@ -610,31 +609,31 @@ const toggleGroup = (key: string) =>
               {/* Group body */}
               {expandedGroups[key] && (
                 <div className="mt-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3">
                     {group.items.map((submission) => (
                       <div
                         key={submission._id}
-                        className="rounded-lg border border-gray-200 p-3 hover:border-gray-300"
+                        className="rounded-lg border border-gray-200 p-2.5 sm:p-3 hover:border-gray-300"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
+                        <div className="flex items-start justify-between gap-2 sm:gap-3">
+                          <div className="min-w-0 flex-1">
                             <a
                               href={resolveFileHref(submission.fileUrl)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="block font-medium text-blue-600 hover:underline truncate"
+                              className="block font-medium text-xs sm:text-sm text-blue-600 hover:underline truncate"
                               title={submission.fileName}
                             >
                               📎 {submission.fileName}
                             </a>
-                            <div className="text-xs text-gray-500 mt-1">
+                            <div className="text-[10px] sm:text-xs text-gray-500 mt-1">
                               {(submission.fileSize / 1024).toFixed(1)} KB ·{" "}
                               {dayjs(submission.createdAt).format(
                                 "DD/MM/YYYY HH:mm"
                               )}
                             </div>
                             {submission.reviewNote && (
-                              <div className="mt-2 text-xs text-gray-700 bg-blue-50 rounded p-2">
+                              <div className="mt-2 text-[10px] sm:text-xs text-gray-700 bg-blue-50 rounded p-2">
                                 <span className="font-medium">
                                   Nhận xét:
                                 </span>{" "}
@@ -645,7 +644,7 @@ const toggleGroup = (key: string) =>
 
                           {/* Status pill */}
                           <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            className={`px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-medium whitespace-nowrap ${
                               submission.status === "accepted"
                                 ? "bg-green-100 text-green-700"
                                 : submission.status === "rejected"
@@ -667,7 +666,7 @@ const toggleGroup = (key: string) =>
                         </div>
 
                         {/* Reviewer controls */}
-                        <div className="mt-3 flex items-center gap-2">
+                        <div className="mt-2 sm:mt-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                           <select
                             value={submission.status}
                             onChange={(e) =>
@@ -676,7 +675,7 @@ const toggleGroup = (key: string) =>
                                 e.target.value as FileSubmission["status"]
                               )
                             }
-                            className="text-xs border border-gray-300 rounded px-2 py-1"
+                            className="text-[10px] sm:text-xs border border-gray-300 rounded px-2 py-1 touch-manipulation"
                             title="Cập nhật trạng thái"
                           >
                             <option value="submitted">Đã nộp</option>
@@ -691,7 +690,7 @@ const toggleGroup = (key: string) =>
                               setReviewNoteInput(submission.reviewNote || '');
                               setShowReviewNoteDialog(true);
                             }}
-                            className="text-blue-600 hover:underline text-xs"
+                            className="text-blue-600 hover:underline text-[10px] sm:text-xs touch-manipulation text-center sm:text-left"
                             title="Thêm/Chỉnh sửa nhận xét"
                           >
                             Nhận xét

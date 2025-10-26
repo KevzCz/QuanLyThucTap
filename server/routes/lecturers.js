@@ -13,13 +13,13 @@ router.get('/managed-students', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Chỉ giảng viên mới có thể truy cập' });
     }
 
-    // Find the lecturer profile
+    // Find the lecturer profile with lean()
     const lecturerProfile = await GiangVien.findOne({ account: req.account._id })
       .populate('account', 'id name email')
-      .populate('internshipSubject', 'id title');
+      .populate('internshipSubject', 'id title')
+      .lean();
 
     if (!lecturerProfile) {
-      // Return empty response instead of 404 - lecturer exists but not assigned
       return res.json({
         success: true,
         lecturer: null,
@@ -27,7 +27,7 @@ router.get('/managed-students', authenticate, async (req, res) => {
       });
     }
 
-    // Find all students supervised by this lecturer
+    // Find all students supervised by this lecturer with lean()
     const students = await SinhVien.find({ supervisor: req.account._id })
       .populate('account', 'id name email')
       .populate('internshipSubject', 'id title')

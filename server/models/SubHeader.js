@@ -64,6 +64,11 @@ const SubHeaderSchema = new mongoose.Schema(
 
 // Add a non-unique index for performance
 SubHeaderSchema.index({ pageHeader: 1, order: 1 });
+SubHeaderSchema.index({ kind: 1 });
+SubHeaderSchema.index({ audience: 1 });
+SubHeaderSchema.index({ startAt: 1, endAt: 1 }); // For deadline queries
+SubHeaderSchema.index({ isActive: 1 });
+SubHeaderSchema.index({ createdAt: -1 });
 
 // Virtual for upload status (for nop-file type)
 SubHeaderSchema.virtual('uploadStatus').get(function() {

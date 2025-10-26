@@ -159,6 +159,14 @@ InternshipSubjectSchema.virtual('registrationStatus').get(function() {
   return 'open';
 });
 
+// Add indexes for better query performance
+InternshipSubjectSchema.index({ id: 1 });
+InternshipSubjectSchema.index({ status: 1 });
+InternshipSubjectSchema.index({ manager: 1 });
+InternshipSubjectSchema.index({ title: 'text' });
+InternshipSubjectSchema.index({ createdAt: -1 });
+InternshipSubjectSchema.index({ registrationStartDate: 1, registrationEndDate: 1 });
+
 export default mongoose.model("InternshipSubject", InternshipSubjectSchema);
 
  

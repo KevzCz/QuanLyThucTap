@@ -97,11 +97,23 @@ router.post("/subjects/:subjectId/headers", ...authBCN, async (req, res) => {
     const { subjectId } = req.params;
     const { title, order, audience } = req.body;
 
-    if (!title) {
-      return res.status(400).json({ error: "Tên header là bắt buộc" });
+    // Validate title
+    if (!title || typeof title !== "string" || title.trim().length < 2 || title.trim().length > 200) {
+      return res.status(400).json({ error: "Tiêu đề phải từ 2-200 ký tự" });
     }
 
-    const subject = await InternshipSubject.findOne({ id: subjectId });
+    // Validate order
+    if (order !== undefined && (!Number.isInteger(Number(order)) || Number(order) < 1)) {
+      return res.status(400).json({ error: "Thứ tự không hợp lệ" });
+    }
+
+    // Validate audience
+    const validAudiences = ["tat-ca", "sinh-vien", "giang-vien"];
+    if (audience && !validAudiences.includes(audience)) {
+      return res.status(400).json({ error: "Đối tượng xem không hợp lệ" });
+    }
+
+    const subject = await InternshipSubject.findOne({ id: subjectId }).lean();
     if (!subject) {
       return res.status(404).json({ error: "Không tìm thấy môn thực tập" });
     }
@@ -110,14 +122,15 @@ router.post("/subjects/:subjectId/headers", ...authBCN, async (req, res) => {
     const bcnProfile = await BanChuNhiem.findOne({ 
       account: req.account._id,
       internshipSubject: subject._id 
-    });
+    }).lean();
+    
     if (!bcnProfile) {
       return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
     }
 
     const header = new PageHeader({
       internshipSubject: subject._id,
-      title,
+      title: title.trim(),
       order: order || 1,
       audience: audience || "tat-ca"
     });
@@ -130,7 +143,7 @@ router.post("/subjects/:subjectId/headers", ...authBCN, async (req, res) => {
     });
   } catch (error) {
     console.error("Create header error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: "Lỗi server khi tạo header" });
   }
 });
 
@@ -139,8 +152,14 @@ router.get("/headers/:headerId", ...authBCN, async (req, res) => {
   try {
     const { headerId } = req.params;
 
+    // Validate MongoDB ObjectId format
+    if (!headerId || !headerId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ error: "ID header không hợp lệ" });
+    }
+
     const header = await PageHeader.findById(headerId)
-      .populate('internshipSubject', 'id title');
+      .populate('internshipSubject', 'id title')
+      .lean();
 
     if (!header) {
       return res.status(404).json({ error: "Không tìm thấy header" });
@@ -150,7 +169,8 @@ router.get("/headers/:headerId", ...authBCN, async (req, res) => {
     const bcnProfile = await BanChuNhiem.findOne({ 
       account: req.account._id,
       internshipSubject: header.internshipSubject._id 
-    });
+    }).lean();
+    
     if (!bcnProfile) {
       return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
     }
@@ -161,7 +181,7 @@ router.get("/headers/:headerId", ...authBCN, async (req, res) => {
     });
   } catch (error) {
     console.error("Get header error:", error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: "Lỗi server khi tải header" });
   }
 });
 
