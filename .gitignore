@@ -55,7 +55,7 @@ Thumbs.db
 # Database
 *.db
 *.sqlite
-*.sqlite3
+*.sqlite3s
 
 # GitHub Copilot instructions
 .github/instructions/
