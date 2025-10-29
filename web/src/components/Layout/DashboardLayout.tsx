@@ -3,7 +3,7 @@ import { Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/UseAuth";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
-import reactLogo from "../../assets/react.svg";
+import reactLogo from "../../assets/logo.png";
 
 const DashboardLayout: React.FC = () => {
   const { user } = useAuth();

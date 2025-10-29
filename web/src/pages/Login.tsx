@@ -89,7 +89,7 @@ const Login: React.FC = () => {
         {/* Badge */}
         <div className="mx-auto w-24 h-24 -mb-10 z-10 relative flex items-center justify-center rounded-full bg-yellow-300 ring-8 ring-yellow-200/70 shadow-xl">
           <span className="text-[20px] font-extrabold tracking-wider text-purple-900 drop-shadow-sm">
-            HUFLIT
+            QLTT
           </span>
         </div>
 
@@ -124,7 +124,7 @@ const Login: React.FC = () => {
               }}
               error={getFieldError('email')}
               touched={hasError('email')}
-              placeholder="you@huflit.edu.vn"
+              placeholder="you@gmail.com"
               required
               autoComplete="email"
               disabled={isLoading}
@@ -226,7 +226,7 @@ const Login: React.FC = () => {
           </form>
 
           <p className="mt-6 text-center text-xs text-gray-500">
-            © {new Date().getFullYear()} HUFLIT • All rights reserved
+            © {new Date().getFullYear()} QLTT • All rights reserved
           </p>
         </div>
       </div>

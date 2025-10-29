@@ -143,6 +143,12 @@ const ChatManagement: React.FC = () => {
     const handleNewRequest = (...args: unknown[]) => {
       const data = args[0] as ApiChatRequest;
       const transformedRequest = transformApiRequestToLocal(data);
+      
+      // Don't add requests that the current user sent (they're already added via callback)
+      if (transformedRequest.fromUser.id === user?.id) {
+        return;
+      }
+      
       setRequests(prev => [transformedRequest, ...prev]);
     };
 

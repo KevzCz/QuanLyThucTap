@@ -198,6 +198,12 @@ const ChatManagement: React.FC = () => {
       socketManager.on('newChatRequest', (...args: unknown[]) => {
         const request = args[0] as ApiRequest;
         const transformedRequest = transformApiRequestToLocal(request);
+        
+        // Don't add requests that the current user sent (they're already added via callback)
+        if (transformedRequest.fromUser.id === user?.id) {
+          return;
+        }
+        
         setRequests(prev => [transformedRequest, ...prev]);
       });
 
@@ -205,6 +211,12 @@ const ChatManagement: React.FC = () => {
       socketManager.on('newPDTRequest', (...args: unknown[]) => {
         const request = args[0] as ApiRequest;
         const transformedRequest = transformApiRequestToLocal(request);
+        
+        // Don't add requests that the current user sent (they're already added via callback)
+        if (transformedRequest.fromUser.id === user?.id) {
+          return;
+        }
+        
         setRequests(prev => [transformedRequest, ...prev]);
       });
 

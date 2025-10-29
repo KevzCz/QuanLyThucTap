@@ -10,8 +10,20 @@ import Report from '../models/Report.js';
 import InternshipGrade from '../models/InternshipGrade.js';
 import ChatRequest from '../models/ChatRequest.js';
 import ChatConversation from '../models/ChatConversation.js';
+import ChatMessage from '../models/ChatMessage.js';
+import Notification from '../models/Notification.js';
+import FileSubmission from '../models/FileSubmission.js';
+import Profile from '../models/Profile.js';
+import Request from '../models/Request.js';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/QLTT';
+
+// Configure mongoose for better connection handling
+mongoose.set('strictQuery', false);
+mongoose.set('bufferCommands', false);
 
 // Sample data generators
 const vietnameseNames = {
@@ -40,11 +52,63 @@ function generateEmail(name, role, index) {
   return `${rolePrefix}${paddedIndex}@gmail.com`;
 }
 
+async function connectWithRetry() {
+  const maxRetries = 3;
+  const retryDelay = 5000; // 5 seconds
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`🔌 Connecting to MongoDB (attempt ${attempt}/${maxRetries})...`);
+      await mongoose.connect(MONGODB_URI, {
+        serverSelectionTimeoutMS: 10000, // 10 seconds
+        socketTimeoutMS: 45000, // 45 seconds
+        maxPoolSize: 10,
+        retryWrites: true,
+        w: 'majority'
+      });
+      console.log('✅ Connected to MongoDB');
+      return;
+    } catch (error) {
+      console.error(`❌ Connection attempt ${attempt} failed:`, error.message);
+      if (attempt === maxRetries) {
+        throw new Error(`Failed to connect to MongoDB after ${maxRetries} attempts`);
+      }
+      console.log(`⏳ Retrying in ${retryDelay / 1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+    }
+  }
+}
+
+async function createAccountsBatch(accounts, role, roleDisplayName) {
+  console.log(`\n👤 Creating ${roleDisplayName} accounts...`);
+  const createdAccounts = [];
+  const batchSize = 5; // Process in smaller batches
+  
+  for (let i = 0; i < accounts.length; i += batchSize) {
+    const batch = accounts.slice(i, i + batchSize);
+    
+    try {
+      for (const accountData of batch) {
+        const account = await Account.create(accountData);
+        createdAccounts.push(account);
+        console.log(`  ✓ ${account.id} - ${account.name}`);
+        
+        // Small delay between creates to avoid overwhelming the connection
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (error) {
+      console.error(`❌ Error creating batch starting at index ${i}:`, error.message);
+      // Continue with next batch instead of failing completely
+      continue;
+    }
+  }
+  
+  return createdAccounts;
+}
+
 async function seedDatabase() {
   try {
-    console.log('🔌 Connecting to MongoDB...');
-    await mongoose.connect(MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
+    await connectWithRetry();
 
     // Clear existing data
     console.log('\n🗑️  Clearing existing data...');
@@ -59,93 +123,108 @@ async function seedDatabase() {
     await InternshipGrade.deleteMany({});
     await ChatRequest.deleteMany({});
     await ChatConversation.deleteMany({});
+    await ChatMessage.deleteMany({});
+    await Notification.deleteMany({});
+    await FileSubmission.deleteMany({});
+    await Profile.deleteMany({});
+    await Request.deleteMany({});
     console.log('✅ Cleared all collections');
 
     // Create PDT accounts
-    console.log('\n👤 Creating Phòng Đào Tạo accounts...');
-    const pdtAccounts = [];
+    const pdtAccountsData = [];
     for (let i = 1; i <= 20; i++) {
       const name = generateName();
-      const account = await Account.create({
+      pdtAccountsData.push({
         name,
         email: generateEmail(name, 'phong-dao-tao', i),
         password: '123456',
         role: 'phong-dao-tao',
         status: 'open'
       });
-      pdtAccounts.push(account);
-      console.log(`  ✓ ${account.id} - ${account.name}`);
     }
+    const pdtAccounts = await createAccountsBatch(pdtAccountsData, 'phong-dao-tao', 'Phòng Đào Tạo');
 
     // Create BCN accounts
-    console.log('\n👤 Creating Ban Chủ Nhiệm accounts...');
-    const bcnAccounts = [];
+    const bcnAccountsData = [];
     const departments = ['Công nghệ thông tin', 'Kinh tế', 'Kỹ thuật', 'Điện tử', 'Cơ khí'];
     for (let i = 1; i <= 20; i++) {
       const name = generateName();
-      const account = await Account.create({
+      bcnAccountsData.push({
         name,
         email: generateEmail(name, 'ban-chu-nhiem', i),
         password: '123456',
         role: 'ban-chu-nhiem',
         status: 'open'
       });
-      bcnAccounts.push(account);
-      
-      await BanChuNhiem.create({
-        account: account._id,
-        department: departments[(i - 1) % departments.length]
-      });
-      
-      console.log(`  ✓ ${account.id} - ${account.name}`);
+    }
+    const bcnAccounts = await createAccountsBatch(bcnAccountsData, 'ban-chu-nhiem', 'Ban Chủ Nhiệm');
+    
+    // Create BCN profiles
+    console.log('\n📝 Creating BCN profiles...');
+    for (let i = 0; i < bcnAccounts.length; i++) {
+      if (bcnAccounts[i]) {
+        await BanChuNhiem.create({
+          account: bcnAccounts[i]._id,
+          department: departments[i % departments.length]
+        });
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
     // Create GV accounts
-    console.log('\n👤 Creating Giảng Viên accounts...');
-    const gvAccounts = [];
+    const gvAccountsData = [];
     for (let i = 1; i <= 20; i++) {
       const name = generateName();
-      const account = await Account.create({
+      gvAccountsData.push({
         name,
         email: generateEmail(name, 'giang-vien', i),
         password: '123456',
         role: 'giang-vien',
         status: 'open'
       });
-      gvAccounts.push(account);
-      
-      await GiangVien.create({
-        account: account._id,
-        department: departments[(i - 1) % departments.length],
-        maxStudents: 5 + Math.floor(Math.random() * 6) // 5-10 students
-      });
-      
-      console.log(`  ✓ ${account.id} - ${account.name}`);
+    }
+    const gvAccounts = await createAccountsBatch(gvAccountsData, 'giang-vien', 'Giảng Viên');
+    
+    // Create GV profiles
+    console.log('\n📝 Creating GV profiles...');
+    for (let i = 0; i < gvAccounts.length; i++) {
+      if (gvAccounts[i]) {
+        await GiangVien.create({
+          account: gvAccounts[i]._id,
+          department: departments[i % departments.length],
+          maxStudents: 5 + Math.floor(Math.random() * 6) // 5-10 students
+        });
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
     // Create SV accounts
-    console.log('\n👤 Creating Sinh Viên accounts...');
-    const svAccounts = [];
+    const svAccountsData = [];
     const classes = ['DHKTPM15A', 'DHKTPM15B', 'DHKTPM16A', 'DHKTPM16B', 'DHKTPM17A', 'DHKTPM17B', 'DHKTPM18A', 'DHKTPM18B'];
     for (let i = 1; i <= 20; i++) {
       const name = generateName();
-      const account = await Account.create({
+      svAccountsData.push({
         name,
         email: generateEmail(name, 'sinh-vien', i),
         password: '123456',
         role: 'sinh-vien',
         status: 'open'
       });
-      svAccounts.push(account);
-      
-      await SinhVien.create({
-        account: account._id,
-        internshipStatus: 'chua-duoc-huong-dan',
-        studentClass: classes[(i - 1) % classes.length],
-        year: 2024 + Math.floor((i - 1) / 10)
-      });
-      
-      console.log(`  ✓ ${account.id} - ${account.name}`);
+    }
+    const svAccounts = await createAccountsBatch(svAccountsData, 'sinh-vien', 'Sinh Viên');
+    
+    // Create SV profiles
+    console.log('\n📝 Creating SV profiles...');
+    for (let i = 0; i < svAccounts.length; i++) {
+      if (svAccounts[i]) {
+        await SinhVien.create({
+          account: svAccounts[i]._id,
+          internshipStatus: 'chua-duoc-huong-dan',
+          studentClass: classes[i % classes.length],
+          year: 2024 + Math.floor(i / 10)
+        });
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
     // Create Internship Subjects (each BCN can only manage one subject)
@@ -272,11 +351,11 @@ async function seedDatabase() {
           await SubHeader.create({
             pageHeader: header._id,
             title: subTemplate.title,
-            html: `<p>Nội dung ${subTemplate.title} cho ${header.title}</p>`,
+            content: `<p>Nội dung ${subTemplate.title} cho ${header.title}</p>`,
             kind: subTemplate.kind,
             order: subTemplate.order,
-            startAt: subTemplate.kind === 'nop-file' ? now.toISOString() : undefined,
-            endAt: subTemplate.kind === 'nop-file' ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined
+            startAt: subTemplate.kind === 'nop-file' ? now : undefined,
+            endAt: subTemplate.kind === 'nop-file' ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000) : undefined
           });
         }
       }
@@ -305,7 +384,7 @@ async function seedDatabase() {
           await SubHeader.create({
             pageHeader: header._id,
             title: 'Nội dung hướng dẫn',
-            html: '<p>Hướng dẫn chi tiết cho sinh viên</p>',
+            content: '<p>Hướng dẫn chi tiết cho sinh viên</p>',
             kind: 'thuong',
             order: 1
           });

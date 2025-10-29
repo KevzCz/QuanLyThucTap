@@ -156,7 +156,7 @@ const CreateAccountDialog: React.FC<Props> = ({ open, onClose, onCreate }) => {
         <ValidatedInput
           label="Email"
           type="email"
-          placeholder="name@huflit.edu.vn"
+          placeholder="name@gmail.com"
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);

@@ -4,12 +4,14 @@ bun.lockb
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
-
+diagram/
+docs/
+out/
 # Environment variables
 .env
 .env.local
 .env.*.local
-
+server/scripts/
 # Uploaded files
 uploads/
 server/uploads/
