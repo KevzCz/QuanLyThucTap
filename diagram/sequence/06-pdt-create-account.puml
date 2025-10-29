@@ -1,0 +1,115 @@
+@startuml Sequence - PDT tạo tài khoản
+
+skinparam participantPadding 20
+skinparam boxPadding 10
+
+actor "Phòng Đào Tạo" as PDT
+participant "Account Management UI" as AccountUI
+participant "Create Account Dialog" as CreateDialog
+participant "API Client" as ApiClient
+participant "API Server" as API
+participant "Database" as DB
+
+PDT -> AccountUI: Truy cập /accounts
+activate AccountUI
+
+AccountUI -> ApiClient: getAccounts(filters)
+activate ApiClient
+
+ApiClient -> API: GET /accounts?page=1&limit=10
+activate API
+
+API -> DB: Account.find(query) with pagination
+activate DB
+DB -> API: accounts[], total count
+deactivate DB
+
+API -> ApiClient: {accounts, pagination}
+deactivate API
+
+ApiClient -> AccountUI: accounts data
+deactivate ApiClient
+
+AccountUI -> PDT: Hiển thị danh sách tài khoản\n(search, role filter, status filter, pagination)
+
+PDT -> AccountUI: Click "Tạo tài khoản mới"
+
+AccountUI -> CreateDialog: Open CreateAccountDialog
+activate CreateDialog
+deactivate AccountUI
+
+CreateDialog -> PDT: Hiển thị form:\n- Họ tên (ValidatedInput)\n- Email (ValidatedInput)\n- Mật khẩu (ValidatedInput)\n- Vai trò (Select dropdown)
+
+PDT -> CreateDialog: Nhập họ tên
+CreateDialog -> CreateDialog: Real-time validation\n(required, minLength)
+
+PDT -> CreateDialog: Nhập email
+CreateDialog -> CreateDialog: Email format validation
+
+PDT -> CreateDialog: Nhập mật khẩu
+CreateDialog -> CreateDialog: Password strength validation\n(min 6 chars)
+
+PDT -> CreateDialog: Chọn vai trò\n(sinh-vien, giang-vien, ban-chu-nhiem)
+
+PDT -> CreateDialog: Click "Tạo tài khoản"
+
+CreateDialog -> CreateDialog: Validate all fields:\n- Required fields filled\n- Email format correct\n- Password meets requirements
+
+alt Validation thành công
+    CreateDialog -> ApiClient: createAccount(accountData)
+    activate ApiClient
+    
+    ApiClient -> API: POST /auth/register\n{name, email, password, role}
+    activate API
+    
+    API -> DB: Check email uniqueness
+    activate DB
+    
+    alt Email chưa tồn tại
+        DB -> API: email available
+        
+        API -> API: Hash password\nGenerate unique ID
+        
+        API -> DB: Create new Account\n{id, name, email, hashedPassword, role, status: "open"}
+        DB -> API: created account
+        deactivate DB
+        
+        API -> ApiClient: {success: true, account}
+        deactivate API
+        
+        ApiClient -> CreateDialog: success
+        deactivate ApiClient
+        
+        CreateDialog -> AccountUI: Close dialog + success
+        activate AccountUI
+        deactivate CreateDialog
+        
+        AccountUI -> ApiClient: Reload accounts list
+        activate ApiClient
+        ApiClient -> AccountUI: updated accounts
+        deactivate ApiClient
+        
+        AccountUI -> PDT: Toast "Tạo tài khoản thành công!"
+        AccountUI -> PDT: Hiển thị tài khoản mới trong danh sách
+        deactivate AccountUI
+        
+    else Email đã tồn tại
+        DB -> API: email exists error
+        deactivate DB
+        
+        API -> ApiClient: {error: "Email đã được sử dụng"}
+        deactivate API
+        
+        ApiClient -> CreateDialog: error
+        deactivate ApiClient
+        
+        CreateDialog -> PDT: Hiển thị lỗi email trùng lặp
+        deactivate CreateDialog
+    end
+    
+else Validation thất bại
+    CreateDialog -> PDT: Hiển thị lỗi validation:\n- "Email không hợp lệ"\n- "Mật khẩu quá ngắn"\n- "Thiếu thông tin bắt buộc"
+    deactivate CreateDialog
+end
+
+@enduml

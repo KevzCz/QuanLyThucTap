@@ -1,0 +1,84 @@
+@startuml Sequence - Sinh viên đăng ký môn thực tập
+
+skinparam participantPadding 20
+skinparam boxPadding 10
+
+actor "Sinh viên" as Student
+participant "Register UI" as RegisterUI
+participant "API Client" as ApiClient
+participant "API Server" as API
+participant "Database" as DB
+participant "Notification Service" as NotifSvc
+
+Student -> RegisterUI: Truy cập /internship-registration
+activate RegisterUI
+
+RegisterUI -> ApiClient: getStudentAvailableSubjects()
+activate ApiClient
+
+ApiClient -> API: GET /internship-subjects/student/available
+activate API
+
+API -> DB: Find available subjects + student registration
+activate DB
+DB -> API: subjects[], studentRegistration
+deactivate DB
+
+API -> ApiClient: {subjects, studentRegistration}
+deactivate API
+
+ApiClient -> RegisterUI: data
+deactivate ApiClient
+
+alt Chưa đăng ký môn nào
+    RegisterUI -> Student: Hiển thị danh sách môn\n(StatusChip, filters, search)
+    
+    Student -> RegisterUI: Tìm kiếm môn phù hợp
+    RegisterUI -> RegisterUI: Filter by query + status
+    
+    Student -> RegisterUI: Click "Đăng ký" trên môn
+    
+    RegisterUI -> RegisterUI: Kiểm tra:\n- Thời gian đăng ký\n- Số lượng còn lại\n- Trạng thái môn
+    
+    alt Thỏa mãn điều kiện
+        RegisterUI -> Student: Hiển thị RegisterSubjectDialog
+        
+        Student -> RegisterUI: Xác nhận đăng ký
+        
+        RegisterUI -> ApiClient: registerStudentToSubject(subjectId)
+        activate ApiClient
+        
+        ApiClient -> API: POST /internship-subjects/student/register
+        activate API
+        
+        API -> DB: Tạo SinhVien record\nTạo InternshipGrade record\nCập nhật môn thực tập
+        activate DB
+        DB -> API: registration created
+        deactivate DB
+        
+        API -> NotifSvc: Gửi thông báo cho BCN
+        activate NotifSvc
+        NotifSvc -> NotifSvc: createNotification(BCN)
+        deactivate NotifSvc
+        
+        API -> ApiClient: {success: true, registration}
+        deactivate API
+        
+        ApiClient -> RegisterUI: success
+        deactivate ApiClient
+        
+        RegisterUI -> Student: Toast "Đăng ký thành công!"
+        RegisterUI -> Student: Cập nhật UI (currentStudents++)
+        deactivate RegisterUI
+        
+    else Không thỏa mãn
+        RegisterUI -> Student: showWarning():\n- "Chưa đến thời gian"\n- "Hết thời gian"\n- "Môn đã đầy"
+        deactivate RegisterUI
+    end
+    
+else Đã đăng ký môn
+    RegisterUI -> Student: Hiển thị AlreadyRegisteredDialog\nvà disable nút đăng ký
+    deactivate RegisterUI
+end
+
+@enduml

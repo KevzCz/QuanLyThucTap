@@ -1,0 +1,77 @@
+@startuml Sequence - Đăng nhập hệ thống
+
+skinparam participantPadding 20
+skinparam boxPadding 10
+
+actor "Người dùng" as User
+participant "Login UI" as LoginUI
+participant "AuthService" as AuthSvc
+participant "API Server" as API
+participant "Database" as DB
+
+User -> LoginUI: Truy cập trang đăng nhập
+activate LoginUI
+
+LoginUI -> User: Hiển thị form đăng nhập\n(email, password, remember me)
+
+User -> LoginUI: Nhập email và password
+User -> LoginUI: Click "Đăng nhập"
+
+LoginUI -> LoginUI: Validate form data
+note right: - Kiểm tra email format\n- Kiểm tra password length\n- Hiển thị loading spinner
+
+LoginUI -> AuthSvc: login(email, password)
+activate AuthSvc
+
+AuthSvc -> API: POST /auth/login\n{email, password}
+activate API
+
+API -> DB: Account.findByCredentials(email, password)
+activate DB
+
+alt Thông tin đăng nhập đúng
+    DB -> API: return account
+    deactivate DB
+    
+    API -> API: generateToken(account._id)
+    API -> API: Set HTTP-only cookie
+    
+    alt Tài khoản đang hoạt động
+        API -> AuthSvc: {success: true, account: {...}}
+        deactivate API
+        
+        AuthSvc -> LoginUI: success
+        deactivate AuthSvc
+        
+        LoginUI -> LoginUI: Lưu email nếu "remember me"
+        LoginUI -> User: Chuyển đến /dashboard
+        deactivate LoginUI
+        
+        User -> User: Xem dashboard theo vai trò
+        
+    else Tài khoản bị khóa
+        API -> AuthSvc: {error: "Tài khoản đã bị khóa"}
+        deactivate API
+        
+        AuthSvc -> LoginUI: error
+        deactivate AuthSvc
+        
+        LoginUI -> User: Hiển thị lỗi tài khoản bị khóa
+        deactivate LoginUI
+    end
+    
+else Thông tin đăng nhập sai
+    DB -> API: throw error
+    deactivate DB
+    
+    API -> AuthSvc: {error: "Sai email hoặc mật khẩu"}
+    deactivate API
+    
+    AuthSvc -> LoginUI: error
+    deactivate AuthSvc
+    
+    LoginUI -> User: Hiển thị lỗi đăng nhập
+    deactivate LoginUI
+end
+
+@enduml

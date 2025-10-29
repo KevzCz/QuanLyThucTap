@@ -1,0 +1,65 @@
+@startuml Activity - Giảng viên đăng ký môn thực tập
+
+skinparam ActivityDiagramTitleFontSize 16
+skinparam swimlaneWidth same
+
+|#LightBlue|Giảng viên|
+start
+
+:Truy cập trang đăng ký\nmôn thực tập;
+
+note right: Giảng viên xem các môn\nđang mở đăng ký
+
+:Xem danh sách các môn thực tập\nphù hợp với chuyên môn;
+
+if (Đã đăng ký môn nào chưa?) then (Đã đăng ký)
+  
+  :Hiển thị thông báo:\n"Bạn đã đăng ký hướng dẫn\nmôn thực tập";
+  
+  note right: Mỗi giảng viên thường\nchỉ hướng dẫn một môn\nmỗi kỳ học
+  
+  stop
+  
+else (Chưa đăng ký)
+  
+  :Chọn môn thực tập\nmong muốn hướng dẫn;
+  
+  :Xem thông tin chi tiết môn:\n• Mô tả môn học\n• Yêu cầu chuyên môn\n• Thời gian thực hiện;
+  
+  :Xác nhận đăng ký\nhướng dẫn môn này;
+  
+endif
+
+|#LightGreen|Hệ thống|
+
+:Kiểm tra thông tin\nmôn thực tập;
+
+if (Môn có hợp lệ?) then (Hợp lệ)
+  
+  :Tạo hồ sơ giảng viên\ncho môn thực tập;
+  
+  :Thêm giảng viên vào\ndanh sách hướng dẫn môn;
+  
+  :Gửi thông báo cho\nBan Chủ Nhiệm về việc\ncó giảng viên mới;
+  
+  |#LightBlue|Giảng viên|
+  
+  :Hiển thị thông báo\nđăng ký thành công;
+  
+  :Chuyển về Dashboard\nvới thông tin môn mới;
+  
+  note right: Giảng viên có thể\nbắt đầu chuẩn bị tài liệu\nvà chờ phân công sinh viên
+  
+  stop
+  
+else (Không hợp lệ)
+  
+  |#LightBlue|Giảng viên|
+  
+  :Hiển thị thông báo lỗi:\n• Môn không còn nhận đăng ký\n• Không đủ điều kiện\n• Lỗi hệ thống;
+  
+  stop
+  
+endif
+
+@enduml

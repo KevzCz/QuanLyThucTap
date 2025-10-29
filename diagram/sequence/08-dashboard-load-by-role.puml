@@ -1,0 +1,128 @@
+@startuml Sequence - Dashboard tải dữ liệu theo vai trò
+
+skinparam participantPadding 20
+skinparam boxPadding 10
+
+actor "Người dùng" as User
+participant "Dashboard UI" as DashboardUI
+participant "API Client" as ApiClient
+participant "Notification Service" as NotifUI
+participant "Chat API" as ChatAPI
+participant "API Server" as API
+participant "Database" as DB
+
+User -> DashboardUI: Truy cập /dashboard
+activate DashboardUI
+
+note over DashboardUI: Component mount\nDetect user role from AuthContext
+
+DashboardUI -> NotifUI: useNotifications()
+activate NotifUI
+
+NotifUI -> API: GET /notifications
+activate API
+
+API -> DB: Find user notifications
+activate DB
+DB -> API: notifications[]
+deactivate DB
+
+API -> NotifUI: notifications data
+deactivate API
+
+NotifUI -> DashboardUI: notifications state
+deactivate NotifUI
+
+alt User role: PDT
+        DashboardUI -> ApiClient: Load PDT statistics
+        activate ApiClient
+        
+        ApiClient -> API: GET multiple endpoints for statistics
+        activate API
+        API -> DB: Aggregate statistics
+        activate DB
+        DB -> API: combined stats
+        deactivate DB
+        API -> ApiClient: statistics data
+        deactivate API
+        
+        ApiClient -> DashboardUI: PDT statistics
+        deactivate ApiClient
+        
+    else User role: BCN
+        DashboardUI -> ApiClient: Load BCN statistics
+        activate ApiClient
+        
+        ApiClient -> API: GET BCN endpoints for statistics
+        activate API
+        API -> DB: BCN-specific data
+        activate DB
+        DB -> API: BCN stats
+        deactivate DB
+        API -> ApiClient: BCN data
+        deactivate API
+        
+        ApiClient -> DashboardUI: BCN statistics
+        deactivate ApiClient
+        
+    else User role: GV
+        DashboardUI -> ApiClient: Load GV data
+        activate ApiClient
+        
+        ApiClient -> API: GET teacher endpoints for data
+        activate API
+        API -> DB: Teacher-specific data
+        activate DB
+        DB -> API: calendar + deadlines
+        deactivate DB
+        API -> ApiClient: GV data
+        deactivate API
+        
+        ApiClient -> DashboardUI: Calendar + deadlines
+        deactivate ApiClient
+        
+    else User role: SV
+        DashboardUI -> ApiClient: Load SV progress
+        activate ApiClient
+        
+        ApiClient -> API: GET student endpoints for progress
+        activate API
+        API -> DB: Student progress + deadlines
+        activate DB
+        DB -> API: progress data
+        deactivate DB
+        API -> ApiClient: SV data
+        deactivate API
+        
+        ApiClient -> DashboardUI: Progress + calendar
+        deactivate ApiClient
+    end
+
+DashboardUI -> ChatAPI: getChatRequests({status: "pending"})
+    activate ChatAPI
+    
+    ChatAPI -> API: GET /chat/requests?status=pending
+    activate API
+    
+    API -> DB: Find pending chat requests
+    activate DB
+    DB -> API: pending requests[]
+    deactivate DB
+    
+    API -> ChatAPI: requests data
+    deactivate API
+    
+    ChatAPI -> DashboardUI: chat requests
+    deactivate ChatAPI
+
+DashboardUI -> User: Render dashboard với:\n- Notifications panel\n- Statistics cards/charts\n- Role-specific widgets\n- Pending chat requests
+
+note over User, DB
+Dashboard tự động refresh mỗi 30s
+hoặc khi nhận real-time updates
+từ WebSocket
+end note
+
+deactivate DashboardUI
+
+@enduml

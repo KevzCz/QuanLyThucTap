@@ -1,0 +1,27 @@
+@startuml Usecase - Giảng Viên (GV)
+left to right direction
+skinparam actorStyle awesome
+
+actor "Giảng Viên" as GV
+
+rectangle "Hệ thống Quản lý Thực tập" {
+  usecase "Quản lý sinh viên" as UC_GV_1
+  usecase "Xem tài liệu khoa" as UC_GV_2
+  usecase "Quản lý trang gv" as UC_GV_3
+  usecase "Đăng ký môn" as UC_GV_4
+  usecase "Quản lý báo cáo" as UC_GV_5
+  usecase "Quản lý điểm" as UC_GV_6
+  usecase "Chat hỗ trợ" as UC_GV_7
+  usecase "Xem thông báo" as UC_GV_8
+}
+
+GV --> UC_GV_1
+GV --> UC_GV_2
+GV --> UC_GV_3
+GV --> UC_GV_4
+GV --> UC_GV_5
+GV --> UC_GV_6
+GV --> UC_GV_7
+GV --> UC_GV_8
+
+@enduml

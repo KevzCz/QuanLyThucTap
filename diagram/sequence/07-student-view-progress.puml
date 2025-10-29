@@ -1,0 +1,91 @@
+@startuml Sequence - Xem chi tiết tiến độ thực tập (SV)
+
+skinparam participantPadding 20
+skinparam boxPadding 10
+
+actor "Sinh viên" as Student
+participant "Progress UI" as ProgressUI
+participant "Grade API" as GradeAPI
+participant "API Server" as API
+participant "Database" as DB
+
+Student -> ProgressUI: Truy cập /my-internship
+activate ProgressUI
+
+ProgressUI -> GradeAPI: getStudentProgress()
+activate GradeAPI
+
+GradeAPI -> API: GET /grades/student/progress
+activate API
+
+API -> DB: Find student's internship grade\nwith milestones & subject info
+activate DB
+DB -> API: grade with populated data
+deactivate DB
+
+API -> GradeAPI: {grade: {...}} with full details
+deactivate API
+
+GradeAPI -> ProgressUI: progress data
+deactivate GradeAPI
+
+ProgressUI -> Student: Hiển thị dashboard tiến độ:\n- Progress percentage bar\n- Status chip (Đang thực hiện/Hoàn thành/etc)\n- Milestones list\n- Grade components\n- Final grade (if available)
+
+Student -> ProgressUI: Xem milestone details
+ProgressUI -> Student: Expand milestone:\n- Title, description\n- Due date\n- Status\n- File submissions\n- Grade (if graded)
+
+alt Có file upload milestone
+    Student -> ProgressUI: Click "Tải file lên" trên milestone
+    
+    ProgressUI -> ProgressUI: Hiển thị file upload dialog\n(drag & drop, file picker)
+    
+    Student -> ProgressUI: Select/drop files
+    Student -> ProgressUI: Click "Tải lên"
+    
+    ProgressUI -> GradeAPI: uploadMilestoneFiles(milestoneId, files)
+    activate GradeAPI
+    
+    GradeAPI -> API: POST /grades/students/{studentId}/milestones/{milestoneId}/files
+    activate API
+    
+    API -> API: Validate file types & sizes\nSave files to upload directory
+    
+    API -> DB: Add FileSubmission records\nto milestone
+    activate DB
+    DB -> API: updated milestone
+    deactivate DB
+    
+    API -> GradeAPI: {success: true, fileSubmissions}
+    deactivate API
+    
+    GradeAPI -> ProgressUI: upload success
+    deactivate GradeAPI
+    
+    ProgressUI -> Student: Toast "Tải file thành công!"
+    ProgressUI -> Student: Cập nhật danh sách file
+end
+
+alt Có điểm đã được duyệt
+    Student -> ProgressUI: Xem chi tiết điểm
+    
+    ProgressUI -> Student: Hiển thị breakdown:\n- Điểm thái độ\n- Điểm báo cáo\n- Điểm thực hành\n- Nhận xét giảng viên\n- Điểm tổng kết
+    
+    note right: Chỉ hiển thị khi status = "approved"
+end
+
+alt Có thông báo deadline sắp đến
+    ProgressUI -> ProgressUI: Check upcoming deadlines\n(trong 3-7 ngày tới)
+    
+    ProgressUI -> Student: Hiển thị deadline reminders:\n"Sắp đến hạn: {milestone} - {date}"
+end
+
+Student -> ProgressUI: Refresh trang
+ProgressUI -> GradeAPI: Reload progress data
+activate GradeAPI
+GradeAPI -> ProgressUI: updated data
+deactivate GradeAPI
+
+ProgressUI -> Student: Cập nhật UI với dữ liệu mới
+deactivate ProgressUI
+
+@enduml

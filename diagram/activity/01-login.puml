@@ -1,0 +1,53 @@
+@startuml Activity - Đăng nhập hệ thống
+
+skinparam ActivityDiagramTitleFontSize 16
+skinparam swimlaneWidth same
+
+|#LightBlue|Người dùng|
+start
+
+:Truy cập trang đăng nhập;
+
+note right: Người dùng mở trình duyệt\nvà truy cập hệ thống
+
+:Nhập email và mật khẩu;
+
+|#LightGreen|Hệ thống|
+
+:Kiểm tra thông tin đăng nhập;
+
+if (Thông tin có hợp lệ?) then (Đúng)
+  
+  :Tạo token xác thực;
+  
+  :Lưu token vào cookie;
+  
+  :Lấy thông tin tài khoản;
+  
+  if (Trạng thái tài khoản?) then (Đang hoạt động)
+    
+    |#LightBlue|Người dùng|
+    
+    :Chuyển đến Dashboard\ntương ứng với vai trò;
+    
+    note right: Hiển thị giao diện\nphù hợp với quyền hạn
+    
+    stop
+    
+  else (Bị khóa)
+    
+    :Hiển thị thông báo lỗi:\n"Tài khoản đã bị khóa";
+    
+    stop
+    
+  endif
+  
+else (Sai)
+  
+  :Hiển thị thông báo lỗi:\n"Email hoặc mật khẩu không đúng";
+  
+  stop
+  
+endif
+
+@enduml

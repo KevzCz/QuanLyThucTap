@@ -1,0 +1,61 @@
+@startuml Activity - BCN phân công sinh viên cho giảng viên
+
+skinparam ActivityDiagramTitleFontSize 16
+skinparam swimlaneWidth same
+
+|#LightBlue|Ban Chủ Nhiệm|
+start
+
+:Truy cập trang quản lý\nmôn thực tập;
+
+note right: BCN quản lý các môn\nthuộc khoa mình
+
+:Chọn môn thực tập\ncần phân công;
+
+:Xem danh sách sinh viên\nchưa có giảng viên hướng dẫn;
+
+:Xem danh sách giảng viên\nđã đăng ký môn này;
+
+:Chọn sinh viên hoặc\nnhóm sinh viên cần phân công;
+
+:Chọn giảng viên hướng dẫn\nphù hợp;
+
+note right: Cân nhắc chuyên môn\nvà số lượng sinh viên\nmỗi giảng viên đang hướng dẫn
+
+:Xác nhận việc phân công;
+
+|#LightGreen|Hệ thống|
+
+:Kiểm tra tính hợp lệ\ncủa việc phân công;
+
+if (Thông tin có hợp lệ?) then (Hợp lệ)
+  
+  :Cập nhật thông tin\ngiảng viên hướng dẫn\ncho sinh viên;
+  
+  :Cập nhật bản ghi điểm\nvới thông tin giảng viên;
+  
+  :Gửi thông báo cho giảng viên\nvề sinh viên mới được phân công;
+  
+  :Gửi thông báo cho sinh viên\nvề giảng viên hướng dẫn;
+  
+  |#LightBlue|Ban Chủ Nhiệm|
+  
+  :Hiển thị thông báo\nphân công thành công;
+  
+  :Cập nhật hiển thị\ndanh sách đã phân công;
+  
+  note right: Có thể tiếp tục\nphân công cho sinh viên khác
+  
+  stop
+  
+else (Không hợp lệ)
+  
+  |#LightBlue|Ban Chủ Nhiệm|
+  
+  :Hiển thị thông báo lỗi:\n• Giảng viên đã quá tải\n• Sinh viên đã có GV hướng dẫn\n• Dữ liệu không hợp lệ;
+  
+  stop
+  
+endif
+
+@enduml
