@@ -151,15 +151,18 @@ const EditAccountDialog: React.FC<Props> = ({ open, onClose, account, onSave }) 
                 Vai trò <span className="text-red-500">*</span>
               </label>
               <select 
-                className="w-full h-11 rounded-lg border border-gray-300 px-3" 
+                className="w-full h-11 rounded-lg border border-gray-200 px-3 bg-gray-50 cursor-not-allowed" 
                 value={role} 
                 onChange={e => setRole(e.target.value as Role)}
-                disabled={isSubmitting}
+                disabled={true}
               >
                 {Object.entries(roleLabel).map(([k, v]) => (
                   <option key={k} value={k}>{v}</option>
                 ))}
               </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Không thể thay đổi vai trò sau khi tạo tài khoản
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">

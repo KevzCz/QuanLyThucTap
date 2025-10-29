@@ -296,6 +296,159 @@ router.put("/students/:studentId/milestones/:milestoneId", authenticate, authori
   }
 });
 
+// Upload files to milestone (SV can upload their own, GV can view)
+router.post("/students/:studentId/milestones/:milestoneId/files", authenticate, authorize(["sinh-vien", "giang-vien"]), async (req, res) => {
+  try {
+    const { studentId, milestoneId } = req.params;
+    const { files } = req.body; // Array of {id, fileName, fileUrl}
+
+    if (!files || !Array.isArray(files) || files.length === 0) {
+      return res.status(400).json({ success: false, error: "Vui lòng cung cấp danh sách file" });
+    }
+
+    if (files.length > 10) {
+      return res.status(400).json({ success: false, error: "Tối đa 10 file cho mỗi milestone" });
+    }
+
+    // Find the student account
+    const studentAccount = await Account.findOne({ id: studentId });
+    if (!studentAccount) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy sinh viên" });
+    }
+
+    // If user is a student, verify they're uploading to their own grade
+    if (req.account.role === "sinh-vien" && req.account._id.toString() !== studentAccount._id.toString()) {
+      return res.status(403).json({ success: false, error: "Bạn chỉ có thể tải file cho mốc của mình" });
+    }
+
+    const grade = await InternshipGrade.findOne({ student: studentAccount._id });
+    if (!grade) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });
+    }
+
+    // If user is GV, verify they own this grade
+    if (req.account.role === "giang-vien" && grade.supervisor.toString() !== req.account._id.toString()) {
+      return res.status(403).json({ success: false, error: "Bạn không có quyền truy cập điểm sinh viên này" });
+    }
+
+    const milestone = grade.milestones.id(milestoneId);
+    if (!milestone) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy milestone" });
+    }
+
+    // Initialize fileSubmissions if not exists
+    if (!milestone.fileSubmissions) {
+      milestone.fileSubmissions = [];
+    }
+
+    // Add new files with uploadedBy info
+    const uploadedBy = req.account.role === "sinh-vien" ? "student" : "supervisor";
+    const newFiles = files.map(file => ({
+      ...file,
+      uploadedAt: new Date(),
+      uploadedBy
+    }));
+
+    milestone.fileSubmissions.push(...newFiles);
+
+    // Check total file count
+    if (milestone.fileSubmissions.length > 10) {
+      return res.status(400).json({ success: false, error: "Tối đa 10 file cho mỗi milestone" });
+    }
+
+    await grade.save();
+
+    // Send notification if student uploaded
+    if (req.account.role === "sinh-vien") {
+      const io = req.app.get('io');
+      await notificationService.createNotification({
+        recipient: grade.supervisor,
+        sender: req.account._id,
+        type: 'milestone-file-uploaded',
+        title: 'Sinh viên nộp tài liệu',
+        message: `Sinh viên ${req.account.name} đã nộp ${files.length} file cho milestone "${milestone.title}"`,
+        link: `/gv/grade-management/${studentId}`,
+        priority: 'normal',
+        metadata: { 
+          gradeId: grade._id.toString(),
+          milestoneId: milestoneId,
+          fileCount: files.length
+        }
+      }, io);
+    }
+
+    res.json({
+      success: true,
+      message: "Tải file thành công",
+      fileSubmissions: milestone.fileSubmissions
+    });
+  } catch (error) {
+    console.error("Upload milestone file error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server" });
+  }
+});
+
+// Delete file from milestone
+router.delete("/students/:studentId/milestones/:milestoneId/files/:fileId", authenticate, authorize(["sinh-vien", "giang-vien"]), async (req, res) => {
+  try {
+    const { studentId, milestoneId, fileId } = req.params;
+
+    // Find the student account
+    const studentAccount = await Account.findOne({ id: studentId });
+    if (!studentAccount) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy sinh viên" });
+    }
+
+    // If user is a student, verify they're deleting from their own grade
+    if (req.account.role === "sinh-vien" && req.account._id.toString() !== studentAccount._id.toString()) {
+      return res.status(403).json({ success: false, error: "Bạn chỉ có thể xóa file của mình" });
+    }
+
+    const grade = await InternshipGrade.findOne({ student: studentAccount._id });
+    if (!grade) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });
+    }
+
+    // If user is GV, verify they own this grade
+    if (req.account.role === "giang-vien" && grade.supervisor.toString() !== req.account._id.toString()) {
+      return res.status(403).json({ success: false, error: "Bạn không có quyền truy cập điểm sinh viên này" });
+    }
+
+    const milestone = grade.milestones.id(milestoneId);
+    if (!milestone) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy milestone" });
+    }
+
+    if (!milestone.fileSubmissions) {
+      return res.status(404).json({ success: false, error: "Không có file nào" });
+    }
+
+    // Find and remove the file
+    const fileIndex = milestone.fileSubmissions.findIndex(f => f.id === fileId);
+    if (fileIndex === -1) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy file" });
+    }
+
+    // Only allow users to delete their own uploaded files, or GV can delete any
+    const file = milestone.fileSubmissions[fileIndex];
+    if (req.account.role === "sinh-vien" && file.uploadedBy !== "student") {
+      return res.status(403).json({ success: false, error: "Bạn chỉ có thể xóa file do mình tải lên" });
+    }
+
+    milestone.fileSubmissions.splice(fileIndex, 1);
+    await grade.save();
+
+    res.json({
+      success: true,
+      message: "Xóa file thành công",
+      fileSubmissions: milestone.fileSubmissions
+    });
+  } catch (error) {
+    console.error("Delete milestone file error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server" });
+  }
+});
+
 // Update grade components
 router.put("/students/:studentId/grades", authenticate, authorize(["giang-vien"]), async (req, res) => {
   try {

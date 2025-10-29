@@ -680,9 +680,37 @@ const StudentGradeDetail: React.FC = () => {
                             </p>
                           )}
                           {milestone.supervisorNotes && (
-                            <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">
+                            <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded whitespace-pre-wrap">
                               <strong>Ghi chú:</strong> {milestone.supervisorNotes}
                             </p>
+                          )}
+                          
+                          {/* File submissions */}
+                          {milestone.fileSubmissions && milestone.fileSubmissions.length > 0 && (
+                            <div className="mt-3">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Tài liệu đã nộp:</p>
+                              <div className="space-y-2">
+                                {milestone.fileSubmissions.map((file) => (
+                                  <div key={file.id} className="flex items-center gap-2 p-2 bg-blue-50 rounded border border-blue-200">
+                                    <Icons.file className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <a
+                                        href={resolveFileHref(file.fileUrl)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium truncate block"
+                                      >
+                                        {file.fileName}
+                                      </a>
+                                      <p className="text-xs text-gray-600">
+                                        {dayjs(file.uploadedAt).format('DD/MM/YYYY HH:mm')}
+                                        {file.uploadedBy === 'student' ? ' (SV)' : ' (GV)'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                         <div className="flex gap-2 flex-wrap">

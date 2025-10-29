@@ -56,7 +56,7 @@ GiangVienSchema.virtual('currentStudentCount').get(function() {
 });
 
 // Add indexes for better query performance
-GiangVienSchema.index({ account: 1 });
+// Note: account already has a unique index, no need to duplicate
 GiangVienSchema.index({ internshipSubject: 1 });
 GiangVienSchema.index({ managedStudents: 1 });
 

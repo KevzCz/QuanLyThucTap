@@ -17,7 +17,7 @@ const CreateInternshipSubjectDialog: React.FC<Props> = ({ open, onClose, onCreat
   const { showSuccess, showError } = useToast();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [duration, setDuration] = useState("8 tuần");
+  const [duration, setDuration] = useState("8");
   const [registrationStartDate, setRegistrationStartDate] = useState("");
   const [registrationEndDate, setRegistrationEndDate] = useState("");
   const [maxStudents, setMaxStudents] = useState<number>(50);
@@ -58,7 +58,7 @@ const CreateInternshipSubjectDialog: React.FC<Props> = ({ open, onClose, onCreat
   const resetForm = useCallback(() => {
     setTitle("");
     setDescription("");
-    setDuration("8 tuần");
+    setDuration("8");
     setMaxStudents(50);
     setManagerId("");
     setError("");

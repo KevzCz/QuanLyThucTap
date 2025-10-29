@@ -63,7 +63,7 @@ SinhVienSchema.virtual('accountDetails', {
 });
 
 // Add indexes for better query performance
-SinhVienSchema.index({ account: 1 });
+// Note: account already has a unique index, no need to duplicate
 SinhVienSchema.index({ internshipSubject: 1 });
 SinhVienSchema.index({ supervisor: 1 });
 SinhVienSchema.index({ internshipStatus: 1 });

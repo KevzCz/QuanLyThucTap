@@ -29,6 +29,7 @@ const NotificationSchema = new mongoose.Schema(
         "deadline-reminder",
         "milestone-added",
         "milestone-updated",
+        "milestone-file-uploaded",
         "grade-updated",
         "work-type-changed",
         "grade-submitted",
@@ -76,8 +77,10 @@ const NotificationSchema = new mongoose.Schema(
       studentId: String,
       subHeaderId: String,
       gradeId: String,
+      milestoneId: String,
       milestoneTitle: String,
       milestoneType: String,
+      fileCount: Number,
       workType: String
     }
   },

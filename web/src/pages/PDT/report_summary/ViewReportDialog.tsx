@@ -103,7 +103,7 @@ const ViewReportDialog: React.FC<Props> = ({ open, report, onClose }) => {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Nội dung</label>
           <div 
-            className="prose max-w-none text-sm text-gray-900 p-4 bg-gray-50 rounded-lg border border-gray-200"
+            className="prose max-w-none text-sm text-gray-900 p-4 bg-gray-50 rounded-lg border border-gray-200 whitespace-pre-wrap"
             dangerouslySetInnerHTML={{ __html: report.content }}
           />
         </div>

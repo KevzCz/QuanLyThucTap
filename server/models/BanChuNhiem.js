@@ -41,7 +41,7 @@ BanChuNhiemSchema.virtual('accountDetails', {
 });
 
 // Add indexes for better query performance
-BanChuNhiemSchema.index({ account: 1 });
+// Note: account already has a unique index, no need to duplicate
 BanChuNhiemSchema.index({ internshipSubject: 1 });
 
 export default mongoose.model("BanChuNhiem", BanChuNhiemSchema);

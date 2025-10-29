@@ -257,9 +257,37 @@ const GradeReviewDetail: React.FC = () => {
                     Hạn: {dayjs(milestone.dueDate).format('DD/MM/YYYY')}
                   </p>
                   {milestone.supervisorNotes && (
-                    <p className="text-sm text-gray-700 mt-2 bg-white p-2 rounded border">
+                    <p className="text-sm text-gray-700 mt-2 bg-white p-2 rounded border whitespace-pre-wrap">
                       <strong>Ghi chú GVHD:</strong> {milestone.supervisorNotes}
                     </p>
+                  )}
+                  
+                  {/* File submissions */}
+                  {milestone.fileSubmissions && milestone.fileSubmissions.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Tài liệu đã nộp:</p>
+                      <div className="space-y-1">
+                        {milestone.fileSubmissions.map((file) => (
+                          <div key={file.id} className="flex items-center gap-2 p-2 bg-white rounded border border-gray-200">
+                            <Icons.file className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <a
+                                href={resolveFileHref(file.fileUrl)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium truncate block"
+                              >
+                                {file.fileName}
+                              </a>
+                              <p className="text-xs text-gray-600">
+                                {dayjs(file.uploadedAt).format('DD/MM/YYYY HH:mm')}
+                                {file.uploadedBy === 'student' ? ' (SV)' : ' (GV)'}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

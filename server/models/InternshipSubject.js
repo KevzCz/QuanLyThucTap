@@ -160,7 +160,7 @@ InternshipSubjectSchema.virtual('registrationStatus').get(function() {
 });
 
 // Add indexes for better query performance
-InternshipSubjectSchema.index({ id: 1 });
+// Note: id already has a unique index, no need to duplicate
 InternshipSubjectSchema.index({ status: 1 });
 InternshipSubjectSchema.index({ manager: 1 });
 InternshipSubjectSchema.index({ title: 'text' });

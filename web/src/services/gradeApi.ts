@@ -22,6 +22,13 @@ export interface Milestone {
     fileUrl: string;
     submittedAt: string;
   }>;
+  fileSubmissions?: Array<{
+    id: string;
+    fileName: string;
+    fileUrl: string;
+    uploadedAt: string;
+    uploadedBy: 'student' | 'supervisor';
+  }>;
   supervisorNotes?: string;
   isCustom?: boolean;
 }
@@ -334,6 +341,73 @@ export const deleteMilestone = async (
     success: boolean; 
     message: string;
   }>(`/grades/students/${studentId}/milestones/${milestoneId}`, {
+    method: 'DELETE'
+  });
+  return response;
+};
+
+// Upload files to milestone
+export const uploadMilestoneFiles = async (
+  studentId: string,
+  milestoneId: string,
+  files: Array<{
+    id: string;
+    fileName: string;
+    fileUrl: string;
+  }>
+): Promise<{ 
+  message: string; 
+  fileSubmissions: Array<{
+    id: string;
+    fileName: string;
+    fileUrl: string;
+    uploadedAt: string;
+    uploadedBy: 'student' | 'supervisor';
+  }>;
+}> => {
+  const response = await apiClient.request<{ 
+    success: boolean; 
+    message: string;
+    fileSubmissions: Array<{
+      id: string;
+      fileName: string;
+      fileUrl: string;
+      uploadedAt: string;
+      uploadedBy: 'student' | 'supervisor';
+    }>;
+  }>(`/grades/students/${studentId}/milestones/${milestoneId}/files`, {
+    method: 'POST',
+    body: JSON.stringify({ files })
+  });
+  return response;
+};
+
+// Delete file from milestone
+export const deleteMilestoneFile = async (
+  studentId: string,
+  milestoneId: string,
+  fileId: string
+): Promise<{ 
+  message: string; 
+  fileSubmissions: Array<{
+    id: string;
+    fileName: string;
+    fileUrl: string;
+    uploadedAt: string;
+    uploadedBy: 'student' | 'supervisor';
+  }>;
+}> => {
+  const response = await apiClient.request<{ 
+    success: boolean; 
+    message: string;
+    fileSubmissions: Array<{
+      id: string;
+      fileName: string;
+      fileUrl: string;
+      uploadedAt: string;
+      uploadedBy: 'student' | 'supervisor';
+    }>;
+  }>(`/grades/students/${studentId}/milestones/${milestoneId}/files/${fileId}`, {
     method: 'DELETE'
   });
   return response;

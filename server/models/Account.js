@@ -156,8 +156,7 @@ AccountSchema.statics.findByCredentials = async function(email, password) {
 };
 
 // Add indexes for better query performance
-AccountSchema.index({ id: 1 });
-AccountSchema.index({ email: 1 });
+// Note: id and email already have unique indexes, no need to duplicate
 AccountSchema.index({ role: 1, status: 1 });
 AccountSchema.index({ name: 'text', email: 'text', id: 'text' });
 AccountSchema.index({ createdAt: -1 });

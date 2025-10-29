@@ -114,7 +114,7 @@ ReportSchema.pre('validate', async function (next) {
 });
 
 // Index for efficient queries
-ReportSchema.index({ id: 1 });
+// Note: id already has a unique index, no need to duplicate
 ReportSchema.index({ instructor: 1, createdAt: -1 });
 ReportSchema.index({ internshipSubject: 1, status: 1 });
 ReportSchema.index({ status: 1, createdAt: -1 });

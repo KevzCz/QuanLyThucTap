@@ -65,6 +65,29 @@ const milestoneSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  fileSubmissions: [{
+    id: {
+      type: String,
+      required: true
+    },
+    fileName: {
+      type: String,
+      required: true
+    },
+    fileUrl: {
+      type: String,
+      required: true
+    },
+    uploadedAt: {
+      type: Date,
+      default: Date.now
+    },
+    uploadedBy: {
+      type: String,
+      enum: ['student', 'supervisor'],
+      default: 'student'
+    }
+  }],
   supervisorNotes: String,
   isCustom: {
     type: Boolean,

@@ -75,10 +75,9 @@ router.get("/available-managers", ...authPDT, async (req, res) => {
       status: "open" 
     }).select('id name email').lean();
 
-    // Get managers already assigned to active subjects
-    const assignedSubjects = await InternshipSubject.find({ 
-      status: "open" 
-    }).select('manager').lean();
+    // Get managers already assigned to ANY subjects (regardless of status)
+    const assignedSubjects = await InternshipSubject.find({})
+      .select('manager').lean();
 
     const assignedManagerIds = assignedSubjects
       .map(s => s.manager?.toString())

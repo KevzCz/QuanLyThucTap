@@ -9,15 +9,21 @@ import {
   getGradeStatusText,
   getGradeStatusColor,
   getWorkTypeText,
-  getGradeComponentName
+  getGradeComponentName,
+  uploadGradingFiles,
+  uploadMilestoneFiles,
+  deleteMilestoneFile
 } from '../../../services/gradeApi';
 import { resolveFileHref } from '../../../utils/fileLinks';
 import dayjs from 'dayjs';
+import { useAuth } from '../../../contexts/UseAuth';
 
 const StudentProgress: React.FC = () => {
+  const { user } = useAuth();
   const [grade, setGrade] = useState<InternshipGrade | null>(null);
   const [loading, setLoading] = useState(true);
-  const { showError } = useToast();
+  const [uploadingFileForMilestone, setUploadingFileForMilestone] = useState<string | null>(null);
+  const { showError, showSuccess } = useToast();
 
   const loadProgress = useCallback(async () => {
     try {
@@ -31,6 +37,73 @@ const StudentProgress: React.FC = () => {
       setLoading(false);
     }
   }, [showError]);
+
+  const handleFileUpload = async (milestoneId: string, files: FileList | null) => {
+    if (!files || files.length === 0 || !grade || !user) return;
+
+    try {
+      setUploadingFileForMilestone(milestoneId);
+
+      // Upload files to server
+      const uploadResponse = await uploadGradingFiles(files);
+
+      // Prepare file data for milestone
+      const fileData = uploadResponse.files.map((file) => ({
+        id: file.filename,
+        fileName: file.originalName,
+        fileUrl: file.path
+      }));
+
+      // Add files to milestone
+      const response = await uploadMilestoneFiles(user.id, milestoneId, fileData);
+
+      // Update local state
+      setGrade(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          milestones: prev.milestones.map(m =>
+            m.id === milestoneId
+              ? { ...m, fileSubmissions: response.fileSubmissions }
+              : m
+          )
+        };
+      });
+
+      showSuccess('Tải file lên thành công');
+    } catch (err) {
+      console.error('Failed to upload files:', err);
+      showError('Không thể tải file lên');
+    } finally {
+      setUploadingFileForMilestone(null);
+    }
+  };
+
+  const handleFileDelete = async (milestoneId: string, fileId: string) => {
+    if (!grade || !user) return;
+
+    try {
+      const response = await deleteMilestoneFile(user.id, milestoneId, fileId);
+
+      // Update local state
+      setGrade(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          milestones: prev.milestones.map(m =>
+            m.id === milestoneId
+              ? { ...m, fileSubmissions: response.fileSubmissions }
+              : m
+          )
+        };
+      });
+
+      showSuccess('Xóa file thành công');
+    } catch (err) {
+      console.error('Failed to delete file:', err);
+      showError('Không thể xóa file');
+    }
+  };
 
   useEffect(() => {
     loadProgress();
@@ -184,13 +257,80 @@ const StudentProgress: React.FC = () => {
                   {milestone.supervisorNotes && (
                     <div className="mt-3 p-3 bg-blue-50 rounded">
                       <span className="font-medium text-blue-900 text-sm">Ghi chú từ giảng viên:</span>
-                      <p className="text-blue-800 text-sm mt-1">{milestone.supervisorNotes}</p>
+                      <p className="text-blue-800 text-sm mt-1 whitespace-pre-wrap">{milestone.supervisorNotes}</p>
                     </div>
                   )}
                   
+                  {/* File submissions (new system) */}
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-gray-700 text-sm">Tài liệu nộp:</span>
+                      <label className="cursor-pointer">
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png"
+                          onChange={(e) => handleFileUpload(milestone.id, e.target.files)}
+                          className="hidden"
+                          disabled={uploadingFileForMilestone === milestone.id}
+                        />
+                        <span className="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400">
+                          {uploadingFileForMilestone === milestone.id ? (
+                            <>
+                              <div className="w-3 h-3 mr-1 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              Đang tải...
+                            </>
+                          ) : (
+                            <>
+                              <Icons.upload className="w-3 h-3 mr-1" />
+                              Tải file lên
+                            </>
+                          )}
+                        </span>
+                      </label>
+                    </div>
+
+                    {milestone.fileSubmissions && milestone.fileSubmissions.length > 0 ? (
+                      <div className="space-y-2">
+                        {milestone.fileSubmissions.map((file) => (
+                          <div key={file.id} className="flex items-center justify-between p-2 bg-gray-50 rounded border border-gray-200">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <Icons.file className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <a
+                                  href={resolveFileHref(file.fileUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 text-sm truncate block"
+                                >
+                                  {file.fileName}
+                                </a>
+                                <p className="text-xs text-gray-500">
+                                  {dayjs(file.uploadedAt).format('DD/MM/YYYY HH:mm')}
+                                  {file.uploadedBy === 'student' ? ' (Bạn)' : ' (GV)'}
+                                </p>
+                              </div>
+                            </div>
+                            {file.uploadedBy === 'student' && (
+                              <button
+                                onClick={() => handleFileDelete(milestone.id, file.id)}
+                                className="ml-2 p-1 text-red-600 hover:bg-red-50 rounded"
+                                title="Xóa file"
+                              >
+                                <Icons.delete className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 italic">Chưa có tài liệu nào được nộp.</p>
+                    )}
+                  </div>
+                  
                   {milestone.submittedDocuments && milestone.submittedDocuments.length > 0 && (
                     <div className="mt-3">
-                      <span className="font-medium text-gray-500 text-sm">Tài liệu đã nộp:</span>
+                      <span className="font-medium text-gray-500 text-sm">Tài liệu đã nộp (cũ):</span>
                       <ul className="mt-1 space-y-1">
                         {milestone.submittedDocuments.map((doc, index) => (
                           <li key={index} className="text-sm">

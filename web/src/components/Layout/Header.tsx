@@ -106,7 +106,18 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
   const [showProfile, setShowProfile] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [selectedUser, setSelectedUser] = useState<{ id: string; name: string; email: string; role: string } | null>(null);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1280);
   const { breadcrumb, title } = getPageInfo(location.pathname);
+
+  // Track window size to show/hide menu button
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1280);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const handleUserProfileClick = (user: { id: string; name: string; email: string; role: string }) => {
     setSelectedUser(user);
@@ -128,14 +139,16 @@ const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
       <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 flex items-center justify-between gap-2 sm:gap-3">
         {/* Left section with menu button and page title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-          {/* Mobile menu button */}
-          <button
-            onClick={onMenuToggle}
-            className="lg:hidden p-2 rounded-lg hover:bg-gray-100 text-gray-600 flex-shrink-0"
-            aria-label="Toggle menu"
-          >
-            <MenuIcon />
-          </button>
+          {/* Mobile menu button - only show when not desktop (< 1280px) */}
+          {!isDesktop && (
+            <button
+              onClick={onMenuToggle}
+              className="p-2 rounded-lg hover:bg-gray-100 text-gray-600 flex-shrink-0"
+              aria-label="Toggle menu"
+            >
+              <MenuIcon />
+            </button>
+          )}
 
           {/* Page info */}
           <div className="min-w-0 flex-1">
