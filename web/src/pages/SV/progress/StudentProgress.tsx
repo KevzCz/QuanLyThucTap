@@ -181,10 +181,40 @@ const StudentProgress: React.FC = () => {
                   <span className="text-sm font-medium text-gray-500">Giảng viên hướng dẫn:</span>
                   <p className="text-sm text-gray-900">{grade.supervisor?.name || 'Chưa phân công'}</p>
                 </div>
-                {grade.company && (
+                {grade.workType === 'thuc_tap' && grade.company && (
+                  <>
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Công ty thực tập:</span>
+                      <p className="text-sm text-gray-900">{grade.company.name}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-500">Người hướng dẫn (công ty):</span>
+                      <p className="text-sm text-gray-900">{grade.company.supervisorName || 'Chưa cập nhật'}</p>
+                    </div>
+                    {grade.company.supervisorPhone && (
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Điện thoại:</span>
+                        <p className="text-sm text-gray-900">{grade.company.supervisorPhone}</p>
+                      </div>
+                    )}
+                    {grade.company.supervisorEmail && (
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Email:</span>
+                        <p className="text-sm text-gray-900">{grade.company.supervisorEmail}</p>
+                      </div>
+                    )}
+                    {grade.company.address && (
+                      <div>
+                        <span className="text-sm font-medium text-gray-500">Địa chỉ:</span>
+                        <p className="text-sm text-gray-900">{grade.company.address}</p>
+                      </div>
+                    )}
+                  </>
+                )}
+                {grade.workType === 'do_an' && grade.projectTopic && (
                   <div>
-                    <span className="text-sm font-medium text-gray-500">Công ty thực tập:</span>
-                    <p className="text-sm text-gray-900">{grade.company.name}</p>
+                    <span className="text-sm font-medium text-gray-500">Chủ đề đồ án:</span>
+                    <p className="text-sm text-gray-900">{grade.projectTopic}</p>
                   </div>
                 )}
               </div>

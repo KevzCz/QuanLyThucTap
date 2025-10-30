@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import PageLayout from '../../../components/UI/PageLayout';
 import { Icons } from '../../../components/UI/Icons';
 import { useToast } from '../../../components/UI/Toast';
+import ConfirmDialog from '../../../components/dialogs/ConfirmDialog';
 import {
   getGradeDetailsForReview,
   reviewGrade,
@@ -196,18 +197,59 @@ const GradeReviewDetail: React.FC = () => {
       <div className="space-y-6">
         {/* Student info */}
         <div className="bg-white border border-gray-200 rounded-lg p-6">
-          <div className="space-y-3">
-            <div>
-              <p className="text-sm text-gray-600">Mã sinh viên</p>
-              <p className="font-medium text-gray-900">{grade.student?.id || '--'}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm text-gray-600">Mã sinh viên</p>
+                <p className="font-medium text-gray-900">{grade.student?.id || '--'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Email</p>
+                <p className="font-medium text-gray-900">{grade.student?.email || '--'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Môn thực tập</p>
+                <p className="font-medium text-gray-900">{grade.subject?.title || 'Chưa có môn học'}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-gray-600">Email</p>
-              <p className="font-medium text-gray-900">{grade.student?.email || '--'}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Môn thực tập</p>
-              <p className="font-medium text-gray-900">{grade.subject?.title || 'Chưa có môn học'}</p>
+            
+            <div className="space-y-3">
+              {grade.workType === 'thuc_tap' && grade.company && (
+                <>
+                  <div>
+                    <p className="text-sm text-gray-600">Công ty thực tập</p>
+                    <p className="font-medium text-gray-900">{grade.company.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Người hướng dẫn (công ty)</p>
+                    <p className="font-medium text-gray-900">{grade.company.supervisorName || '--'}</p>
+                  </div>
+                  {grade.company.supervisorPhone && (
+                    <div>
+                      <p className="text-sm text-gray-600">Điện thoại</p>
+                      <p className="font-medium text-gray-900">{grade.company.supervisorPhone}</p>
+                    </div>
+                  )}
+                  {grade.company.supervisorEmail && (
+                    <div>
+                      <p className="text-sm text-gray-600">Email</p>
+                      <p className="font-medium text-gray-900">{grade.company.supervisorEmail}</p>
+                    </div>
+                  )}
+                  {grade.company.address && (
+                    <div>
+                      <p className="text-sm text-gray-600">Địa chỉ</p>
+                      <p className="font-medium text-gray-900">{grade.company.address}</p>
+                    </div>
+                  )}
+                </>
+              )}
+              {grade.workType === 'do_an' && grade.projectTopic && (
+                <div>
+                  <p className="text-sm text-gray-600">Chủ đề đồ án</p>
+                  <p className="font-medium text-gray-900">{grade.projectTopic}</p>
+                </div>
+              )}
             </div>
           </div>
           
@@ -468,109 +510,66 @@ const GradeReviewDetail: React.FC = () => {
             )}
           </div>
         </div>
+        </div>
+      </PageLayout>
 
-        {/* Reject Dialog */}
-        {showRejectDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-md w-full p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Xác nhận từ chối điểm</h3>
-              <p className="text-gray-600 mb-4">
-                Bạn có chắc chắn muốn từ chối điểm này? Điểm sẽ được trả về cho giảng viên để chỉnh sửa.
-              </p>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Lý do từ chối (bắt buộc)
-                </label>
-                <textarea
-                  value={bcnComment}
-                  onChange={(e) => setBcnComment(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  rows={3}
-                  placeholder="Nhập lý do từ chối..."
-                />
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowRejectDialog(false)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={() => {
-                    if (!bcnComment.trim()) {
-                      showWarning("Thiếu thông tin", "Vui lòng nhập lý do từ chối");
-                      return;
-                    }
-                    setShowRejectConfirm(true);
-                  }}
-                  disabled={processing}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {processing ? 'Đang xử lý...' : 'Xác nhận'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Approve Dialog */}
+      <ConfirmDialog
+        open={showApproveDialog}
+        title="Xác nhận duyệt điểm"
+        message="Bạn có chắc chắn muốn duyệt điểm này? Sau khi duyệt sẽ không thể thay đổi."
+        confirmLabel="Xác nhận duyệt"
+        cancelLabel="Hủy"
+        variant="success"
+        onConfirm={handleApprove}
+        onCancel={() => setShowApproveDialog(false)}
+        loading={processing}
+      />
 
-        {/* Approve Confirmation Dialog */}
-        {showApproveDialog && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-md w-full p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Xác nhận duyệt điểm</h3>
-              <p className="text-gray-600 mb-6">
-                Bạn có chắc chắn muốn duyệt điểm này? Sau khi duyệt sẽ không thể thay đổi.
-              </p>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowApproveDialog(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  disabled={processing}
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={handleApprove}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                  disabled={processing}
-                >
-                  {processing ? 'Đang xử lý...' : 'Xác nhận duyệt'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Reject Dialog */}
+      <ConfirmDialog
+        open={showRejectDialog}
+        title="Xác nhận từ chối điểm"
+        message="Bạn có chắc chắn muốn từ chối điểm này? Điểm sẽ được trả về cho giảng viên để chỉnh sửa."
+        confirmLabel="Xác nhận"
+        cancelLabel="Hủy"
+        variant="danger"
+        onConfirm={() => {
+          if (!bcnComment.trim()) {
+            showWarning("Thiếu thông tin", "Vui lòng nhập lý do từ chối");
+            return;
+          }
+          setShowRejectConfirm(true);
+        }}
+        onCancel={() => setShowRejectDialog(false)}
+        loading={processing}
+      >
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Lý do từ chối (bắt buộc)
+          </label>
+          <textarea
+            value={bcnComment}
+            onChange={(e) => setBcnComment(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            rows={3}
+            placeholder="Nhập lý do từ chối..."
+          />
+        </div>
+      </ConfirmDialog>
 
-        {/* Reject Final Confirmation Dialog */}
-        {showRejectConfirm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-            <div className="bg-white rounded-lg max-w-md w-full p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Xác nhận lần cuối</h3>
-              <p className="text-gray-600 mb-6">
-                Bạn có chắc chắn muốn từ chối điểm này? Điểm sẽ được trả về cho giảng viên chỉnh sửa.
-              </p>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowRejectConfirm(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                  disabled={processing}
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={handleReject}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                  disabled={processing}
-                >
-                  {processing ? 'Đang xử lý...' : 'Xác nhận từ chối'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </PageLayout>
+      {/* Final Reject Confirmation Dialog */}
+      <ConfirmDialog
+        open={showRejectConfirm}
+        title="Xác nhận lần cuối"
+        message="Bạn có chắc chắn muốn từ chối điểm này? Điểm sẽ được trả về cho giảng viên chỉnh sửa."
+        confirmLabel="Xác nhận từ chối"
+        cancelLabel="Hủy"
+        variant="danger"
+        onConfirm={handleReject}
+        onCancel={() => setShowRejectConfirm(false)}
+        loading={processing}
+      />
     </>
   );
 };

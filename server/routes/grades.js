@@ -92,8 +92,10 @@ router.get("/supervisor/students", authenticate, authorize(["giang-vien"]), asyn
           id: grade.internshipSubject.id,
           title: grade.internshipSubject.title
         } : null,
-        workType: grade.workType,
-        status: grade.status,
+  workType: grade.workType,
+  company: grade.company,
+  projectTopic: grade.projectTopic,
+  status: grade.status,
         finalGrade: grade.finalGrade,
         letterGrade: grade.letterGrade,
         progressPercentage: grade.progressPercentage || grade.getProgressPercentage?.() || 0,
@@ -187,6 +189,9 @@ router.get("/students/:studentId", authenticate, authorize(["giang-vien", "ban-c
         supervisor: grade.supervisor,
         subject: grade.internshipSubject,
         status: grade.status,
+        workType: grade.workType,
+        company: grade.company,
+        projectTopic: grade.projectTopic,
         startDate: grade.startDate,
         endDate: grade.endDate,
         milestones: grade.milestones,
@@ -653,59 +658,6 @@ router.post("/students/:studentId/submit", authenticate, authorize(["giang-vien"
   }
 });
 
-// Update work type and company information
-router.put("/students/:studentId/work-info", authenticate, authorize(["giang-vien"]), async (req, res) => {
-  try {
-    const { studentId } = req.params;
-    const { workType, company, projectTopic } = req.body;
-
-    // Find student by Account.id
-    const studentAccount = await Account.findOne({ id: studentId });
-    if (!studentAccount) {
-      return res.status(404).json({ success: false, error: "Không tìm thấy sinh viên" });
-    }
-
-    const grade = await InternshipGrade.findOne({ student: studentAccount._id });
-    if (!grade) {
-      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });
-    }
-
-    // Update work type and recreate components if needed
-    if (workType && workType !== grade.workType) {
-      grade.workType = workType;
-      grade.gradeComponents = InternshipGrade.createDefaultGradeComponents(workType);
-      grade.milestones = InternshipGrade.createDefaultMilestones(workType, grade.startDate, grade.endDate);
-    }
-
-    // Update company information for internships
-    if (workType === 'thuc_tap' && company) {
-      grade.company = company;
-    }
-
-    // Update project topic for thesis
-    if (workType === 'do_an' && projectTopic !== undefined) {
-      grade.projectTopic = projectTopic;
-    }
-
-    await grade.save();
-
-    res.json({
-      success: true,
-      message: "Đã cập nhật thông tin thành công",
-      grade: {
-        workType: grade.workType,
-        company: grade.company,
-        projectTopic: grade.projectTopic,
-        gradeComponents: grade.gradeComponents,
-        milestones: grade.milestones
-      }
-    });
-  } catch (error) {
-    console.error("Update work info error:", error);
-    res.status(500).json({ success: false, error: "Lỗi server" });
-  }
-});
-
 // Add custom milestone
 router.post("/students/:studentId/milestones", authenticate, authorize(["giang-vien"]), async (req, res) => {
   try {
@@ -1112,6 +1064,9 @@ router.get("/student/my-progress", authenticate, authorize(["sinh-vien"]), async
         id: grade._id,
         supervisor: grade.supervisor,
         subject: grade.internshipSubject,
+        workType: grade.workType,
+        company: grade.company,
+        projectTopic: grade.projectTopic,
         status: grade.status,
         startDate: grade.startDate,
         endDate: grade.endDate,
@@ -1247,6 +1202,8 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
             title: grade.internshipSubject.title
           } : null,
           workType: grade.workType,
+          company: grade.company,
+          projectTopic: grade.projectTopic,
           status: grade.status,
           finalGrade: grade.finalGrade,
           letterGrade: grade.letterGrade,
@@ -1362,8 +1319,10 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
           id: grade.internshipSubject.id,
           title: grade.internshipSubject.title
         } : null,
-        workType: grade.workType,
-        status: grade.status,
+          workType: grade.workType,
+          company: grade.company,
+          projectTopic: grade.projectTopic,
+          status: grade.status,
         finalGrade: grade.finalGrade,
         letterGrade: grade.letterGrade,
         progressPercentage: grade.getProgressPercentage(),
@@ -1391,6 +1350,88 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error("Get PDT grade statistics error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server" });
+  }
+});
+
+// Update work type and company information for a grade
+router.put("/students/:studentId/work-info", authenticate, authorize(["giang-vien"]), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { workType, company, projectTopic } = req.body;
+
+    // Find the student account
+    const studentAccount = await Account.findOne({ id: studentId });
+    if (!studentAccount) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy sinh viên" });
+    }
+
+    // Find the grade record
+    let grade = await InternshipGrade.findOne({ student: studentAccount._id })
+      .populate('student', 'id name email')
+      .populate('supervisor', 'id name email')
+      .populate('internshipSubject', 'id title');
+
+    if (!grade) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });
+    }
+
+    // Check if the requesting user is the supervisor
+    if (grade.supervisor._id.toString() !== req.account._id.toString()) {
+      return res.status(403).json({ success: false, error: "Bạn không có quyền cập nhật thông tin này" });
+    }
+
+    // Validate workType
+    if (!['thuc_tap', 'do_an'].includes(workType)) {
+      return res.status(400).json({ success: false, error: "Loại công việc không hợp lệ" });
+    }
+
+    // Update work information
+    grade.workType = workType;
+
+    if (workType === 'thuc_tap' && company) {
+      // Validate company information
+      if (!company.name || !company.supervisorName || !company.address) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Thông tin doanh nghiệp không đầy đủ" 
+        });
+      }
+      grade.company = {
+        name: company.name,
+        supervisorName: company.supervisorName,
+        supervisorEmail: company.supervisorEmail || '',
+        supervisorPhone: company.supervisorPhone || '',
+        address: company.address
+      };
+    } else if (workType === 'do_an') {
+      // Clear company info for thesis projects
+      grade.company = undefined;
+      if (projectTopic) {
+        grade.projectTopic = projectTopic;
+      }
+    }
+
+    // Update project topic if provided
+    if (projectTopic) {
+      grade.projectTopic = projectTopic;
+    }
+
+    await grade.save();
+
+    res.json({
+      success: true,
+      message: "Đã cập nhật thông tin thành công",
+      grade: {
+        workType: grade.workType,
+        company: grade.company,
+        projectTopic: grade.projectTopic,
+        gradeComponents: grade.gradeComponents,
+        milestones: grade.milestones
+      }
+    });
+  } catch (error) {
+    console.error("Update work info error:", error);
     res.status(500).json({ success: false, error: "Lỗi server" });
   }
 });

@@ -96,6 +96,14 @@ export interface GradeSummary {
     title: string;
   };
   workType: 'thuc_tap' | 'do_an';
+  company?: {
+    name: string;
+    supervisorName: string;
+    supervisorEmail?: string;
+    supervisorPhone?: string;
+    address: string;
+  };
+  projectTopic?: string;
   status: string;
   finalGrade?: number;
   letterGrade?: string;
@@ -432,6 +440,14 @@ export const getBCNPendingGrades = async (): Promise<{
     letterGrade: string;
     submittedAt: string;
     supervisorFinalComment: string;
+    company?: {
+      name: string;
+      supervisorName: string;
+      supervisorEmail?: string;
+      supervisorPhone?: string;
+      address: string;
+    };
+    projectTopic?: string;
   }>
 }> => {
   const response = await apiClient.request<{ 

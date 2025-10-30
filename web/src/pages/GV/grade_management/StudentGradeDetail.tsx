@@ -101,6 +101,8 @@ const StudentGradeDetail: React.FC = () => {
       // Initialize work type and company info
       setWorkType(response.grade.workType || 'thuc_tap');
       setProjectTopic(response.grade.projectTopic || '');
+      
+      // Always initialize company data - either from response or reset to defaults
       if (response.grade.company) {
         const companyData = response.grade.company as Record<string, unknown>;
         setCompany({
@@ -110,6 +112,16 @@ const StudentGradeDetail: React.FC = () => {
           supervisorPhone: (companyData.supervisorPhone as string) || '',
           address: (companyData.address as string) || '',
           location: (companyData.location as { lat: number; lng: number }) || { lat: 0, lng: 0 }
+        });
+      } else {
+        // Reset to default empty values if no company data
+        setCompany({
+          name: '',
+          supervisorName: '',
+          supervisorEmail: '',
+          supervisorPhone: '',
+          address: '',
+          location: { lat: 0, lng: 0 }
         });
       }
     } catch (err) {

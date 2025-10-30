@@ -21,6 +21,7 @@ import chatRoutes from "./routes/chat.js";
 import notificationRoutes from "./routes/notifications.js";
 import gradeRoutes from "./routes/grades.js";
 import profileRoutes from "./routes/profile.js";
+import geocodeRoutes from "./routes/geocode.js";
 import deadlineReminderService from "./services/deadlineReminderService.js";
 const app = express();
 const httpServer = createServer(app);
@@ -104,6 +105,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/grades", gradeRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/geocode", geocodeRoutes);
 
 // Add the teacher-specific page routes from pages.js
 import pagesRoutes from "./routes/pages.js";

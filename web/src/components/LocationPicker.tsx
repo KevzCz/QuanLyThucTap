@@ -70,7 +70,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
     setIsSearching(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressToGeocode)}&limit=1`
+        `/api/geocode/search?q=${encodeURIComponent(addressToGeocode)}&limit=1`,
+        {
+          credentials: 'include'
+        }
       );
       const data = await response.json();
       
@@ -86,9 +89,24 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
           ...newLocation,
           address: result.display_name
         });
+      } else {
+        console.warn('No geocoding results found');
       }
     } catch (error) {
       console.error('Geocoding error:', error);
+      // Fallback: still try to set location even if geocoding fails
+      const addressParts = addressToGeocode.toLowerCase();
+      if (addressParts.includes('hồ chí minh') || addressParts.includes('tp.hcm') || addressParts.includes('saigon')) {
+        const fallbackLocation = { lat: 10.8231, lng: 106.6297 };
+        setSelectedLocation(fallbackLocation);
+        setAddress(addressToGeocode);
+        onLocationSelect({ ...fallbackLocation, address: addressToGeocode });
+      } else if (addressParts.includes('hà nội') || addressParts.includes('hanoi')) {
+        const fallbackLocation = { lat: 21.0285, lng: 105.8542 };
+        setSelectedLocation(fallbackLocation);
+        setAddress(addressToGeocode);
+        onLocationSelect({ ...fallbackLocation, address: addressToGeocode });
+      }
     } finally {
       setIsSearching(false);
     }
@@ -98,7 +116,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`
+        `/api/geocode/reverse?lat=${lat}&lon=${lng}`,
+        {
+          credentials: 'include'
+        }
       );
       const data = await response.json();
       
@@ -107,9 +128,20 @@ const LocationPicker: React.FC<LocationPickerProps> = ({
         setAddress(newAddress);
         setSearchInput(newAddress);
         onLocationSelect({ lat, lng, address: newAddress });
+      } else {
+        // Fallback if reverse geocoding fails
+        const fallbackAddress = `Vị trí: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        setAddress(fallbackAddress);
+        setSearchInput(fallbackAddress);
+        onLocationSelect({ lat, lng, address: fallbackAddress });
       }
     } catch (error) {
       console.error('Reverse geocoding error:', error);
+      // Always provide a fallback address
+      const fallbackAddress = `Vị trí: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      setAddress(fallbackAddress);
+      setSearchInput(fallbackAddress);
+      onLocationSelect({ lat, lng, address: fallbackAddress });
     }
   }, [onLocationSelect]);
 

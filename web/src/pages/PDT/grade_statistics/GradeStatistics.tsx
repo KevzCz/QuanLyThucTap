@@ -21,6 +21,18 @@ interface Grade {
     title: string;
   } | null;
   workType: "thuc_tap" | "do_an";
+  company?: {
+    name: string;
+    supervisorName?: string;
+    supervisorEmail?: string;
+    supervisorPhone?: string;
+    address?: string;
+    location?: {
+      lat: number;
+      lng: number;
+    };
+  };
+  projectTopic?: string;
   status: "not_started" | "in_progress" | "draft_completed" | "submitted" | "approved" | "rejected";
   finalGrade?: number;
   letterGrade?: string;
@@ -347,6 +359,7 @@ const GradeStatistics: React.FC = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Giảng viên</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">Môn TT</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[90px]">Loại</th>
+                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">Công việc</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[110px] sm:w-[120px]">Trạng thái</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[70px]">Điểm</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[80px] sm:w-[90px]">Xếp loại</th>
@@ -357,13 +370,13 @@ const GradeStatistics: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 text-xs sm:text-sm">
+                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500 text-xs sm:text-sm">
                     Đang tải...
                   </td>
                 </tr>
               ) : grades.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 text-xs sm:text-sm">
+                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500 text-xs sm:text-sm">
                     Không có dữ liệu điểm
                   </td>
                 </tr>
@@ -384,6 +397,24 @@ const GradeStatistics: React.FC = () => {
                     </td>
                     <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">
                       {WorkTypeLabels[grade.workType]}
+                    </td>
+                    <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 max-w-xs">
+                      {grade.workType === 'thuc_tap' && grade.company ? (
+                        <div>
+                          <div className="font-medium">{grade.company.name}</div>
+                          {grade.company.supervisorName && (
+                            <div className="text-gray-500 text-xs">
+                              {grade.company.supervisorName}
+                            </div>
+                          )}
+                        </div>
+                      ) : grade.workType === 'do_an' && grade.projectTopic ? (
+                        <div className="truncate" title={grade.projectTopic}>
+                          {grade.projectTopic}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(grade.status)}`}>

@@ -7,7 +7,8 @@ import {
   getBCNSubmittedGrades,
   type InternshipGrade,
   getGradeStatusText,
-  getGradeStatusColor
+  getGradeStatusColor,
+  getWorkTypeText
 } from '../../../services/gradeApi';
 import dayjs from 'dayjs';
 import { useDebounce } from '../../../hooks/useDebounce';
@@ -168,6 +169,7 @@ const GradeReviewList: React.FC = () => {
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[150px]">Sinh viên</th>
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[180px]">Môn thực tập</th>
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[140px]">Giảng viên</th>
+                    <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[140px]">Công việc</th>
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[80px]">Điểm</th>
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[140px]">Trạng thái</th>
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[100px]">Thao tác</th>
@@ -189,6 +191,17 @@ const GradeReviewList: React.FC = () => {
                       <td className="px-3 sm:px-4 py-2.5 sm:py-3">
                         <div className="font-medium text-xs sm:text-sm text-gray-900">{grade.supervisor?.name || 'Chưa có GVHD'}</div>
                         <div className="text-xs text-gray-500">{grade.supervisor?.email || '--'}</div>
+                      </td>
+                      <td className="px-3 sm:px-4 py-2.5 sm:py-3">
+                        <div className="text-xs sm:text-sm text-gray-900">{getWorkTypeText(grade.workType)}</div>
+                        {grade.workType === 'thuc_tap' && grade.company && (
+                          <div className="text-xs text-gray-500">{grade.company.name}</div>
+                        )}
+                        {grade.workType === 'do_an' && grade.projectTopic && (
+                          <div className="text-xs text-gray-500 truncate max-w-[140px]" title={grade.projectTopic}>
+                            {grade.projectTopic}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 sm:px-4 py-2.5 sm:py-3">
                         <div className="text-base sm:text-lg font-bold text-gray-900">
