@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import PageLayout from '../../../components/UI/PageLayout';
 import Pagination from '../../../components/UI/Pagination';
 import { Icons } from '../../../components/UI/Icons';
@@ -14,13 +13,15 @@ import dayjs from 'dayjs';
 import { useDebounce } from '../../../hooks/useDebounce';
 import EmptyState from '../../../components/UI/EmptyState';
 import { useToast } from '../../../components/UI/Toast';
+import ViewGradeDialog from './ViewGradeDialog';
 
-const GradeReviewList: React.FC = () => {
-  const navigate = useNavigate();
+const GradeManagementBCN: React.FC = () => {
   const { showError } = useToast();
   const [grades, setGrades] = useState<InternshipGrade[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedGrade, setSelectedGrade] = useState<InternshipGrade | null>(null);
+  const [showViewDialog, setShowViewDialog] = useState(false);
 
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,19 +31,19 @@ const GradeReviewList: React.FC = () => {
   const itemsPerPage = 10;
 
   useEffect(() => {
-    loadSubmittedGrades();
+    loadGrades();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const loadSubmittedGrades = async () => {
+  const loadGrades = async () => {
     try {
       setLoading(true);
       setError(null);
       const response = await getBCNSubmittedGrades();
       setGrades(response.grades);
     } catch (err) {
-      console.error('Failed to load submitted grades:', err);
-      const errorMsg = 'Không thể tải danh sách điểm cần duyệt. Vui lòng thử lại.';
+      console.error('Failed to load grades:', err);
+      const errorMsg = 'Không thể tải danh sách điểm. Vui lòng thử lại.';
       setError(errorMsg);
       showError(errorMsg);
     } finally {
@@ -55,7 +56,7 @@ const GradeReviewList: React.FC = () => {
     const matchesSearch = 
       grade.student?.name?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       grade.student?.id?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-      grade.subject?.title?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      grade.khoa?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
       (grade.supervisor?.name || '').toLowerCase().includes(debouncedSearchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || grade.status === statusFilter;
@@ -68,8 +69,9 @@ const GradeReviewList: React.FC = () => {
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedGrades = filteredGrades.slice(startIndex, startIndex + itemsPerPage);
 
-  const handleReviewGrade = (gradeId: string) => {
-    navigate(`/grade-review/${gradeId}`);
+  const handleViewGrade = (grade: InternshipGrade) => {
+    setSelectedGrade(grade);
+    setShowViewDialog(true);
   };
 
   if (loading) {
@@ -93,7 +95,7 @@ const GradeReviewList: React.FC = () => {
           </div>
           <p className="text-red-700 mt-1">{error}</p>
           <button
-            onClick={loadSubmittedGrades}
+            onClick={loadGrades}
             className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             Thử lại
@@ -119,7 +121,7 @@ const GradeReviewList: React.FC = () => {
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm kiếm theo tên sinh viên, MSSV, môn học..."
+            placeholder="Tìm kiếm theo tên sinh viên, MSSV, khoa..."
             className="w-full h-9 sm:h-10 rounded-lg border border-gray-300 bg-white pl-8 pr-3 text-xs sm:text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 touch-manipulation"
             disabled={loading}
           />
@@ -153,10 +155,10 @@ const GradeReviewList: React.FC = () => {
             <div className="p-4">
               <EmptyState
                 icon={grades.length === 0 ? "📊" : "🔍"}
-                title={grades.length === 0 ? "Chưa có điểm nào cần duyệt" : "Không tìm thấy điểm phù hợp"}
+                title={grades.length === 0 ? "Chưa có điểm nào" : "Không tìm thấy điểm phù hợp"}
                 description={
                   grades.length === 0
-                    ? "Các điểm đã nộp sẽ xuất hiện tại đây để bạn duyệt"
+                    ? "Các điểm đã nộp sẽ xuất hiện tại đây"
                     : "Thử điều chỉnh bộ lọc để xem nhiều kết quả hơn"
                 }
               />
@@ -167,7 +169,7 @@ const GradeReviewList: React.FC = () => {
                 <thead className="bg-gray-50">
                   <tr className="text-left text-xs font-semibold text-gray-600">
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[150px]">Sinh viên</th>
-                    <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[180px]">Môn thực tập</th>
+                    <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[120px]">Khoa</th>
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[140px]">Giảng viên</th>
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[140px]">Công việc</th>
                     <th className="px-3 sm:px-4 py-2.5 sm:py-3 min-w-[80px]">Điểm</th>
@@ -183,7 +185,7 @@ const GradeReviewList: React.FC = () => {
                         <div className="text-xs text-gray-500">{grade.student?.id || '--'}</div>
                       </td>
                       <td className="px-3 sm:px-4 py-2.5 sm:py-3">
-                        <div className="font-medium text-xs sm:text-sm text-gray-900">{grade.subject?.title || 'Chưa có môn học'}</div>
+                        <div className="font-medium text-xs sm:text-sm text-gray-900">{grade.khoa || 'Chưa có khoa'}</div>
                         <div className="text-xs text-gray-500">
                           Nộp: {grade.submittedAt ? dayjs(grade.submittedAt).format('DD/MM/YYYY HH:mm') : '--'}
                         </div>
@@ -213,22 +215,13 @@ const GradeReviewList: React.FC = () => {
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getGradeStatusColor(grade.status)}`}>
                           {getGradeStatusText(grade.status)}
                         </span>
-                        {grade.status === 'rejected' && grade.bcnComment && (
-                          <div className="text-xs text-red-600 mt-1 truncate" title={grade.bcnComment}>
-                            {grade.bcnComment}
-                          </div>
-                        )}
                       </td>
                       <td className="px-3 sm:px-4 py-2.5 sm:py-3">
                         <button
-                          onClick={() => {
-                            const gradeId = grade.id || grade._id;
-                            if (gradeId) handleReviewGrade(gradeId);
-                          }}
+                          onClick={() => handleViewGrade(grade)}
                           className="text-blue-600 hover:text-blue-800 font-medium text-xs sm:text-sm touch-manipulation"
-                          disabled={!grade.id && !grade._id}
                         >
-                          {grade.status === 'submitted' ? 'Duyệt' : 'Xem'}
+                          Xem
                         </button>
                       </td>
                     </tr>
@@ -249,8 +242,20 @@ const GradeReviewList: React.FC = () => {
         )}
       </div>
       </PageLayout>
+
+      {/* View Grade Dialog */}
+      {selectedGrade && (
+        <ViewGradeDialog
+          open={showViewDialog}
+          grade={selectedGrade}
+          onClose={() => {
+            setShowViewDialog(false);
+            setSelectedGrade(null);
+          }}
+        />
+      )}
     </>
   );
 };
 
-export default GradeReviewList;
+export default GradeManagementBCN;

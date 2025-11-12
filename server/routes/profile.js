@@ -1,7 +1,10 @@
 import express from 'express';
 import Profile from '../models/Profile.js';
 import Account from '../models/Account.js';
-import { authenticate } from '../middleware/auth.js';
+import BanChuNhiem from '../models/BanChuNhiem.js';
+import GiangVien from '../models/GiangVien.js';
+import SinhVien from '../models/SinhVien.js';
+import { authenticate, authorize } from '../middleware/auth.js';
 import bcrypt from 'bcryptjs';
 
 const router = express.Router();
@@ -126,6 +129,110 @@ router.put('/me', authenticate, async (req, res) => {
     }
     
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+// Get BCN's khoa information (replaces internship-subjects/bcn/managed)
+router.get('/bcn/khoa-info', authenticate, authorize(['ban-chu-nhiem']), async (req, res) => {
+  try {
+    // Find BCN profile
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id });
+    if (!bcnProfile) {
+      return res.status(404).json({ error: 'Không tìm thấy thông tin ban chủ nhiệm' });
+    }
+
+    const khoaName = bcnProfile.khoa;
+
+    // Find all lecturers in this khoa
+    const lecturers = await GiangVien.find({ khoa: khoaName })
+      .populate('account', 'id name email')
+      .populate('managedStudents', 'id name email') // managedStudents are Account refs
+      .lean();
+
+    // Find all students in this khoa
+    const students = await SinhVien.find({ khoa: khoaName })
+      .populate('account', 'id name email')
+      .lean();
+
+    // Format the response to match InternshipSubjectDetail structure
+    const khoaInfo = {
+      id: khoaName, // Use khoa name as ID
+      title: `Khoa ${khoaName}`,
+      maxStudents: students.length,
+      manager: {
+        id: req.account.id || req.account._id.toString(),
+        name: req.account.name,
+        email: req.account.email
+      },
+      status: 'open',
+      lecturers: lecturers.map(lecturer => ({
+        id: lecturer.account?.id || lecturer.account?._id?.toString() || lecturer._id.toString(),
+        name: lecturer.account?.name || 'Unknown',
+        email: lecturer.account?.email || '',
+        maxStudents: lecturer.maxStudents,
+        managedStudents: (lecturer.managedStudents || []).map(studentAccount => ({
+          id: studentAccount.id || studentAccount._id?.toString(),
+          name: studentAccount.name || 'Unknown',
+          email: studentAccount.email || ''
+        }))
+      })),
+      students: students.map(student => ({
+        id: student.account?.id || student.account?._id?.toString() || student._id.toString(),
+        name: student.account?.name || 'Unknown',
+        email: student.account?.email || ''
+      })),
+      currentStudents: students.length,
+      createdAt: bcnProfile.createdAt || new Date().toISOString(),
+      updatedAt: bcnProfile.updatedAt || new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      khoa: khoaInfo
+    });
+  } catch (error) {
+    console.error('Error fetching BCN khoa info:', error);
+    res.status(500).json({ error: 'Failed to fetch khoa information' });
+  }
+});
+
+// Get student profile with khoa and instructor info
+router.get('/student/info', authenticate, authorize(['sinh-vien']), async (req, res) => {
+  try {
+    const sinhVien = await SinhVien.findOne({ account: req.account._id }).lean();
+
+    if (!sinhVien) {
+      return res.status(404).json({ error: 'Student profile not found' });
+    }
+
+    const response = {
+      student: {
+        id: req.account.id || req.account._id.toString(),
+        khoa: sinhVien.khoa
+      }
+    };
+
+    // Include instructor info if assigned
+    if (sinhVien.supervisor) {
+      // supervisor is an Account ID, not GiangVien ID
+      const supervisorAccount = await Account.findById(sinhVien.supervisor).lean();
+      if (supervisorAccount) {
+        response.instructor = {
+          id: supervisorAccount.id || supervisorAccount._id.toString(),
+          name: supervisorAccount.name,
+          email: supervisorAccount.email
+        };
+        response.subject = {
+          id: sinhVien.khoa,
+          title: `Khoa ${sinhVien.khoa}`
+        };
+      }
+    }
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error fetching student info:', error);
+    res.status(500).json({ error: 'Failed to fetch student information' });
   }
 });
 

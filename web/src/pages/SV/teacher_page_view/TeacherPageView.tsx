@@ -8,6 +8,7 @@ import dayjs from "dayjs";
 import { getTeacherPageStructureForViewing } from "../../../services/pageApi";
 import apiClient from "../../../utils/api";
 import { useDebounce } from "../../../hooks/useDebounce";
+import InstructorSelectionDialog from "../../../components/InstructorSelectionDialog";
 
 const htmlToTextWithBreaks = (html: string) => {
   let s = html || "";
@@ -24,7 +25,7 @@ const htmlToTextWithBreaks = (html: string) => {
 
 const TeacherPageView: React.FC = () => {
   const navigate = useNavigate();
-  const [subjectId, setSubjectId] = useState<string | null>(null);
+  const [khoa, setKhoa] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [data, setData] = useState<HeaderBlock[]>([]);
@@ -35,6 +36,7 @@ const TeacherPageView: React.FC = () => {
     instructor: { id: string; name: string; email: string };
     subject: { id: string; title: string };
   } | null>(null);
+  const [showInstructorDialog, setShowInstructorDialog] = useState(false);
 
   // Load student's assigned instructor and page data
   useEffect(() => {
@@ -47,9 +49,12 @@ const TeacherPageView: React.FC = () => {
       setError(null);
       
       // Use the correct API method
+      console.log('Fetching student assigned instructor...');
       const studentResponse = await apiClient.getStudentAssignedInstructor();
+      console.log('Student response:', studentResponse);
       
       if (!studentResponse.instructor) {
+        console.log('No instructor assigned');
         setError("Bạn chưa được phân công giảng viên hướng dẫn");
         setTeacherInfo({
           instructor: { id: '', name: '', email: '' },
@@ -58,7 +63,8 @@ const TeacherPageView: React.FC = () => {
         return;
       }
 
-      setSubjectId(studentResponse.subject?.id || null);
+      console.log('Instructor found:', studentResponse.instructor);
+      setKhoa(studentResponse.subject?.id || null);
       setTeacherInfo({
         instructor: studentResponse.instructor,
         subject: studentResponse.subject || { id: '', title: '' }
@@ -67,8 +73,7 @@ const TeacherPageView: React.FC = () => {
       // Then load the instructor's page structure
       try {
         const pageResponse = await getTeacherPageStructureForViewing(
-          studentResponse.instructor.id,
-          studentResponse.subject?.id
+          studentResponse.instructor.id
         );
         
         // Transform backend data to frontend format
@@ -121,9 +126,9 @@ const TeacherPageView: React.FC = () => {
       link.click();
       document.body.removeChild(link);
     } else if (s.kind === "nop-file") {
-      navigate(`/docs-teacher/sub/${encodeURIComponent(s.id)}/upload`, { state: { header: h, sub: s, subjectId } });
+      navigate(`/docs-teacher/sub/${encodeURIComponent(s.id)}/upload`, { state: { header: h, sub: s, khoa } });
     } else if (s.kind !== "van-ban") {
-      navigate(`/docs-teacher/sub/${encodeURIComponent(s.id)}`, { state: { header: h, sub: s, subjectId } });
+      navigate(`/docs-teacher/sub/${encodeURIComponent(s.id)}`, { state: { header: h, sub: s, khoa } });
     }
   };
 
@@ -149,24 +154,35 @@ const TeacherPageView: React.FC = () => {
 
   if (error || !teacherInfo) {
     return (
-      <div className="space-y-4">
-        <PageToolbar>
-          <div className="flex items-center gap-3">
-            <span className="text-lg font-semibold text-gray-900">Trang giảng viên</span>
+      <>
+        <div className="space-y-4">
+          <PageToolbar>
+            <div className="flex items-center gap-3">
+              <span className="text-lg font-semibold text-gray-900">Trang giảng viên</span>
+            </div>
+          </PageToolbar>
+          <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
+            <div className="text-6xl mb-4">👨‍🏫</div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Chưa có giảng viên hướng dẫn</h3>
+            <p className="text-gray-600 mb-4">{error || "Bạn chưa được phân công giảng viên hướng dẫn."}</p>
+            <button 
+              onClick={() => setShowInstructorDialog(true)} 
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+            >
+              Đăng ký
+            </button>
           </div>
-        </PageToolbar>
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
-          <div className="text-6xl mb-4">👨‍🏫</div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">Chưa có giảng viên hướng dẫn</h3>
-          <p className="text-gray-600">{error || "Bạn chưa được phân công giảng viên hướng dẫn."}</p>
-          <button 
-            onClick={loadStudentTeacherPage} 
-            className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            Thử lại
-          </button>
         </div>
-      </div>
+
+        <InstructorSelectionDialog
+          open={showInstructorDialog}
+          onClose={() => setShowInstructorDialog(false)}
+          onSuccess={() => {
+            setShowInstructorDialog(false);
+            loadStudentTeacherPage(); // Reload page after successful registration
+          }}
+        />
+      </>
     );
   }
 

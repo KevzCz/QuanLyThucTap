@@ -34,9 +34,10 @@ const RequestSchema = new mongoose.Schema(
       enum: ["pending", "accepted", "rejected"],
       default: "pending"
     },
-    internshipSubject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "InternshipSubject",
+    // Khoa field for BCN-managed requests
+    khoa: {
+      type: String,
+      trim: true,
       required: true
     },
     reviewNote: {
@@ -62,7 +63,7 @@ const RequestSchema = new mongoose.Schema(
 
 // Index for efficient queries
 RequestSchema.index({ idgv: 1, status: 1 });
-RequestSchema.index({ internshipSubject: 1, status: 1 });
+RequestSchema.index({ khoa: 1, status: 1 });
 RequestSchema.index({ createdAt: -1 });
 
 export default mongoose.model("Request", RequestSchema);

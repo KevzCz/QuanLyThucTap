@@ -11,7 +11,6 @@ import { Server as SocketIOServer } from "socket.io";
 import authRoutes from "./routes/auth.js";
 import accountRoutes from "./routes/accounts.js";
 import uploadRoutes from "./routes/uploads.js";
-import internshipSubjectRoutes from "./routes/internshipSubjects.js";
 import lecturerRoutes from "./routes/lecturers.js";
 import pageManagementRoutes from "./routes/pageManagement.js";
 import studentRoutes from "./routes/students.js";
@@ -22,6 +21,10 @@ import notificationRoutes from "./routes/notifications.js";
 import gradeRoutes from "./routes/grades.js";
 import profileRoutes from "./routes/profile.js";
 import geocodeRoutes from "./routes/geocode.js";
+import hockyRoutes from "./routes/hocky.js";
+import notificationManagementRoutes from "./routes/notificationManagement.js";
+import gradeAppealsRoutes from "./routes/gradeAppeals.js";
+import instructorRequestRoutes from "./routes/instructorRequests.js";
 import deadlineReminderService from "./services/deadlineReminderService.js";
 const app = express();
 const httpServer = createServer(app);
@@ -94,7 +97,6 @@ app.get("/api/health", (_req, res) => {
 /* Route modules */
 app.use("/api/auth", authRoutes);
 app.use("/api/accounts", accountRoutes);
-app.use("/api/internship-subjects", internshipSubjectRoutes);
 app.use("/api/lecturers", lecturerRoutes);
 app.use("/api/uploads", uploadRoutes);
 app.use("/api/pages", pageManagementRoutes);
@@ -106,6 +108,10 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/grades", gradeRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/geocode", geocodeRoutes);
+app.use("/api/hocky", hockyRoutes);
+app.use("/api/notification-management", notificationManagementRoutes);
+app.use("/api/grade-appeals", gradeAppealsRoutes);
+app.use("/api/instructor-requests", instructorRequestRoutes);
 
 // Add the teacher-specific page routes from pages.js
 import pagesRoutes from "./routes/pages.js";
@@ -123,16 +129,6 @@ const UserSchema = new mongoose.Schema(
 );
 const User = mongoose.model("User", UserSchema);
 
-const InternshipCourseSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true },
-    department: { type: String, required: true },
-    lecturers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    students: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }]
-  },
-  { timestamps: true }
-);
-const InternshipCourse = mongoose.model("InternshipCourse", InternshipCourseSchema);
 
 app.post("/api/users", async (req, res) => {
   try {
@@ -143,14 +139,6 @@ app.post("/api/users", async (req, res) => {
   }
 });
 
-app.get("/api/courses", async (_req, res) => {
-  try {
-    const data = await InternshipCourse.find().populate("lecturers").populate("students").lean();
-    res.json(data);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-});
 
 /* Error handling middleware */
 app.use((error, req, res, next) => {

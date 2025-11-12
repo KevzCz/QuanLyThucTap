@@ -1,12 +1,8 @@
 export { default as Dashboard } from "./Dashboard";
 
-export * from "./internship_subject/ParticipantsTypes";
-export { default as AddChooserDialog } from "./internship_subject/AddChooserDialog";
-export { default as AddStudentsToSubjectDialog } from "./internship_subject/AddStudentsToSubjectDialog";
-export { default as AddStudentsToAdvisorDialog } from "./internship_subject/AddStudentsToAdvisorDialog";
-export { default as ConfirmImportedListDialog } from "./internship_subject/ConfirmImportedListDialog";
-export { default as ViewParticipantDialog } from "./internship_subject/ViewParticipantDialog";
-export { default as EditStudentAdvisorDialog } from "./internship_subject/EditStudentAdvisorDialog";
+export * from "./khoa_management/ParticipantsTypes";
+export { default as ViewParticipantDialog } from "./khoa_management/ViewParticipantDialog";
+export { default as EditStudentAdvisorDialog } from "./khoa_management/EditStudentAdvisorDialog";
 
 export * from "./khoa_page/KhoaPageTypes";
 export { default as KhoaPageManagement } from "./khoa_page/KhoaPageManagement";

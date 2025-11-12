@@ -7,6 +7,10 @@ export interface Account {
   email?: string;
   role: Role;
   status: Status;
+  khoa?: string;
+  year?: number;
+  maxStudents?: number; // Calculated dynamically for GV
+  currentStudentCount?: number; // For GV
 }
 
 export interface CreateAccountDTO {
@@ -15,6 +19,8 @@ export interface CreateAccountDTO {
   role: Role;
   status: Status;
   password: string;
+  khoa?: string;
+  year?: number;
 }
 
 export interface UpdateAccountDTO {
@@ -23,6 +29,8 @@ export interface UpdateAccountDTO {
   role: Role;
   status: Status;
   password?: string;
+  khoa?: string;
+  year?: number;
 }
 
 export const roleLabel: Record<Role, string> = {

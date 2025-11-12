@@ -25,7 +25,7 @@ const htmlToTextWithBreaks = (html: string) => {
 const KhoaPageView: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [subjectId, setSubjectId] = useState<string | null>(null);
+  const [userKhoa, setUserKhoa] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [data, setData] = useState<HeaderBlock[]>([]);
@@ -33,55 +33,40 @@ const KhoaPageView: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
-  // Load available subjects and select the first one
+  // Load user's khoa
   useEffect(() => {
-    const loadAvailableSubjects = async () => {
+    const loadUserKhoa = async () => {
       try {
         if (user?.role === "giang-vien") {
-          const response = await apiClient.request<{ success: boolean; subjects: Array<{ id: string; title: string }> }>("/internship-subjects/teacher/available");
-          
-          if (response.subjects && response.subjects.length > 0) {
-            setSubjectId(response.subjects[0].id);
-          } else {
-            setSubjectId("CNTT - TT2025");
+          const response = await apiClient.getLecturerManagedStudents();
+          if (response.lecturer?.khoa) {
+            setUserKhoa(response.lecturer.khoa);
           }
-        } else {
-          // For students, get their assigned instructor's subject
-          const instructorResponse = await apiClient.getStudentAssignedInstructor();
-          
-          if (instructorResponse.subject?.id) {
-            setSubjectId(instructorResponse.subject.id);
-          } else {
-            // No instructor assigned, try to get available subjects
-            const response = await apiClient.request<{ success: boolean; subjects: Array<{ id: string; title: string }> }>("/internship-subjects/student/available");
-            
-            if (response.subjects && response.subjects.length > 0) {
-              setSubjectId(response.subjects[0].id);
-            } else {
-              setSubjectId("CNTT - TT2025");
-            }
+        } else if (user?.role === "sinh-vien") {
+          const response = await apiClient.getStudentAssignedInstructor();
+          if (response.student?.khoa) {
+            setUserKhoa(response.student.khoa);
           }
         }
       } catch (err) {
-        console.error('Failed to load available subjects:', err);
-        // Fallback to mock data
-        setSubjectId("CNTT - TT2025");
+        console.error('Failed to load user khoa:', err);
+        setError('Không thể tải thông tin khoa');
       }
     };
 
-    loadAvailableSubjects();
+    loadUserKhoa();
   }, [user?.role]);
 
-  // Load page data when subjectId is available
+  // Load page data when khoa is available
   useEffect(() => {
-    if (!subjectId) return;
+    if (!userKhoa) return;
     
     const loadPageData = async () => {
       try {
         setLoading(true);
         setError(null);
         const audience = user?.role === "giang-vien" ? "giang-vien" : "sinh-vien";
-        const response = await getPageStructure(subjectId, audience);
+        const response = await getPageStructure(userKhoa, audience);
         
         // Transform backend data to frontend format
         const transformedHeaders = response.headers.map(header => ({
@@ -111,7 +96,7 @@ const KhoaPageView: React.FC = () => {
     };
 
     loadPageData();
-  }, [subjectId, user?.role]);
+  }, [userKhoa, user?.role]);
 
   const filtered = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
@@ -134,14 +119,14 @@ const KhoaPageView: React.FC = () => {
       link.click();
       document.body.removeChild(link);
     } else if (s.kind === "nop-file") {
-      navigate(`/docs-dept/sub/${encodeURIComponent(s.id)}/upload`, { state: { header: h, sub: s, subjectId } });
+      navigate(`/docs-dept/sub/${encodeURIComponent(s.id)}/upload`, { state: { header: h, sub: s, khoa: userKhoa } });
     } else if (s.kind !== "van-ban") {
-      navigate(`/docs-dept/sub/${encodeURIComponent(s.id)}`, { state: { header: h, sub: s, subjectId } });
+      navigate(`/docs-dept/sub/${encodeURIComponent(s.id)}`, { state: { header: h, sub: s, khoa: userKhoa } });
     }
   };
 
 
-  if (loading || !subjectId) {
+  if (loading || !userKhoa) {
     return (
       <div className="space-y-4">
         <PageToolbar>
@@ -173,7 +158,7 @@ const KhoaPageView: React.FC = () => {
               width="w-[340px]"
             />
             <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-              <span className="w-2 h-2 rounded-full bg-blue-500" /> {subjectId}
+              <span className="w-2 h-2 rounded-full bg-blue-500" /> Khoa {userKhoa}
             </span>
           </div>
         </PageToolbar>
@@ -202,7 +187,7 @@ const KhoaPageView: React.FC = () => {
             width="w-[340px]"
           />
           <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-            <span className="w-2 h-2 rounded-full bg-blue-500" /> {subjectId}
+            <span className="w-2 h-2 rounded-full bg-blue-500" /> Khoa {userKhoa}
           </span>
         </div>
       </PageToolbar>

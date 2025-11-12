@@ -46,10 +46,11 @@ export interface InternshipGrade {
     name: string;
     email: string;
   };
-  subject: {
+  subject?: {
     id: string;
     title: string;
   };
+  khoa?: string;
   workType: 'thuc_tap' | 'do_an';
   company?: {
     name: string;
@@ -60,6 +61,9 @@ export interface InternshipGrade {
   };
   projectTopic?: string;
   status: 'not_started' | 'in_progress' | 'draft_completed' | 'submitted' | 'approved' | 'rejected';
+  appealStatus?: 'none' | 'pending' | 'reviewing' | 'completed' | 'rejected';
+  appealReviewer?: string;
+  isAppealReview?: boolean;
   startDate: string;
   endDate: string;
   milestones: Milestone[];
@@ -118,9 +122,18 @@ export interface GradeSummary {
 export const getSupervisorGrades = async (status?: string): Promise<{ grades: GradeSummary[] }> => {
   const params = new URLSearchParams();
   if (status && status !== 'all') params.append('status', status);
+  // Add timestamp to prevent caching
+  params.append('_t', Date.now().toString());
   
   const response = await apiClient.request<{ success: boolean; grades: GradeSummary[] }>(
-    `/grades/supervisor/students?${params.toString()}`
+    `/grades/supervisor/students?${params.toString()}`,
+    {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    }
   );
   return response;
 };

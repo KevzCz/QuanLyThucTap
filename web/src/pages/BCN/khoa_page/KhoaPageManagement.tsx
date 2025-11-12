@@ -8,7 +8,6 @@ import CreateSubDialog from "./CreateSubDialog";
 import EditSubDialog from "./EditSubDialog";
 import ConfirmDeleteDialog from "./ConfirmDeleteDialog";
 import { 
-  getPageStructure, 
   createPageHeader, 
   updatePageHeader, 
   deletePageHeader,
@@ -18,7 +17,6 @@ import {
   reorderHeaders,
   reorderSubHeaders
 } from "../../../services/pageApi";
-import { apiClient } from "../../../utils/api";
 import dayjs from "dayjs";
 import { useToast } from "../../../components/UI/Toast";
 import PageLayout from "../../../components/UI/PageLayout";
@@ -76,57 +74,40 @@ const KhoaPageManagement: React.FC = () => {
 
   // Load BCN managed subject and page data
   useEffect(() => {
-    loadManagedSubject();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadManagedKhoa();
   }, []);
 
-  const loadManagedSubject = async () => {
+  const loadManagedKhoa = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      // First get the BCN's managed subject
-      const response = await apiClient.getBCNManagedSubject();
+      // Get BCN's khoa page structure using BCN-specific endpoint
+      const { getBCNKhoaPageStructure } = await import("../../../services/pageApi");
+      const response = await getBCNKhoaPageStructure();
       
-      if (!response.subject) {
-        setError("Bạn chưa được phân công quản lý môn thực tập nào");
+      if (!response.khoa) {
+        setError("Không tìm thấy thông tin khoa");
         setSubject(null);
         setData([]);
         return;
       }
 
       setSubject({
-        id: response.subject.id,
-        title: response.subject.title
+        id: "khoa", // Use "khoa" as identifier
+        title: response.khoa.name
       });
 
-      // Then load page structure for that subject
-      await loadPageData(response.subject.id);
-      
-    } catch (err) {
-      console.error('Failed to load managed subject:', err);
-      setError('Không thể tải thông tin môn thực tập được quản lý');
-      setSubject(null);
-      setData([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadPageData = async (subjectId: string) => {
-    try {
-      const response = await getPageStructure(subjectId);
-      
-      // Transform backend data to frontend format
-      const transformedHeaders = response.headers.map(header => ({
+      // Transform backend data to frontend format (ensure id field exists)
+      const transformedHeaders = (response.headers || []).map(header => ({
         ...header,
         id: header._id || header.id,
-        subs: header.subs.map(sub => ({
+        subs: (header.subs || []).map(sub => ({
           ...sub,
           id: sub._id || sub.id
         }))
       }));
-      
+
       setData(transformedHeaders);
       
       // Auto-expand all headers initially
@@ -137,9 +118,18 @@ const KhoaPageManagement: React.FC = () => {
       setExpanded(initialExpanded);
       
     } catch (err) {
-      console.error('Failed to load page data:', err);
-      throw err; // Re-throw to be handled by parent
+      console.error('Failed to load managed subject:', err);
+      setError('Không thể tải thông tin trang khoa');
+      setSubject(null);
+      setData([]);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const loadPageData = async () => {
+    // For BCN, always use the BCN-specific endpoint
+    return loadManagedKhoa();
   };
 
   // filter
@@ -365,7 +355,7 @@ const KhoaPageManagement: React.FC = () => {
       console.error('Failed to reorder headers:', err);
       showError('Không thể thay đổi thứ tự header');
       // Reload data on error
-      await loadPageData(subject.id);
+      await loadPageData();
     } finally {
       setDraggedHeader(null);
     }
@@ -452,7 +442,7 @@ const KhoaPageManagement: React.FC = () => {
       console.error('Failed to reorder sub-headers:', err);
       showError('Không thể thay đổi thứ tự sub-header');
       // Reload data on error
-      await loadPageData(subject.id);
+      await loadPageData();
     } finally {
       setDraggedSub(null);
     }
@@ -462,7 +452,7 @@ const KhoaPageManagement: React.FC = () => {
     <PageLayout
       loading={loading}
       error={error || undefined}
-      onRetry={loadManagedSubject}
+      onRetry={loadManagedKhoa}
       searchValue={query}
       onSearchChange={setQuery}
       searchPlaceholder="Tìm kiếm header / sub-header"

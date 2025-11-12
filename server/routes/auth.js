@@ -1,7 +1,6 @@
 import express from "express";
 import Account from "../models/Account.js";
 import { generateToken, authenticate, authorize } from "../middleware/auth.js";
-import InternshipSubject from "../models/InternshipSubject.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
 
 const router = express.Router();
@@ -41,7 +40,8 @@ router.post("/login", async (req, res) => {
         name: account.name,
         email: account.email,
         role: account.role,
-        status: account.status
+        status: account.status,
+        mustChangePassword: account.mustChangePassword
       }
     });
   } catch (error) {
@@ -65,7 +65,8 @@ router.get("/me", authenticate, (req, res) => {
       name: req.account.name,
       email: req.account.email,
       role: req.account.role,
-      status: req.account.status
+      status: req.account.status,
+      mustChangePassword: req.account.mustChangePassword
     }
   });
 });
@@ -197,6 +198,43 @@ router.delete("/accounts/:id", ...authPDT, async (req, res) => {
   }
 });
 
+// Change password
+router.post("/change-password", authenticate, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: "Vui lòng cung cấp mật khẩu hiện tại và mật khẩu mới" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "Mật khẩu mới phải có ít nhất 6 ký tự" });
+    }
+
+    // Verify current password
+    const account = await Account.findById(req.account._id);
+    const isMatch = await account.comparePassword(currentPassword);
+
+    if (!isMatch) {
+      return res.status(400).json({ error: "Mật khẩu hiện tại không chính xác" });
+    }
+
+    // Update password
+    account.password = newPassword;
+    account.mustChangePassword = false;
+    account.lastPasswordChange = new Date();
+    await account.save();
+
+    res.json({
+      success: true,
+      message: "Đã đổi mật khẩu thành công"
+    });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.status(500).json({ error: "Lỗi khi đổi mật khẩu" });
+  }
+});
+
 // Temporary mock endpoint for student instructor (for development)
 router.get("/student-instructor", authenticate, async (req, res) => {
   try {
@@ -204,10 +242,9 @@ router.get("/student-instructor", authenticate, async (req, res) => {
       // Try to find real instructor first
       const SinhVien = (await import("../models/SinhVien.js")).default;
       const studentProfile = await SinhVien.findOne({ account: req.account._id })
-        .populate('supervisor', 'id name email')
-        .populate('internshipSubject', 'id title');
+        .populate('supervisor', 'id name email');
 
-      if (studentProfile?.supervisor && studentProfile?.internshipSubject) {
+      if (studentProfile?.supervisor && studentProfile?.khoa) {
         res.json({
           success: true,
           instructor: {
@@ -215,17 +252,14 @@ router.get("/student-instructor", authenticate, async (req, res) => {
             name: studentProfile.supervisor.name,
             email: studentProfile.supervisor.email
           },
-          subject: {
-            id: studentProfile.internshipSubject.id,
-            title: studentProfile.internshipSubject.title
-          }
+          khoa: studentProfile.khoa
         });
       } else {
         // No instructor assigned
         res.json({
           success: true,
           instructor: null,
-          subject: null
+          khoa: null
         });
       }
     } else {

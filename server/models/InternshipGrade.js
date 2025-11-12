@@ -116,9 +116,9 @@ const internshipGradeSchema = new mongoose.Schema({
     ref: 'Account',
     required: true
   },
-  internshipSubject: {
+  hocKy: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'InternshipSubject',
+    ref: 'HocKy',
     required: true
   },
   
@@ -181,6 +181,18 @@ const internshipGradeSchema = new mongoose.Schema({
     default: 'not_started'
   },
   
+  // Appeal status
+  appealStatus: {
+    type: String,
+    enum: ['none', 'pending', 'reviewing', 'completed', 'rejected'],
+    default: 'none'
+  },
+  appealReviewer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Account',
+    default: null
+  },
+  
   // Submission tracking
   submittedToBCN: {
     type: Boolean,
@@ -217,6 +229,9 @@ const internshipGradeSchema = new mongoose.Schema({
     default: Date.now
   }
 });
+
+// Create compound unique index to prevent duplicate grades for same student in same học kỳ
+internshipGradeSchema.index({ student: 1, hocKy: 1 }, { unique: true });
 
 // Pre-save middleware to update timestamps
 internshipGradeSchema.pre('save', function(next) {
@@ -269,8 +284,8 @@ internshipGradeSchema.statics.createDefaultMilestones = function(workType, start
     return [
       {
         type: 'start',
-        title: 'Bắt đầu đồ án',
-        description: 'Khởi tạo dự án đồ án tốt nghiệp',
+        title: 'Bắt đầu',
+        description: '',
         dueDate: start,
         status: 'pending',
         isCustom: false
@@ -281,8 +296,8 @@ internshipGradeSchema.statics.createDefaultMilestones = function(workType, start
     return [
       {
         type: 'start',
-        title: 'Bắt đầu thực tập',
-        description: 'Khởi tạo quá trình thực tập tại doanh nghiệp',
+        title: 'Bắt đầu',
+        description: '',
         dueDate: start,
         status: 'pending',
         isCustom: false

@@ -16,10 +16,8 @@ dayjs.extend(relativeTime);
 dayjs.locale("vi");
 
 interface Statistics {
-  totalReports: number;
-  pendingReports: number;
   totalStudents: number;
-  activeSubjects: number;
+  totalLecturers: number;
   totalRequests: number;
   pendingRequests: number;
 }
@@ -31,10 +29,8 @@ const BCNDashboard: React.FC = () => {
   const { showSuccess, showError } = useToast();
   
   const [statistics, setStatistics] = useState<Statistics>({
-    totalReports: 0,
-    pendingReports: 0,
     totalStudents: 0,
-    activeSubjects: 0,
+    totalLecturers: 0,
     totalRequests: 0,
     pendingRequests: 0,
   });
@@ -72,38 +68,11 @@ const BCNDashboard: React.FC = () => {
   // Load statistics
   const loadStatistics = useCallback(async () => {
     try {
+      // Fetch BCN's managed khoa data (students and lecturers)
+      const khoaResponse = await apiClient.getBCNManagedSubject();
       
-      // Fetch reports
-      const reportsResponse = await apiClient.request<{
-        success: boolean;
-        reports: Array<{ status: string }>;
-      }>("/reports/bcn");
-      
-      const reports = reportsResponse.reports || [];
-      const totalReports = reports.length;
-      const pendingReports = reports.filter(r => r.status === "submitted").length;
-
-      // Fetch students count from managed subjects
-      const subjectsResponse = await apiClient.request<{
-        success: boolean;
-        subjects: Array<{ status: string; students: Array<{ id?: string; _id?: string }> }>;
-      }>("/internship-subjects/bcn/managed");
-      
-      const subjects = subjectsResponse.subjects || [];
-      const activeSubjects = subjects.filter(s => s.status === "open").length;
-      
-      // Count unique students from all subjects
-      const studentIds = new Set<string>();
-      subjects.forEach(subject => {
-        if (subject.students && Array.isArray(subject.students)) {
-          subject.students.forEach((student) => {
-            if (student.id || student._id) {
-              studentIds.add(student.id || student._id || '');
-            }
-          });
-        }
-      });
-      const totalStudents = studentIds.size;
+      const totalStudents = khoaResponse.khoa?.students?.length || 0;
+      const totalLecturers = khoaResponse.khoa?.lecturers?.length || 0;
 
       // Fetch requests
       const requestsResponse = await apiClient.request<{
@@ -116,10 +85,8 @@ const BCNDashboard: React.FC = () => {
       const pendingRequests = requests.filter(r => r.status === "pending").length;
 
       setStatistics({
-        totalReports,
-        pendingReports,
         totalStudents,
-        activeSubjects,
+        totalLecturers,
         totalRequests,
         pendingRequests,
       });
@@ -174,15 +141,14 @@ const BCNDashboard: React.FC = () => {
   };
 
   const CircleDiagram: React.FC<{ statistics: Statistics }> = ({ statistics }) => {
-    const total = statistics.totalReports + statistics.totalStudents + statistics.activeSubjects;
-    const reportPercentage = total > 0 ? (statistics.totalReports / total) * 100 : 0;
+    const total = statistics.totalStudents + statistics.totalLecturers;
     const studentPercentage = total > 0 ? (statistics.totalStudents / total) * 100 : 0;
-    const subjectPercentage = total > 0 ? (statistics.activeSubjects / total) * 100 : 0;
+    const lecturerPercentage = total > 0 ? (statistics.totalLecturers / total) * 100 : 0;
 
     return (
       <div className="flex flex-col items-center w-full">
         <svg width="160" height="160" viewBox="0 0 200 200" className="transform -rotate-90 sm:w-[180px] sm:h-[180px] lg:w-[200px] lg:h-[200px]">
-          {/* Reports segment (blue) */}
+          {/* Students segment (blue) */}
           <circle
             cx="100"
             cy="100"
@@ -190,10 +156,10 @@ const BCNDashboard: React.FC = () => {
             fill="none"
             stroke="#3B82F6"
             strokeWidth="30"
-            strokeDasharray={`${reportPercentage * 4.4} 440`}
+            strokeDasharray={`${studentPercentage * 4.4} 440`}
             strokeDashoffset="0"
           />
-          {/* Students segment (green) */}
+          {/* Lecturers segment (emerald) */}
           <circle
             cx="100"
             cy="100"
@@ -201,43 +167,24 @@ const BCNDashboard: React.FC = () => {
             fill="none"
             stroke="#10B981"
             strokeWidth="30"
-            strokeDasharray={`${studentPercentage * 4.4} 440`}
-            strokeDashoffset={`-${reportPercentage * 4.4}`}
-          />
-          {/* Subjects segment (purple) */}
-          <circle
-            cx="100"
-            cy="100"
-            r="70"
-            fill="none"
-            stroke="#8B5CF6"
-            strokeWidth="30"
-            strokeDasharray={`${subjectPercentage * 4.4} 440`}
-            strokeDashoffset={`-${(reportPercentage + studentPercentage) * 4.4}`}
+            strokeDasharray={`${lecturerPercentage * 4.4} 440`}
+            strokeDashoffset={`-${studentPercentage * 4.4}`}
           />
         </svg>
-        <div className="mt-3 sm:mt-4 grid grid-cols-3 gap-2 sm:gap-3 lg:gap-4 w-full">
+        <div className="mt-3 sm:mt-4 grid grid-cols-2 gap-4 sm:gap-6 lg:gap-8 w-full">
           <div className="text-center">
             <div className="flex items-center justify-center gap-1 sm:gap-2 mb-1">
               <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-blue-500"></div>
-              <span className="text-[10px] sm:text-xs text-gray-600">Báo cáo</span>
-            </div>
-            <div className="text-base sm:text-lg font-bold text-blue-600">{statistics.totalReports}</div>
-            <div className="text-[10px] sm:text-xs text-gray-500">{statistics.pendingReports} chờ duyệt</div>
-          </div>
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-1 sm:gap-2 mb-1">
-              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-green-500"></div>
               <span className="text-[10px] sm:text-xs text-gray-600">Sinh viên</span>
             </div>
-            <div className="text-base sm:text-lg font-bold text-green-600">{statistics.totalStudents}</div>
+            <div className="text-base sm:text-lg font-bold text-blue-600">{statistics.totalStudents}</div>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-1 sm:gap-2 mb-1">
-              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-purple-500"></div>
-              <span className="text-[10px] sm:text-xs text-gray-600">Môn TT</span>
+              <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500"></div>
+              <span className="text-[10px] sm:text-xs text-gray-600">Giảng viên</span>
             </div>
-            <div className="text-base sm:text-lg font-bold text-purple-600">{statistics.activeSubjects}</div>
+            <div className="text-base sm:text-lg font-bold text-emerald-600">{statistics.totalLecturers}</div>
           </div>
         </div>
       </div>
@@ -314,10 +261,10 @@ const BCNDashboard: React.FC = () => {
           <div className="flex items-center justify-between mb-2 sm:mb-3">
             <h3 className="text-sm sm:text-base font-semibold text-gray-800">Thống kê</h3>
             <button
-              onClick={() => navigate("/bcn-internship")}
+              onClick={() => navigate("/students")}
               className="text-xs text-blue-600 hover:text-blue-700 font-medium touch-manipulation"
             >
-              Chi tiết
+              Quản lý khoa
             </button>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center">

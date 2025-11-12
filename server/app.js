@@ -7,7 +7,6 @@ import path from "path";
 
 // Import routes
 import authRoutes from "./routes/auth.js";
-import internshipSubjectRoutes from "./routes/internshipSubjects.js";
 import pageRoutes from "./routes/pageManagement.js";
 import lecturerRoutes from "./routes/lecturers.js";
 import studentRoutes from "./routes/students.js";
@@ -15,6 +14,9 @@ import uploadRoutes from "./routes/uploads.js";
 import chatRoutes from "./routes/chat.js";
 import gradeRoutes from "./routes/grades.js";
 import profileRoutes from "./routes/profile.js";
+import hockyRoutes from "./routes/hocky.js";
+import notificationManagementRoutes from "./routes/notificationManagement.js";
+import instructorRequestRoutes from "./routes/instructorRequests.js";
 
 dotenv.config();
 
@@ -30,7 +32,7 @@ app.use(cors({
 
 // Routes
 app.use("/api/auth", authRoutes);
-app.use("/api/internship-subjects", internshipSubjectRoutes);
+// app.use("/api/internship-subjects", internshipSubjectRoutes); // Deprecated - replaced by khoa-based management
 app.use("/api/pages", pageRoutes);
 app.use("/api/lecturers", lecturerRoutes);
 app.use("/api/students", studentRoutes);
@@ -38,6 +40,9 @@ app.use("/api/uploads", uploadRoutes);
 app.use("/api/chat", chatRoutes);
 app.use("/api/grades", gradeRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/hocky", hockyRoutes);
+app.use("/api/notification-management", notificationManagementRoutes);
+app.use("/api/instructor-requests", instructorRequestRoutes);
 
 // Static uploads - fix the undefined uploadsDir
 const uploadsDir = path.resolve("./uploads");

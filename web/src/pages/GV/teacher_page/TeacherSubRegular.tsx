@@ -6,7 +6,7 @@ import { apiClient } from "../../../utils/api";
 import { useToast } from "../../../components/UI/Toast";
 
 const TeacherSubRegular: React.FC = () => {
-  const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
+  const { state } = useLocation() as { state?: { khoa?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
@@ -130,7 +130,7 @@ const TeacherSubRegular: React.FC = () => {
           ← Quay lại trang giảng viên
         </button>
         <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "CNTT - TT2025"}
+          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.khoa ? `Khoa ${state.khoa}` : "Trang giảng viên"}
         </span>
       </div>
 

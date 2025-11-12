@@ -2,6 +2,7 @@ import express from "express";
 import Report from "../models/Report.js";
 import GiangVien from "../models/GiangVien.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
+import HocKy from "../models/HocKy.js";
 import { authenticate, authGV, authBCN } from "../middleware/auth.js";
 import notificationService from "../services/notificationService.js";
 
@@ -26,10 +27,9 @@ router.get("/teacher", ...authGV, async (req, res) => {
 
     // Find lecturer profile
     const lecturerProfile = await GiangVien.findOne({ account: req.account._id })
-      .populate('internshipSubject', 'id title')
       .lean();
 
-    if (!lecturerProfile || !lecturerProfile.internshipSubject) {
+    if (!lecturerProfile) {
       return res.json({
         success: true,
         reports: [],
@@ -37,9 +37,23 @@ router.get("/teacher", ...authGV, async (req, res) => {
       });
     }
 
+    // Find latest học kỳ
+    const latestHocKy = await HocKy.findOne({ isActive: true })
+      .sort({ namHoc: -1, hocKyNumber: -1 })
+      .lean();
+
+    if (!latestHocKy) {
+      return res.json({
+        success: true,
+        reports: [],
+        pagination: { page: 1, pages: 1, total: 0 }
+      });
+    }
+
+    // Query reports by instructor and filtered by students in latest học kỳ
     const query = { 
       instructor: req.account._id,
-      internshipSubject: lecturerProfile.internshipSubject._id
+      hocKy: latestHocKy._id
     };
     
     if (status && status !== "all") query.status = status;
@@ -48,7 +62,6 @@ router.get("/teacher", ...authGV, async (req, res) => {
     const [reports, total] = await Promise.all([
       Report.find(query)
         .populate('instructor', 'id name email')
-        .populate('internshipSubject', 'id title')
         .populate('reviewedBy', 'id name email')
         .sort({ createdAt: -1 })
         .limit(limitNum)
@@ -60,6 +73,12 @@ router.get("/teacher", ...authGV, async (req, res) => {
     res.json({
       success: true,
       reports,
+      khoa: lecturerProfile.khoa,
+      hocKy: {
+        id: latestHocKy._id,
+        hocKyNumber: latestHocKy.hocKyNumber,
+        namHoc: latestHocKy.namHoc
+      },
       pagination: {
         page: pageNum,
         pages: Math.max(1, Math.ceil(total / limitNum)),
@@ -104,11 +123,14 @@ router.post("/teacher", ...authGV, async (req, res) => {
     }
 
     // Find lecturer profile
-    const lecturerProfile = await GiangVien.findOne({ account: req.account._id })
-      .populate('internshipSubject', 'id title');
+    const lecturerProfile = await GiangVien.findOne({ account: req.account._id });
 
-    if (!lecturerProfile || !lecturerProfile.internshipSubject) {
-      return res.status(400).json({ error: "Bạn chưa được phân công môn thực tập" });
+    if (!lecturerProfile) {
+      return res.status(400).json({ error: "Không tìm thấy hồ sơ giảng viên" });
+    }
+
+    if (!lecturerProfile.khoa) {
+      return res.status(400).json({ error: "Giảng viên chưa có thông tin khoa" });
     }
 
     const report = new Report({
@@ -116,13 +138,12 @@ router.post("/teacher", ...authGV, async (req, res) => {
       content,
       reportType,
       instructor: req.account._id,
-      internshipSubject: lecturerProfile.internshipSubject._id,
+      khoa: lecturerProfile.khoa,
       attachments: attachments || []
     });
 
     await report.save();
     await report.populate('instructor', 'id name email');
-    await report.populate('internshipSubject', 'id title');
 
     res.status(201).json({
       success: true,
@@ -192,7 +213,6 @@ router.put("/teacher/:id", ...authGV, async (req, res) => {
 
     await report.save();
     await report.populate('instructor', 'id name email');
-    await report.populate('internshipSubject', 'id title');
 
     res.json({
       success: true,
@@ -224,19 +244,17 @@ const submitHandler = async (req, res) => {
     report.submittedAt = new Date();
     await report.save();
 
-    // (Optional but recommended) return full populated doc so the UI can update confidently
+    // Return full populated doc so the UI can update confidently
     await report.populate("instructor", "id name email");
-    await report.populate("internshipSubject", "id title");
 
     // Notify BCN about new report submission
     try {
       const io = req.app.get('io');
-      const lecturerProfile = await GiangVien.findOne({ account: req.account._id })
-        .populate('internshipSubject');
+      const lecturerProfile = await GiangVien.findOne({ account: req.account._id });
       
-      if (lecturerProfile && lecturerProfile.internshipSubject) {
+      if (lecturerProfile && lecturerProfile.khoa) {
         const bcnProfile = await BanChuNhiem.findOne({ 
-          internshipSubject: lecturerProfile.internshipSubject._id 
+          khoa: lecturerProfile.khoa
         });
         
         if (bcnProfile) {
@@ -298,24 +316,22 @@ router.delete("/teacher/:id", ...authGV, async (req, res) => {
   }
 });
 
-// Get reports for BCN (BCN only) - Simple list without pagination for dashboard
+// Get reports for BCN (BCN only) - Simple list without pagination for dashboard - VIEW ONLY
 router.get("/bcn", ...authBCN, async (req, res) => {
   try {
-    // Find BCN's managed subject
-    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject')
-      .lean();
+    // Find BCN's khoa
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id }).lean();
 
-    if (!bcnProfile || !bcnProfile.internshipSubject) {
+    if (!bcnProfile) {
       return res.json({
         success: true,
         reports: []
       });
     }
 
-    // Get all reports for the BCN's subject
+    // Get all reports for the BCN's khoa
     const reports = await Report.find({ 
-      internshipSubject: bcnProfile.internshipSubject._id
+      khoa: bcnProfile.khoa
     })
       .select('status reportType createdAt')
       .sort({ createdAt: -1 })
@@ -331,7 +347,7 @@ router.get("/bcn", ...authBCN, async (req, res) => {
   }
 });
 
-// Get reports for BCN review (BCN only) - Updated endpoint name
+// Get reports for BCN review (BCN only) - VIEW ONLY, no approve/reject
 router.get("/bcn/review", ...authBCN, async (req, res) => {
   try {
     const { page = 1, limit = 10, status, reportType, search } = req.query;
@@ -348,12 +364,10 @@ router.get("/bcn/review", ...authBCN, async (req, res) => {
       return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
     }
 
-    // Find BCN's managed subject
-    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject')
-      .lean();
+    // Find BCN's khoa
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id }).lean();
 
-    if (!bcnProfile || !bcnProfile.internshipSubject) {
+    if (!bcnProfile) {
       return res.json({
         success: true,
         reports: [],
@@ -362,7 +376,7 @@ router.get("/bcn/review", ...authBCN, async (req, res) => {
     }
 
     const query = { 
-      internshipSubject: bcnProfile.internshipSubject._id
+      khoa: bcnProfile.khoa
     };
     
     if (status && status !== "all") query.status = status;
@@ -379,7 +393,6 @@ router.get("/bcn/review", ...authBCN, async (req, res) => {
     const [reports, total] = await Promise.all([
       Report.find(query)
         .populate('instructor', 'id name email')
-        .populate('internshipSubject', 'id title')
         .populate('reviewedBy', 'id name email')
         .sort({ createdAt: -1 })
         .limit(limitNum)
@@ -403,73 +416,14 @@ router.get("/bcn/review", ...authBCN, async (req, res) => {
   }
 });
 
-// Review report (BCN only)
-router.put("/bcn/:id/review", ...authBCN, async (req, res) => {
-  try {
-    const { status, reviewNote } = req.body;
-
-    if (!status || !["reviewed", "approved", "rejected"].includes(status)) {
-      return res.status(400).json({ error: "Trạng thái xem xét không hợp lệ" });
-    }
-
-    const report = await Report.findById(req.params.id)
-      .populate('internshipSubject');
-
-    if (!report) {
-      return res.status(404).json({ error: "Không tìm thấy báo cáo" });
-    }
-
-    // Verify BCN manages this subject
-    const bcnProfile = await BanChuNhiem.findOne({ 
-      account: req.account._id,
-      internshipSubject: report.internshipSubject._id 
-    });
-    if (!bcnProfile) {
-      return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
-    }
-
-    if (report.status !== "submitted" && report.status !== "reviewed") {
-      return res.status(400).json({ error: "Chỉ có thể xem xét báo cáo đã gửi" });
-    }
-
-    report.status = status;
-    report.reviewNote = reviewNote || "";
-    report.reviewedBy = req.account._id;
-    report.reviewedAt = new Date();
-
-    await report.save();
-    await report.populate('instructor', 'id name email');
-    await report.populate('reviewedBy', 'id name email');
-
-    // Notify lecturer about report review
-    try {
-      const io = req.app.get('io');
-      await notificationService.notifyReportReviewed(
-        report.instructor._id,
-        report._id.toString(),
-        status,
-        io
-      );
-    } catch (notifError) {
-      console.error('Error sending notification:', notifError);
-    }
-
-    res.json({
-      success: true,
-      report
-    });
-  } catch (error) {
-    console.error("Review report error:", error);
-    res.status(400).json({ error: error.message });
-  }
-});
+// BCN review/approve endpoint removed - BCN can only VIEW reports, not approve/reject them
+// Review report endpoint is now only available for PDT or other authorized roles
 
 // Get single report details
 router.get("/:id", authenticate, async (req, res) => {
   try {
     const report = await Report.findById(req.params.id)
       .populate('instructor', 'id name email')
-      .populate('internshipSubject', 'id title')
       .populate('reviewedBy', 'id name email');
 
     if (!report) {
@@ -485,7 +439,7 @@ router.get("/:id", authenticate, async (req, res) => {
     } else if (req.account.role === "ban-chu-nhiem") {
       const bcnProfile = await BanChuNhiem.findOne({ 
         account: req.account._id,
-        internshipSubject: report.internshipSubject._id 
+        khoa: report.khoa
       });
       canView = !!bcnProfile;
     }
@@ -530,7 +484,6 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
     const query = {};
     if (status && status !== "all") query.status = status;
     if (reportType && reportType !== "all") query.reportType = reportType;
-    if (subjectId) query.internshipSubject = subjectId;
     if (instructorId) query.instructor = instructorId;
     
     // Date range validation
@@ -563,7 +516,6 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
     const [reports, total] = await Promise.all([
       Report.find(query)
         .populate('instructor', 'id name email')
-        .populate('internshipSubject', 'id title')
         .populate('reviewedBy', 'id name email')
         .sort({ createdAt: -1 })
         .limit(limitNum)

@@ -15,10 +15,10 @@ const SinhVienSchema = new mongoose.Schema(
         message: "Account must be sinh-vien role"
       }
     },
-    internshipSubject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "InternshipSubject",
-      default: null
+    khoa: {
+      type: String,
+      required: true,
+      trim: true
     },
     supervisor: {
       type: mongoose.Schema.Types.ObjectId,
@@ -37,10 +37,6 @@ const SinhVienSchema = new mongoose.Schema(
       type: String,
       enum: ["duoc-huong-dan", "chua-duoc-huong-dan", "dang-lam-do-an", "dang-thuc-tap", "tam-ngung", "hoan-thanh"],
       default: "chua-duoc-huong-dan"
-    },
-    studentClass: {
-      type: String,
-      trim: true
     },
     year: {
       type: Number,
@@ -64,7 +60,7 @@ SinhVienSchema.virtual('accountDetails', {
 
 // Add indexes for better query performance
 // Note: account already has a unique index, no need to duplicate
-SinhVienSchema.index({ internshipSubject: 1 });
+SinhVienSchema.index({ khoa: 1 });
 SinhVienSchema.index({ supervisor: 1 });
 SinhVienSchema.index({ internshipStatus: 1 });
 SinhVienSchema.index({ year: 1 });

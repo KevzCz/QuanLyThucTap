@@ -84,7 +84,7 @@ const ReviewReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }
               }
             </div>
             <div>
-              <span className="font-medium text-gray-700">Môn thực tập:</span> {report.internshipSubject.title}
+              <span className="font-medium text-gray-700">Khoa:</span> {report.khoa || "Chưa có thông tin khoa"}
             </div>
             <div>
               <span className="font-medium text-gray-700">Ngày gửi:</span> {

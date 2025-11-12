@@ -2,16 +2,17 @@ import mongoose from "mongoose";
 
 const PageHeaderSchema = new mongoose.Schema(
   {
-    internshipSubject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "InternshipSubject",
-      required: true
+    // Khoa field for BCN-managed pages (pageType: "khoa")
+    khoa: {
+      type: String,
+      trim: true,
+      required: false // Required for khoa pages, null for teacher pages
     },
-    // Add instructor field for teacher-specific pages
+    // Instructor field for teacher-specific pages (pageType: "teacher")
     instructor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "GiangVien",
-      default: null // null for BCN/Khoa pages, populated for teacher pages
+      required: false // Required for teacher pages, null for khoa pages
     },
     title: {
       type: String,
@@ -28,10 +29,11 @@ const PageHeaderSchema = new mongoose.Schema(
       enum: ["tat-ca", "sinh-vien", "giang-vien"],
       default: "tat-ca"
     },
-    // Add pageType to distinguish between khoa and teacher pages
+    // Distinguish between khoa (BCN-managed) and teacher (GV-managed) pages
     pageType: {
       type: String,
       enum: ["khoa", "teacher"],
+      required: true,
       default: "khoa"
     },
     isActive: {
@@ -53,23 +55,38 @@ PageHeaderSchema.virtual('subs', {
   foreignField: 'pageHeader'
 });
 
-// Indexes for performance - Remove unique constraint to avoid conflicts during reordering
-PageHeaderSchema.index({ internshipSubject: 1, order: 1 });
-PageHeaderSchema.index({ instructor: 1, internshipSubject: 1 });
-PageHeaderSchema.index({ pageType: 1, internshipSubject: 1 });
+// Indexes for performance
+PageHeaderSchema.index({ khoa: 1, order: 1 });
+PageHeaderSchema.index({ instructor: 1, pageType: 1 });
+PageHeaderSchema.index({ pageType: 1, khoa: 1 });
 PageHeaderSchema.index({ isActive: 1 });
 PageHeaderSchema.index({ createdAt: -1 });
 
-// Add a compound unique index that includes pageType and instructor to allow both khoa and teacher pages
+// Unique index for khoa pages
 PageHeaderSchema.index({ 
-  internshipSubject: 1, 
+  khoa: 1, 
   pageType: 1, 
-  instructor: 1, 
   order: 1 
 }, { 
   unique: true,
   partialFilterExpression: { 
-    isActive: true 
+    isActive: true,
+    pageType: "khoa",
+    khoa: { $exists: true, $ne: null }
+  }
+});
+
+// Unique index for teacher pages
+PageHeaderSchema.index({ 
+  instructor: 1, 
+  pageType: 1, 
+  order: 1 
+}, { 
+  unique: true,
+  partialFilterExpression: { 
+    isActive: true,
+    pageType: "teacher",
+    instructor: { $exists: true, $ne: null }
   }
 });
 

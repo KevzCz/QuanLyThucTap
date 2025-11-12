@@ -15,14 +15,11 @@ const BanChuNhiemSchema = new mongoose.Schema(
         message: "Account must be ban-chu-nhiem role"
       }
     },
-    internshipSubject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "InternshipSubject",
-      default: null
-    },
-    department: {
+    khoa: {
       type: String,
-      trim: true
+      required: true,
+      trim: true,
+      unique: true
     }
   },
   { 
@@ -42,6 +39,6 @@ BanChuNhiemSchema.virtual('accountDetails', {
 
 // Add indexes for better query performance
 // Note: account already has a unique index, no need to duplicate
-BanChuNhiemSchema.index({ internshipSubject: 1 });
+// khoa already has a unique index, no need to duplicate
 
 export default mongoose.model("BanChuNhiem", BanChuNhiemSchema);

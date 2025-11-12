@@ -6,10 +6,9 @@ interface Props {
   open: boolean;
   onClose: () => void;
   student?: GVStudent;
-  subjectInfo?: { id: string; title: string };
 }
 
-const GVViewStudentDialog: React.FC<Props> = ({ open, onClose, student, subjectInfo }) => {
+const GVViewStudentDialog: React.FC<Props> = ({ open, onClose, student }) => {
   return (
     <Modal
       open={open}
@@ -50,20 +49,11 @@ const GVViewStudentDialog: React.FC<Props> = ({ open, onClose, student, subjectI
                   <span className="font-medium">{student.status}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500">Môn thực tập:</span>
+                  <span className="text-gray-500">Khoa:</span>
                   <span className="font-medium">
-                    {student.internshipSubject ? student.internshipSubject.title : 
-                     subjectInfo ? subjectInfo.title : 'Chưa đăng ký'}
+                    {student.khoa || 'Chưa có thông tin khoa'}
                   </span>
                 </div>
-                {(student.internshipSubject || subjectInfo) && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Mã môn:</span>
-                    <span className="font-medium font-mono">
-                      {student.internshipSubject?.id || subjectInfo?.id}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
           </div>

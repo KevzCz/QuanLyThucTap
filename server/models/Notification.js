@@ -36,6 +36,13 @@ const NotificationSchema = new mongoose.Schema(
         "grade-reviewed",
         "grade-approved",
         "grade-rejected",
+        "grade-appeal-submitted",
+        "grade-appeal-accepted",
+        "grade-appeal-rejected",
+        "grade-appeal-completed",
+        "instructor-request",
+        "instructor-request-approved",
+        "instructor-request-rejected",
         "system",
         "other"
       ],
@@ -81,7 +88,9 @@ const NotificationSchema = new mongoose.Schema(
       milestoneTitle: String,
       milestoneType: String,
       fileCount: Number,
-      workType: String
+      workType: String,
+      appealId: String,
+      appealReason: String
     }
   },
   { 

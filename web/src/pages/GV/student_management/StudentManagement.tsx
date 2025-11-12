@@ -18,10 +18,7 @@ export interface GVStudent {
   name: string;
   email: string;
   status: GVStudentStatus;
-  internshipSubject?: {
-    id: string;
-    title: string;
-  };
+  khoa?: string;
   year: number;
 }
 
@@ -53,7 +50,7 @@ const StudentManagement: React.FC = () => {
   const [students, setStudents] = useState<GVStudent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [currentLecturer, setCurrentLecturer] = useState<{ id: string; name: string; subjectId?: string; subjectTitle?: string } | null>(null);
+  const [currentLecturer, setCurrentLecturer] = useState<{ id: string; name: string; khoa?: string; khoaTitle?: string } | null>(null);
 
   // Filters
   const [query, setQuery] = useState("");
@@ -65,7 +62,20 @@ const StudentManagement: React.FC = () => {
   // Load data on mount
   useEffect(() => {
     loadManagedStudents();
+    loadInstructorRequestCount();
   }, []);
+
+  const loadInstructorRequestCount = async () => {
+    try {
+      const response = await apiClient.getInstructorRequestsForMe();
+      if (response.success && response.requests) {
+        const pending = response.requests.filter(r => r.status === 'pending');
+        setPendingInstructorRequestCount(pending.length);
+      }
+    } catch (err) {
+      console.error("Error loading instructor request count:", err);
+    }
+  };
 
   const loadManagedStudents = async () => {
     try {
@@ -95,7 +105,7 @@ const StudentManagement: React.FC = () => {
         name: s.name,
         email: s.email,
         status: (s.status as GVStudentStatus) || "chua-duoc-huong-dan", // Use backend default
-        internshipSubject: s.internshipSubject,
+        khoa: s.khoa,
         year: s.year ?? new Date().getFullYear(),
       })) as GVStudent[];
 
@@ -136,6 +146,7 @@ const StudentManagement: React.FC = () => {
   const [openRemove, setOpenRemove] = useState(false);
 
   const [openRequests, setOpenRequests] = useState(false);
+  const [pendingInstructorRequestCount, setPendingInstructorRequestCount] = useState(0);
 
   const handleSendAddRequest = async (students: Array<{ id: string; name: string }>) => {
     try {
@@ -251,14 +262,14 @@ const StudentManagement: React.FC = () => {
         <div className="w-full sm:flex-1 sm:min-w-[280px] sm:max-w-[500px]">
           <input 
             disabled 
-            value={currentLecturer ? `${currentLecturer.subjectTitle || 'Chưa có môn thực tập'} (${currentLecturer.name})` : 'Đang tải...'} 
+            value={currentLecturer ? `${currentLecturer.khoaTitle || (currentLecturer.khoa ? `Khoa ${currentLecturer.khoa}` : 'Chưa có thông tin khoa')} (${currentLecturer.name})` : 'Đang tải...'} 
             className="h-10 rounded-full border border-gray-300 bg-white px-4 sm:px-6 text-xs sm:text-sm text-gray-700 text-center w-full cursor-not-allowed" 
           />
         </div>
 
         <button
           type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 h-10 text-white text-xs sm:text-sm hover:bg-blue-700 touch-manipulation w-full sm:w-auto"
+          className="inline-flex items-center justify-center gap-2 rounded-md bg-blue-600 px-4 h-10 text-white text-xs sm:text-sm hover:bg-blue-700 touch-manipulation w-full sm:w-auto relative"
           onClick={() => setOpenRequests(true)}
           title="Xem yêu cầu đã gửi"
         >
@@ -266,6 +277,11 @@ const StudentManagement: React.FC = () => {
             <path fill="currentColor" d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
           </svg>
           Yêu cầu
+          {pendingInstructorRequestCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+              {pendingInstructorRequestCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -370,7 +386,7 @@ const StudentManagement: React.FC = () => {
         onClose={() => setOpenAdd(false)}
         advisorId={currentLecturer?.id || ""}
         advisorName={currentLecturer?.name || ""}
-        subjectId={currentLecturer?.subjectId}
+        khoa={currentLecturer?.khoa}
         onRequestSingle={(sv) => {
           setOpenAdd(false);
           handleSendAddRequest([sv]);
@@ -397,7 +413,6 @@ const StudentManagement: React.FC = () => {
         open={openView}
         onClose={() => setOpenView(false)}
         student={viewing}
-        subjectInfo={currentLecturer?.subjectTitle ? { id: currentLecturer.subjectId || "", title: currentLecturer.subjectTitle } : undefined}
       />
 
       <GVConfirmRemoveDialog
@@ -412,7 +427,10 @@ const StudentManagement: React.FC = () => {
 
       <GVRequestsDialog
         open={openRequests}
-        onClose={() => setOpenRequests(false)}
+        onClose={() => {
+          setOpenRequests(false);
+          loadInstructorRequestCount(); // Refresh count after closing dialog
+        }}
       />
     </div>
   );

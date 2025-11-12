@@ -15,6 +15,7 @@ export interface Participant {
   status: ParticipantStatus;
   advisorId?: string;
   advisorName?: string;
+  maxStudents?: number; // For lecturers only
   managedStudents?: Array<{
     id: string;
     name: string;
@@ -37,6 +38,7 @@ export interface InternshipSubjectDetail {
     id: string;
     name: string;
     email: string;
+    maxStudents?: number;
     managedStudents?: Array<{
       id: string;
       name: string;
@@ -74,6 +76,7 @@ export const convertToParticipants = (subjectData: InternshipSubjectDetail): Par
       status: lecturer.managedStudents && lecturer.managedStudents.length > 0 
         ? "dang-huong-dan" 
         : "chua-co-sinh-vien",
+      maxStudents: lecturer.maxStudents,
       managedStudents: lecturer.managedStudents
     });
   });

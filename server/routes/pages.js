@@ -1,23 +1,22 @@
 import express from 'express';
 import mongoose from 'mongoose';
-import { authGV, authBCN, authSV, authAll } from '../middleware/auth.js';
+import { authenticate, authGV, authBCN, authSV } from '../middleware/auth.js';
 import PageHeader from '../models/PageHeader.js';
 import SubHeader from '../models/SubHeader.js';
 import FileSubmission from '../models/FileSubmission.js';
 import GiangVien from '../models/GiangVien.js';
-import InternshipSubject from '../models/InternshipSubject.js';
+import SinhVien from '../models/SinhVien.js';
+import Account from '../models/Account.js';
+import BanChuNhiem from '../models/BanChuNhiem.js';
 import notificationService from '../services/notificationService.js';
 
 const router = express.Router();
 
-// Get teacher's managed page structure
+// Get teacher's managed page structure (instructor-based)
 router.get('/teacher/managed', authGV, async (req, res) => {
   try {
     // Find the teacher's profile
-    const giangVien = await GiangVien.findOne({ account: req.account._id })
-      .populate('account', 'name email')
-      .populate('internshipSubject', 'id title')
-      .lean();
+    const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
 
     if (!giangVien) {
       return res.json({
@@ -32,24 +31,44 @@ router.get('/teacher/managed', authGV, async (req, res) => {
       });
     }
 
-    // Find the page structure for this subject
-    const pageStructure = await PageHeader.findOne({
-      subjectId: giangVien.internshipSubject?.id || giangVien.internshipSubject?._id
-    }).lean();
+    // Find all page headers for this teacher (pageType: "teacher", instructor: giangVien._id)
+    const pageHeaders = await PageHeader.find({
+      pageType: 'teacher',
+      instructor: giangVien._id,
+      isActive: true
+    })
+      .sort({ order: 1 })
+      .lean();
+
+    // Get sub-headers for each page header
+    const headerIds = pageHeaders.map(h => h._id);
+    const subHeaders = await SubHeader.find({
+      pageHeader: { $in: headerIds },
+      isActive: true
+    })
+      .sort({ order: 1 })
+      .lean();
+
+    // Group sub-headers by header
+    const headersWithSubs = pageHeaders.map(header => ({
+      ...header,
+      subs: subHeaders.filter(sub => sub.pageHeader.toString() === header._id.toString())
+    }));
 
     const response = {
       success: true,
       instructor: {
-        id: giangVien.account.id || giangVien.account._id.toString(),
-        name: giangVien.account.name,
-        email: giangVien.account.email
+        id: req.account.id || req.account._id.toString(),
+        name: req.account.name,
+        email: req.account.email,
+        khoa: giangVien.khoa
       },
-      subject: giangVien.internshipSubject ? {
-        id: giangVien.internshipSubject.id || giangVien.internshipSubject._id.toString(),
-        title: giangVien.internshipSubject.title,
+      subject: {
+        id: giangVien.khoa,
+        title: `Khoa ${giangVien.khoa}`,
         canManage: true
-      } : null,
-      headers: pageStructure?.headers || []
+      },
+      headers: headersWithSubs || []
     };
 
     res.json(response);
@@ -60,9 +79,8 @@ router.get('/teacher/managed', authGV, async (req, res) => {
 });
 
 // Create header for teacher's page
-router.post('/teacher/subjects/:subjectId/headers', authGV, async (req, res) => {
+router.post('/teacher/headers', authGV, async (req, res) => {
   try {
-    const { subjectId } = req.params;
     const { title, order, audience } = req.body;
 
     // Validate title
@@ -81,46 +99,33 @@ router.post('/teacher/subjects/:subjectId/headers', authGV, async (req, res) => 
       return res.status(400).json({ success: false, error: 'Đối tượng không hợp lệ' });
     }
 
-    // Verify teacher manages this subject
-    const subjectDoc = await InternshipSubject.findOne({ id: subjectId });
-    if (!subjectDoc) {
-      return res.status(404).json({ success: false, error: 'Không tìm thấy môn thực tập' });
-    }
-
-    const giangVien = await GiangVien.findOne({ 
-      account: req.account._id,
-      internshipSubject: subjectDoc._id
-    });
-
+    // Find the teacher's profile
+    const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
     if (!giangVien) {
-      return res.status(403).json({ success: false, error: 'Bạn không quản lý môn thực tập này' });
+      return res.status(403).json({ success: false, error: 'Không tìm thấy thông tin giảng viên' });
     }
 
-    // Find or create page structure
-    let pageStructure = await PageHeader.findOne({ subjectId: subjectDoc.id });
-    if (!pageStructure) {
-      pageStructure = new PageHeader({
-        subjectId: subjectDoc.id,
-        headers: []
-      });
-    }
-
-    const newHeader = {
-      _id: new mongoose.Types.ObjectId(),
+    // Create new page header for this teacher
+    const newHeader = new PageHeader({
+      instructor: giangVien._id,
+      pageType: 'teacher',
       title,
       order: Number(order),
       audience,
-      subs: []
-    };
+      isActive: true
+    });
 
-    pageStructure.headers.push(newHeader);
-    await pageStructure.save();
+    await newHeader.save();
 
     res.json({
       success: true,
       header: {
-        ...newHeader,
-        id: newHeader._id.toString()
+        _id: newHeader._id,
+        id: newHeader._id.toString(),
+        title: newHeader.title,
+        order: newHeader.order,
+        audience: newHeader.audience,
+        pageType: newHeader.pageType
       }
     });
 
@@ -152,23 +157,30 @@ router.put('/teacher/headers/:headerId', authGV, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Đối tượng không hợp lệ' });
     }
 
-    const pageStructure = await PageHeader.findOne({
-      'headers._id': headerId
+    // Find the teacher's profile
+    const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
+    if (!giangVien) {
+      return res.status(403).json({ success: false, error: 'Không tìm thấy thông tin giảng viên' });
+    }
+
+    // Find and update the header
+    const header = await PageHeader.findOne({
+      _id: headerId,
+      instructor: giangVien._id,
+      pageType: 'teacher'
     });
 
-    if (!pageStructure) {
-      return res.status(404).json({ success: false, error: 'Không tìm thấy header' });
+    if (!header) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy header hoặc bạn không có quyền chỉnh sửa' });
     }
 
-    const header = pageStructure.headers.id(headerId);
-    if (header) {
-      if (title) header.title = title;
-      if (order !== undefined) header.order = Number(order);
-      if (audience) header.audience = audience;
-      await pageStructure.save();
-    }
+    if (title) header.title = title;
+    if (order !== undefined) header.order = Number(order);
+    if (audience) header.audience = audience;
+    
+    await header.save();
 
-    res.json({ success: true });
+    res.json({ success: true, header });
   } catch (error) {
     console.error('Error updating header:', error);
     res.status(500).json({ success: false, error: 'Lỗi server' });
@@ -180,16 +192,25 @@ router.delete('/teacher/headers/:headerId', authGV, async (req, res) => {
   try {
     const { headerId } = req.params;
 
-    const pageStructure = await PageHeader.findOne({
-      'headers._id': headerId
-    });
-
-    if (!pageStructure) {
-      return res.status(404).json({ success: false, error: 'Không tìm thấy header' });
+    // Find the teacher's profile
+    const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
+    if (!giangVien) {
+      return res.status(403).json({ success: false, error: 'Không tìm thấy thông tin giảng viên' });
     }
 
-    pageStructure.headers.id(headerId).remove();
-    await pageStructure.save();
+    // Find and delete the header
+    const result = await PageHeader.findOneAndDelete({
+      _id: headerId,
+      instructor: giangVien._id,
+      pageType: 'teacher'
+    });
+
+    if (!result) {
+      return res.status(404).json({ success: false, error: 'Không tìm thấy header hoặc bạn không có quyền xóa' });
+    }
+
+    // Also delete all sub-headers
+    await SubHeader.deleteMany({ pageHeader: headerId });
 
     res.json({ success: true });
   } catch (error) {
@@ -215,7 +236,7 @@ router.post('/teacher/headers/:headerId/subs', authGV, async (req, res) => {
     }
 
     // Validate kind
-    const validKinds = ['van-ban', 'nop-file', 'duong-dan'];
+    const validKinds = ['thuong', 'thong-bao', 'nop-file', 'van-ban', 'file'];
     if (!kind || !validKinds.includes(kind)) {
       return res.status(400).json({ success: false, error: 'Loại nội dung không hợp lệ' });
     }
@@ -233,39 +254,37 @@ router.post('/teacher/headers/:headerId/subs', authGV, async (req, res) => {
       }
     }
 
-    const pageStructure = await PageHeader.findOne({
-      'headers._id': headerId
-    });
+    const header = await PageHeader.findById(headerId);
 
-    if (!pageStructure) {
-      return res.status(404).json({ success: false, error: 'Không tìm thấy header' });
-    }
-
-    const header = pageStructure.headers.id(headerId);
     if (!header) {
       return res.status(404).json({ success: false, error: 'Không tìm thấy header' });
     }
 
-    const newSub = {
-      _id: new mongoose.Types.ObjectId(),
+    // Verify teacher owns this header
+    const giangVien = await GiangVien.findOne({ account: req.account._id });
+    if (!giangVien || header.instructor?.toString() !== giangVien._id.toString()) {
+      return res.status(403).json({ success: false, error: 'You do not own this header' });
+    }
+
+    const newSub = new SubHeader({
+      pageHeader: header._id,
       title,
       content,
       order: Number(order),
       kind,
       audience,
-      startAt,
-      endAt,
+      startAt: startAt ? new Date(startAt) : null,
+      endAt: endAt ? new Date(endAt) : null,
       fileUrl,
-      fileName
-    };
+      fileName,
+      isActive: true
+    });
 
-    header.subs.push(newSub);
-    await pageStructure.save();
+    await newSub.save();
 
     res.json({
       success: true,
-      ...newSub,
-      id: newSub._id.toString()
+      subHeader: newSub
     });
   } catch (error) {
     console.error('Error creating sub-header:', error);
@@ -301,60 +320,39 @@ router.delete('/teacher/headers/:headerId/subs/:subId', authGV, async (req, res)
   }
 });
 
-// Reorder headers
-router.put('/teacher/subjects/:subjectId/headers/reorder', authGV, async (req, res) => {
+// Reorder teacher headers
+router.put('/teacher/headers/reorder', authGV, async (req, res) => {
   try {
-    const { subjectId } = req.params;
     const { headerIds } = req.body;
 
     if (!Array.isArray(headerIds)) {
       return res.status(400).json({ success: false, error: 'headerIds must be an array' });
     }
 
-    // Verify teacher manages this subject
-    const subjectDoc = await InternshipSubject.findOne({ id: subjectId });
-    if (!subjectDoc) {
-      return res.status(404).json({ success: false, error: 'Subject not found' });
-    }
-
-    const giangVien = await GiangVien.findOne({ 
-      account: req.account._id,
-      internshipSubject: subjectDoc._id
-    });
-
+    // Find the teacher's profile
+    const giangVien = await GiangVien.findOne({ account: req.account._id });
     if (!giangVien) {
-      return res.status(403).json({ success: false, error: 'You do not manage this subject' });
-    }
-
-    // Find the page structure and update header orders
-    const pageStructure = await PageHeader.findOne({ subjectId: subjectDoc.id });
-    if (!pageStructure) {
-      return res.status(404).json({ success: false, error: 'Page structure not found' });
+      return res.status(403).json({ success: false, error: 'Teacher profile not found' });
     }
 
     // Use timestamp-based temporary orders to avoid conflicts
     const tempOrderBase = Date.now();
     
     // First, set all headers to unique temporary orders
-    headerIds.forEach((headerId, index) => {
-      const header = pageStructure.headers.id(headerId);
-      if (header) {
-        header.order = tempOrderBase + index;
-      }
-    });
+    for (let i = 0; i < headerIds.length; i++) {
+      await PageHeader.updateOne(
+        { _id: headerIds[i], instructor: giangVien._id, pageType: 'teacher' },
+        { order: tempOrderBase + i }
+      );
+    }
 
     // Then update to final positive orders
-    headerIds.forEach((headerId, index) => {
-      const header = pageStructure.headers.id(headerId);
-      if (header) {
-        header.order = index + 1;
-      }
-    });
-
-    // Sort headers by new order before saving
-    pageStructure.headers.sort((a, b) => a.order - b.order);
-
-    await pageStructure.save();
+    for (let i = 0; i < headerIds.length; i++) {
+      await PageHeader.updateOne(
+        { _id: headerIds[i], instructor: giangVien._id, pageType: 'teacher' },
+        { order: i + 1 }
+      );
+    }
 
     res.json({ success: true, message: 'Headers reordered successfully' });
   } catch (error) {
@@ -373,42 +371,35 @@ router.put('/teacher/headers/:headerId/subs/reorder', authGV, async (req, res) =
       return res.status(400).json({ success: false, error: 'subHeaderIds must be an array' });
     }
 
-    const pageStructure = await PageHeader.findOne({
-      'headers._id': headerId
-    });
-
-    if (!pageStructure) {
+    const header = await PageHeader.findById(headerId);
+    if (!header) {
       return res.status(404).json({ success: false, error: 'Header not found' });
     }
 
-    const header = pageStructure.headers.id(headerId);
-    if (!header) {
-      return res.status(404).json({ success: false, error: 'Header not found' });
+    // Verify teacher owns this header
+    const giangVien = await GiangVien.findOne({ account: req.account._id });
+    if (!giangVien || header.instructor?.toString() !== giangVien._id.toString()) {
+      return res.status(403).json({ success: false, error: 'You do not own this header' });
     }
 
     // Use timestamp-based temporary orders to avoid conflicts
     const tempOrderBase = Date.now();
     
     // First, set all sub-headers to unique temporary orders
-    subHeaderIds.forEach((subId, index) => {
-      const sub = header.subs.id(subId);
-      if (sub) {
-        sub.order = tempOrderBase + index;
-      }
-    });
+    for (let i = 0; i < subHeaderIds.length; i++) {
+      await SubHeader.updateOne(
+        { _id: subHeaderIds[i], pageHeader: header._id },
+        { order: tempOrderBase + i }
+      );
+    }
 
     // Then update to final positive orders
-    subHeaderIds.forEach((subId, index) => {
-      const sub = header.subs.id(subId);
-      if (sub) {
-        sub.order = index + 1;
-      }
-    });
-
-    // Sort subs by new order before saving
-    header.subs.sort((a, b) => a.order - b.order);
-
-    await pageStructure.save();
+    for (let i = 0; i < subHeaderIds.length; i++) {
+      await SubHeader.updateOne(
+        { _id: subHeaderIds[i], pageHeader: header._id },
+        { order: i + 1 }
+      );
+    }
 
     res.json({ success: true, message: 'Sub-headers reordered successfully' });
   } catch (error) {
@@ -427,8 +418,8 @@ router.get('/teacher/subs/:subId', authGV, async (req, res) => {
       .populate({
         path: 'pageHeader',
         populate: { 
-          path: 'internshipSubject instructor',
-          select: 'id title name'
+          path: 'instructor',
+          select: 'name khoa'
         }
       });
 
@@ -467,9 +458,9 @@ router.get('/teacher/subs/:subId', authGV, async (req, res) => {
         isActive: subHeader.isActive
       },
       canEdit: true, // Teachers can edit their own content
-      subject: {
-        id: subHeader.pageHeader.internshipSubject.id,
-        title: subHeader.pageHeader.internshipSubject.title
+      khoa: {
+        name: subHeader.pageHeader.khoa || subHeader.pageHeader.instructor?.khoa,
+        title: `Khoa ${subHeader.pageHeader.khoa || subHeader.pageHeader.instructor?.khoa}`
       }
     });
 
@@ -564,6 +555,196 @@ router.delete('/teacher/subs/:subId', authGV, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting teacher sub-header:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Get submissions for any user (students, teachers, BCN)
+router.get('/subs/:subId/submissions', authenticate, async (req, res) => {
+  try {
+    const { subId } = req.params;
+
+    // Verify the sub-header exists
+    const subHeader = await SubHeader.findById(subId)
+      .populate({
+        path: 'pageHeader',
+        populate: { path: 'instructor', select: 'account' }
+      });
+
+    if (!subHeader) {
+      return res.status(404).json({ success: false, error: 'Sub-header not found' });
+    }
+
+    if (subHeader.kind !== "nop-file") {
+      return res.status(400).json({ success: false, error: 'This sub-header is not a file submission type' });
+    }
+
+    let query = { subHeader: subId };
+    let canReview = false;
+
+    // Filter based on role
+    if (req.account.role === 'sinh-vien') {
+      // Students can only see their own submissions
+      query.submitter = req.account._id;
+    } else if (req.account.role === 'giang-vien') {
+      // Teachers can see submissions based on page type
+      if (subHeader.pageHeader.pageType === 'teacher') {
+        // On teacher pages, they can see all submissions if it's their page
+        const lecturerProfile = await GiangVien.findOne({ 
+          account: req.account._id 
+        });
+        
+        if (lecturerProfile && subHeader.pageHeader.instructor && 
+            lecturerProfile._id.toString() === subHeader.pageHeader.instructor._id.toString()) {
+          canReview = true;
+          // No query filter - see all submissions
+        } else {
+          return res.status(403).json({ success: false, error: 'You do not have permission to view these submissions' });
+        }
+      } else if (subHeader.pageHeader.pageType === 'khoa') {
+        // On khoa pages, teachers can only see their own submissions
+        query.submitter = req.account._id;
+        canReview = false;
+      } else {
+        return res.status(403).json({ success: false, error: 'Unknown page type' });
+      }
+    } else if (req.account.role === 'ban-chu-nhiem') {
+      // BCN can see all submissions in their khoa (both khoa and teacher pages)
+      const bcnProfile = await BanChuNhiem.findOne({ 
+        account: req.account._id 
+      });
+      
+      if (!bcnProfile) {
+        return res.status(403).json({ success: false, error: 'BCN profile not found' });
+      }
+
+      // Check if this submission belongs to BCN's khoa
+      if (subHeader.pageHeader.pageType === 'khoa') {
+        // For khoa pages, check if khoa matches
+        if (subHeader.pageHeader.khoa === bcnProfile.khoa) {
+          canReview = true;
+        } else {
+          return res.status(403).json({ success: false, error: 'You do not have permission to view submissions from other departments' });
+        }
+      } else if (subHeader.pageHeader.pageType === 'teacher') {
+        // For teacher pages, check if instructor belongs to BCN's khoa
+        const instructorProfile = await GiangVien.findById(subHeader.pageHeader.instructor);
+        if (instructorProfile && instructorProfile.khoa === bcnProfile.khoa) {
+          canReview = true;
+        } else {
+          return res.status(403).json({ success: false, error: 'You do not have permission to view submissions from teachers in other departments' });
+        }
+      } else {
+        return res.status(403).json({ success: false, error: 'Unknown page type' });
+      }
+    } else if (req.account.role === 'phong-dao-tao') {
+      // PDT can see all submissions
+      canReview = true;
+    }
+
+    const submissions = await FileSubmission.find(query)
+      .populate('submitter', 'id name email')
+      .populate('reviewedBy', 'id name email')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      submissions,
+      canReview
+    });
+  } catch (error) {
+    console.error('Error getting submissions:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Submit a file to a sub-header (students, teachers)
+router.post('/subs/:subId/submissions', authenticate, async (req, res) => {
+  try {
+    const { subId } = req.params;
+    const { fileUrl, fileName, fileSize } = req.body;
+
+    if (!fileUrl || !fileName || !fileSize) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    // Verify the sub-header exists
+    const subHeader = await SubHeader.findById(subId)
+      .populate('pageHeader');
+
+    if (!subHeader) {
+      return res.status(404).json({ success: false, error: 'Sub-header not found' });
+    }
+
+    if (subHeader.kind !== "nop-file") {
+      return res.status(400).json({ success: false, error: 'This sub-header is not a file submission type' });
+    }
+
+    // Create the submission
+    const submission = new FileSubmission({
+      subHeader: subId,
+      submitter: req.account._id,
+      fileName,
+      fileUrl,
+      fileSize,
+      status: 'submitted'
+    });
+
+    await submission.save();
+    await submission.populate('submitter', 'id name email');
+
+    // Notify relevant parties based on page type
+    try {
+      const io = req.app.get('io');
+      
+      if (subHeader.pageHeader.pageType === 'teacher' && subHeader.pageHeader.instructor) {
+        // Notify teacher about student submission
+        const lecturerProfile = await GiangVien.findById(subHeader.pageHeader.instructor);
+        if (lecturerProfile) {
+          await notificationService.createNotification({
+            recipient: lecturerProfile.account,
+            sender: req.account._id,
+            type: 'file-submitted',
+            title: 'Bài nộp mới từ sinh viên',
+            message: `${req.account.name} đã nộp file "${fileName}"`,
+            link: `/gv/teacher-page`,
+            priority: 'normal',
+            metadata: { 
+              submissionId: submission._id.toString(),
+              subHeaderId: subId
+            }
+          }, io);
+        }
+      } else if (subHeader.pageHeader.pageType === 'khoa') {
+        // Notify BCN about submission on khoa pages
+        // Find the BCN for this khoa and notify them
+        const bcnProfile = await BanChuNhiem.findOne({ khoa: subHeader.pageHeader.khoa });
+        if (bcnProfile) {
+          await notificationService.createNotification({
+            recipient: bcnProfile.account,
+            sender: req.account._id,
+            type: 'file-submitted',
+            title: 'Bài nộp mới trên trang khoa',
+            message: `${req.account.name} đã nộp file "${fileName}"`,
+            link: `/bcn-page`,
+            priority: 'normal',
+            metadata: { 
+              submissionId: submission._id.toString(),
+              subHeaderId: subId
+            }
+          }, io);
+        }
+      }
+    } catch (notifError) {
+      console.error('Error sending submission notification:', notifError);
+    }
+
+    res.status(201).json({
+      success: true,
+      submission
+    });
+  } catch (error) {
+    console.error('Error submitting file:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 });
@@ -693,6 +874,344 @@ router.put('/teacher/submissions/:submissionId', authGV, async (req, res) => {
   } catch (error) {
     console.error('Error updating teacher submission status:', error);
     res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Get page structure for teacher (instructor-based) or khoa (department-based)
+// This endpoint returns either teacher pages or khoa pages depending on context
+router.get('/khoa', authenticate, async (req, res) => {
+  try {
+    const { khoa, audience } = req.query;
+
+    // If khoa query param is provided, return khoa-based pages (BCN-created department pages)
+    if (khoa) {
+      // Get the user's khoa to verify access
+      let userKhoa = null;
+      
+      if (req.account.role === 'giang-vien') {
+        const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
+        userKhoa = giangVien?.khoa;
+      } else if (req.account.role === 'sinh-vien') {
+        const SinhVien = (await import('../models/SinhVien.js')).default;
+        const student = await SinhVien.findOne({ account: req.account._id }).lean();
+        userKhoa = student?.khoa;
+      }
+
+      // Verify user belongs to the requested khoa
+      if (userKhoa !== khoa) {
+        return res.status(403).json({ 
+          success: false, 
+          error: 'Bạn không có quyền xem trang của khoa này' 
+        });
+      }
+
+      // Get khoa-based page headers (created by BCN)
+      const pageHeaders = await PageHeader.find({
+        khoa: khoa,
+        pageType: 'khoa',
+        isActive: true
+      })
+        .sort({ order: 1 })
+        .lean();
+
+      // Get sub-headers for each page header
+      const headerIds = pageHeaders.map(h => h._id);
+      const subHeaders = await SubHeader.find({
+        pageHeader: { $in: headerIds },
+        isActive: true
+      })
+        .sort({ order: 1 })
+        .lean();
+
+      // Group sub-headers by header
+      const headersWithSubs = pageHeaders.map(header => ({
+        ...header,
+        subs: subHeaders.filter(sub => sub.pageHeader.toString() === header._id.toString())
+      }));
+
+      return res.json({
+        success: true,
+        khoa: {
+          name: khoa,
+          canManage: false
+        },
+        headers: headersWithSubs || []
+      });
+    }
+
+    // Otherwise, return teacher-based pages (for teacher/student viewing their supervisor's pages)
+    // For teachers viewing their own pages
+    if (req.account.role === 'giang-vien') {
+      const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
+      if (!giangVien) {
+        return res.json({
+          success: true,
+          instructor: { name: req.account.name },
+          headers: []
+        });
+      }
+
+      // Get all page headers for this teacher
+      const pageHeaders = await PageHeader.find({
+        pageType: 'teacher',
+        instructor: giangVien._id,
+        isActive: true
+      })
+        .sort({ order: 1 })
+        .lean();
+
+      // Get sub-headers for each page header
+      const headerIds = pageHeaders.map(h => h._id);
+      const subHeaders = await SubHeader.find({
+        pageHeader: { $in: headerIds },
+        isActive: true
+      })
+        .sort({ order: 1 })
+        .lean();
+
+      // Group sub-headers by header
+      const headersWithSubs = pageHeaders.map(header => ({
+        ...header,
+        subs: subHeaders.filter(sub => sub.pageHeader.toString() === header._id.toString())
+      }));
+
+      return res.json({
+        success: true,
+        instructor: { 
+          id: giangVien._id,
+          name: req.account.name,
+          khoa: giangVien.khoa,
+          canManage: true 
+        },
+        headers: headersWithSubs || []
+      });
+    } 
+    
+    // For students viewing their supervisor's pages
+    else if (req.account.role === 'sinh-vien') {
+      const SinhVien = (await import('../models/SinhVien.js')).default;
+      const student = await SinhVien.findOne({ account: req.account._id })
+        .populate('supervisor', 'id name email')
+        .lean();
+
+      if (!student || !student.supervisor) {
+        return res.json({
+          success: true,
+          message: 'Bạn chưa được phân công giảng viên hướng dẫn',
+          headers: []
+        });
+      }
+
+      const lecturerProfile = await GiangVien.findOne({ account: student.supervisor._id }).lean();
+      if (!lecturerProfile) {
+        return res.json({
+          success: true,
+          headers: []
+        });
+      }
+
+      // Get page headers from student's supervisor
+      const pageHeaders = await PageHeader.find({
+        pageType: 'teacher',
+        instructor: lecturerProfile._id,
+        isActive: true
+      })
+        .sort({ order: 1 })
+        .lean();
+
+      // Get sub-headers for each page header
+      const headerIds = pageHeaders.map(h => h._id);
+      const subHeaders = await SubHeader.find({
+        pageHeader: { $in: headerIds },
+        isActive: true
+      })
+        .sort({ order: 1 })
+        .lean();
+
+      // Group sub-headers by header
+      const headersWithSubs = pageHeaders.map(header => ({
+        ...header,
+        subs: subHeaders.filter(sub => sub.pageHeader.toString() === header._id.toString())
+      }));
+
+      return res.json({
+        success: true,
+        instructor: {
+          id: lecturerProfile._id,
+          name: student.supervisor.name,
+          khoa: lecturerProfile.khoa,
+          canManage: false
+        },
+        headers: headersWithSubs || []
+      });
+    }
+
+    // For other roles, return empty
+    return res.json({
+      success: true,
+      headers: []
+    });
+
+  } catch (error) {
+    console.error('Error getting page structure:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Get deadlines for file submissions
+router.get("/deadlines/:audience", authenticate, async (req, res) => {
+  try {
+    const { audience } = req.params;
+    
+    if (!["sinh-vien", "giang-vien"].includes(audience)) {
+      return res.status(400).json({ error: "Invalid audience parameter" });
+    }
+
+    let userKhoa = null;
+
+    // Get the user's khoa based on their role
+    if (req.account.role === "giang-vien") {
+      const lecturerProfile = await GiangVien.findOne({ account: req.account._id }).lean();
+      if (lecturerProfile) {
+        userKhoa = lecturerProfile.khoa;
+      }
+    } else if (req.account.role === "sinh-vien") {
+      const studentProfile = await SinhVien.findOne({ account: req.account._id }).lean();
+      if (studentProfile) {
+        userKhoa = studentProfile.khoa;
+      }
+    }
+
+    if (!userKhoa) {
+      return res.json({
+        success: true,
+        deadlines: []
+      });
+    }
+
+    // Get all page headers for this khoa (both department pages and teacher pages)
+    const headers = await PageHeader.find({
+      $or: [
+        { pageType: 'khoa', khoa: userKhoa, isActive: true },
+        { pageType: 'teacher', isActive: true }
+      ]
+    }).select('_id');
+
+    const headerIds = headers.map(h => h._id);
+
+    // Find all nop-file subheaders with matching audience and endAt deadline
+    const subHeaders = await SubHeader.find({
+      pageHeader: { $in: headerIds },
+      kind: "nop-file",
+      audience: { $in: [audience, "tat-ca"] },
+      endAt: { $ne: null },
+      isActive: true
+    })
+    .select('title endAt audience')
+    .sort({ endAt: 1 })
+    .lean();
+
+    // Transform to deadline format
+    const deadlines = subHeaders.map(sub => ({
+      id: sub._id.toString(),
+      title: sub.title,
+      dueDate: sub.endAt,
+      type: "submission",
+      status: new Date() > new Date(sub.endAt) ? "overdue" : "pending"
+    }));
+
+    res.json({
+      success: true,
+      deadlines
+    });
+  } catch (error) {
+    console.error('Error getting deadlines:', error);
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
+
+// Get teacher-specific page structure for viewing (public access for students)
+router.get('/teacher/:instructorId/view', authenticate, async (req, res) => {
+  try {
+    console.log('=== TEACHER PAGE VIEW ROUTE HIT ===');
+    const { instructorId } = req.params;
+
+    console.log('Teacher page view request:', { instructorId });
+
+    // Validate instructorId format - check if it's a valid ObjectId or custom ID
+    let instructor;
+    
+    if (mongoose.Types.ObjectId.isValid(instructorId) && instructorId.length === 24) {
+      // It's a MongoDB ObjectId
+      instructor = await Account.findById(instructorId);
+    } else {
+      // It's a custom ID like "GV0001"
+      instructor = await Account.findOne({ id: instructorId, role: 'giang-vien' });
+    }
+
+    console.log('Found instructor:', instructor ? instructor.id : 'not found');
+
+    if (!instructor || instructor.role !== 'giang-vien') {
+      return res.status(404).json({
+        success: false,
+        error: 'Không tìm thấy giảng viên'
+      });
+    }
+
+    // Find the lecturer profile
+    const lecturerProfile = await GiangVien.findOne({ account: instructor._id }).lean();
+
+    console.log('Lecturer profile:', lecturerProfile ? 'found' : 'not found');
+
+    if (!lecturerProfile) {
+      return res.status(404).json({
+        success: false,
+        error: 'Không tìm thấy hồ sơ giảng viên'
+      });
+    }
+
+    // Get page structure for this teacher (pageType: 'teacher', instructor-based)
+    const headers = await PageHeader.find({
+      instructor: lecturerProfile._id,
+      pageType: 'teacher',
+      isActive: true
+    }).sort({ order: 1 }).lean();
+
+    console.log('Found headers:', headers.length);
+
+    const headerIds = headers.map(h => h._id);
+    const subHeaders = await SubHeader.find({ 
+      pageHeader: { $in: headerIds }, 
+      isActive: true 
+    }).sort({ order: 1 }).lean();
+
+    console.log('Found sub-headers:', subHeaders.length);
+
+    // Group sub-headers by header
+    const headersWithSubs = headers.map(header => ({
+      ...header,
+      subs: subHeaders.filter(sub => sub.pageHeader.toString() === header._id.toString())
+    }));
+
+    res.json({
+      success: true,
+      instructor: {
+        id: instructor.id,
+        name: instructor.name,
+        email: instructor.email
+      },
+      subject: {
+        id: lecturerProfile.khoa,
+        title: `Khoa ${lecturerProfile.khoa}`
+      },
+      headers: headersWithSubs
+    });
+  } catch (error) {
+    console.error('Get teacher page structure for viewing error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Lỗi server khi tải cấu trúc trang: ' + error.message
+    });
   }
 });
 

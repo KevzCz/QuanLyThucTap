@@ -26,9 +26,13 @@ export interface SubHeader {
 }
 
 export interface PageStructure {
-  subject: {
+  subject?: {
     id: string;
     title: string;
+    canManage: boolean;
+  };
+  khoa?: {
+    name: string;
     canManage: boolean;
   };
   headers: PageHeader[];
@@ -49,21 +53,24 @@ export interface TeacherPageStructure {
   headers: PageHeader[];
 }
 
-// Get page structure for a subject
-export const getPageStructure = async (subjectId: string, audience?: string): Promise<PageStructure> => {
+// Get page structure for a subject or khoa
+export const getPageStructure = async (subjectIdOrKhoa: string, audience?: string): Promise<PageStructure> => {
   const params = new URLSearchParams();
   if (audience) params.append('audience', audience);
   
   try {
-    const response = await apiClient.request<PageStructure>(`/pages/subjects/${encodeURIComponent(subjectId)}?${params.toString()}`);
+    // Always use khoa endpoint (all khoa names are short like CNTT, DL, etc.)
+    // If it's not a khoa, the backend will handle it appropriately
+    const endpoint = `/pages/khoa?khoa=${encodeURIComponent(subjectIdOrKhoa)}&${params.toString()}`;
+    
+    const response = await apiClient.request<PageStructure>(endpoint);
     return response;
   } catch (error) {
-    // If subject not found, return empty structure
+    // If subject/khoa not found, return empty structure
     if (error instanceof Error && (error.message.includes('404') || error.message.includes('Không tìm thấy'))) {
       return {
-        subject: {
-          id: subjectId,
-          title: 'Môn thực tập',
+        khoa: {
+          name: subjectIdOrKhoa,
           canManage: false
         },
         headers: []
@@ -73,13 +80,27 @@ export const getPageStructure = async (subjectId: string, audience?: string): Pr
   }
 };
 
+// Get BCN's khoa page structure for management (BCN only)
+export const getBCNKhoaPageStructure = async (audience?: string): Promise<PageStructure> => {
+  const params = new URLSearchParams();
+  if (audience) params.append('audience', audience);
+  
+  const endpoint = `/pages/bcn/khoa?${params.toString()}`;
+  const response = await apiClient.request<PageStructure>(endpoint);
+  return response;
+};
+
 // Create page header
-export const createPageHeader = async (subjectId: string, data: {
+export const createPageHeader = async (subjectIdOrKhoa: string, data: {
   title: string;
   order: number;
   audience: "tat-ca" | "sinh-vien" | "giang-vien";
 }): Promise<PageHeader> => {
-  const response = await apiClient.request<{ success: boolean; header: PageHeader }>(`/pages/subjects/${subjectId}/headers`, {
+  const endpoint = subjectIdOrKhoa === "khoa"
+    ? `/pages/khoa/headers`
+    : `/pages/subjects/${subjectIdOrKhoa}/headers`;
+  
+  const response = await apiClient.request<{ success: boolean; header: PageHeader }>(endpoint, {
     method: 'POST',
     body: JSON.stringify(data)
   });
@@ -158,8 +179,12 @@ export const getSubHeader = async (subId: string) => {
 };
 
 // Reorder headers
-export const reorderHeaders = async (subjectId: string, headerIds: string[]): Promise<void> => {
-  await apiClient.request(`/pages/subjects/${subjectId}/headers/reorder`, {
+export const reorderHeaders = async (subjectIdOrKhoa: string, headerIds: string[]): Promise<void> => {
+  const endpoint = subjectIdOrKhoa === "khoa"
+    ? `/pages/khoa/headers/reorder`
+    : `/pages/subjects/${subjectIdOrKhoa}/headers/reorder`;
+  
+  await apiClient.request(endpoint, {
     method: 'PUT',
     body: JSON.stringify({ headerIds })
   });
@@ -230,16 +255,13 @@ export const deleteTeacherSubHeader = async (headerId: string, subId: string) =>
 };
 
 // Get teacher-specific page structure for viewing (used by students)
-export const getTeacherPageStructureForViewing = async (instructorId: string, subjectId?: string): Promise<PageStructure> => {
+export const getTeacherPageStructureForViewing = async (instructorId: string): Promise<PageStructure> => {
   if (!instructorId) {
     throw new Error('Instructor ID is required');
   }
   
-  const params = new URLSearchParams();
-  if (subjectId) params.append('subjectId', subjectId);
-  
-  // Use pageManagement route which has the authenticate middleware
-  const response = await apiClient.request<PageStructure>(`/pages/teacher/${instructorId}/view?${params.toString()}`);
+  // No longer need subjectId parameter - using khoa-based system
+  const response = await apiClient.request<PageStructure>(`/pages/teacher/${instructorId}/view`);
   return response;
 };
 

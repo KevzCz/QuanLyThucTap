@@ -7,12 +7,8 @@ import {
   roleLabel,
   convertToParticipants,
 } from "./ParticipantsTypes";
-import AddChooserDialog from "../internship_subject/AddChooserDialog";
-import AddStudentsToSubjectDialog from "../internship_subject/AddStudentsToSubjectDialog";
-import AddStudentsToAdvisorDialog from "../internship_subject/AddStudentsToAdvisorDialog";
-import ConfirmImportedListDialog from "../internship_subject/ConfirmImportedListDialog";
-import ViewParticipantDialog from "../internship_subject/ViewParticipantDialog";
-import EditStudentAdvisorDialog from "../internship_subject/EditStudentAdvisorDialog";
+import ViewParticipantDialog from "./ViewParticipantDialog";
+import EditStudentAdvisorDialog from "./EditStudentAdvisorDialog";
 import { apiClient } from "../../../utils/api";
 import SearchInput from "../../../components/UI/SearchInput";
 import FilterButtonGroup from "../../../components/UI/FilterButtonGroup";
@@ -70,11 +66,6 @@ const InternshipSubjectManagement: React.FC = () => {
   const pageSize = 10;
 
   // dialogs
-  const [openAddChooser, setOpenAddChooser] = useState(false);
-  const [openAddSvToSubject, setOpenAddSvToSubject] = useState(false);
-  const [openAddSvToAdvisor, setOpenAddSvToAdvisor] = useState(false);
-  const [openConfirmImported, setOpenConfirmImported] = useState(false);
-  const [importRows, setImportRows] = useState<{ id: string; name: string; advisorId?: string; advisorName?: string }[]>([]);
   const [viewing, setViewing] = useState<Participant | undefined>();
   const [openView, setOpenView] = useState(false);
   const [editingSv, setEditingSv] = useState<Participant | undefined>();
@@ -91,10 +82,10 @@ const InternshipSubjectManagement: React.FC = () => {
       setError("");
       
       const response = await apiClient.getBCNManagedSubject();
-      setSubjectData(response.subject);
+      setSubjectData(response.khoa);
     } catch (err: unknown) {
-      console.error("Error loading managed subject:", err);
-      setError("Không thể tải thông tin môn thực tập");
+      console.error("Error loading managed khoa:", err);
+      setError("Không thể tải thông tin khoa");
     } finally {
       setLoading(false);
     }
@@ -119,66 +110,16 @@ const InternshipSubjectManagement: React.FC = () => {
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  // add single student (from small form)
-  const addStudent = async (sv: Participant) => {
-    if (!subjectData) return;
-
-    try {
-      setError("");
-      const response = await apiClient.addStudentToSubject(
-        subjectData.id, 
-        sv.id, 
-        sv.advisorId
-      );
-      setSubjectData(response.subject);
-      setPage(1);
-    } catch (err: unknown) {
-      console.error("Error adding student:", err);
-      setError(err instanceof Error ? err.message : "Không thể thêm sinh viên");
-    }
-  };
 
   // bulk confirm from import (both flows)
-  const confirmImport = async (rowsToAdd: typeof importRows) => {
-    if (!subjectData) return;
 
-    try {
-      setError("");
-      
-      // Add students one by one (could be optimized with bulk API)
-      for (const row of rowsToAdd) {
-        await apiClient.addStudentToSubject(
-          subjectData.id,
-          row.id,
-          row.advisorId
-        );
-      }
-      
-      // Reload subject data
-      await loadManagedSubject();
-      setOpenConfirmImported(false);
-      setPage(1);
-      showSuccess("Đã nhập danh sách sinh viên thành công");
-    } catch (err: unknown) {
-      console.error("Error importing students:", err);
-      const errorMessage = err instanceof Error ? err.message : "Không thể nhập danh sách sinh viên";
-      setError(errorMessage);
-      showError(errorMessage);
-    }
-  };
 
   // update student's advisor
   const saveStudentAdvisor = async (svId: string, advisorId?: string) => {
-    if (!subjectData) return;
-
     try {
       setError("");
-      const response = await apiClient.updateStudentSupervisor(
-        subjectData.id,
-        svId,
-        advisorId
-      );
-      setSubjectData(response.subject);
+      await apiClient.updateStudentSupervisor(svId, advisorId);
+      await loadManagedSubject(); // Reload data
       setOpenEditAdvisor(false);
       showSuccess("Đã cập nhật giảng viên hướng dẫn");
     } catch (err: unknown) {
@@ -189,27 +130,11 @@ const InternshipSubjectManagement: React.FC = () => {
     }
   };
 
-  // remove participant
+  // remove participant - Disabled: BCN cannot remove students/lecturers from khoa
+  // This function is kept for UI compatibility but shows an error message
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const removeParticipant = async (participant: Participant) => {
-    if (!subjectData) return;
-
-    try {
-      setError("");
-      
-      if (participant.role === "sinh-vien") {
-        await apiClient.removeStudentFromSubject(subjectData.id, participant.id);
-      } else {
-        await apiClient.removeLecturerFromSubject(subjectData.id, participant.id);
-      }
-      
-      await loadManagedSubject();
-      showSuccess("Đã xóa thành viên thành công");
-    } catch (err: unknown) {
-      console.error("Error removing participant:", err);
-      const errorMessage = err instanceof Error ? err.message : "Không thể xóa thành viên";
-      setError(errorMessage);
-      showError(errorMessage);
-    }
+    showError("Chức năng xóa thành viên khỏi khoa không khả dụng. Vui lòng liên hệ Phòng Đào Tạo.");
   };
 
   // Show loading state
@@ -283,17 +208,7 @@ const InternshipSubjectManagement: React.FC = () => {
           className="w-full sm:w-auto"
         />
 
-        <button
-          type="button"
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 h-9 text-white text-sm hover:bg-emerald-700 touch-manipulation w-full sm:w-auto sm:ml-auto"
-          onClick={() => setOpenAddChooser(true)}
-          title="Thêm"
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4">
-            <path fill="currentColor" d="M19 11h-6V5h-2v6H5v2h6v6h2v-6h6z" />
-          </svg>
-          Thêm
-        </button>
+
       </div>
 
 
@@ -367,11 +282,7 @@ const InternshipSubjectManagement: React.FC = () => {
                           ? "Thêm giảng viên và sinh viên vào môn thực tập"
                           : "Thử thay đổi bộ lọc hoặc từ khóa tìm kiếm"
                       }
-                      action={
-                        participants.length === 0
-                          ? { label: "Thêm thành viên", onClick: () => setOpenAddChooser(true) }
-                          : undefined
-                      }
+                      action={undefined}
                     />
                   </td>
                 </tr>
@@ -390,58 +301,13 @@ const InternshipSubjectManagement: React.FC = () => {
         )}
       </div>
 
-      {/* Dialogs */}
-      <AddChooserDialog
-        open={openAddChooser}
-        onClose={() => setOpenAddChooser(false)}
-        onChoose={(t) => {
-          setOpenAddChooser(false);
-          if (t === "sv-into-subject") {
-            setOpenAddSvToSubject(true);
-          } else {
-            setOpenAddSvToAdvisor(true);
-          }
-        }}
-      />
-
-      <AddStudentsToSubjectDialog
-        open={openAddSvToSubject}
-        onClose={() => setOpenAddSvToSubject(false)}
-        onAddSingle={(sv) => addStudent(sv)}
-        onParsed={(rows) => {
-          setImportRows(rows);
-          setOpenAddSvToSubject(false);
-          setOpenConfirmImported(true);
-        }}
-        subjectId={subjectData?.id || ""}
-        subjectLecturers={subjectData?.lecturers.map(l => ({ id: l.id, name: l.name, email: l.email })) || []}
-      />
-
-      <AddStudentsToAdvisorDialog
-        open={openAddSvToAdvisor}
-        onClose={() => setOpenAddSvToAdvisor(false)}
-        advisors={participants.filter((r) => r.role === "giang-vien")}
-        onAddSingle={(sv) => addStudent(sv)}
-        onParsed={(rows) => {
-          setImportRows(rows);
-          setOpenAddSvToAdvisor(false);
-          setOpenConfirmImported(true);
-        }}
-        subjectId={subjectData?.id || ""}
-      />
-
-      <ConfirmImportedListDialog
-        open={openConfirmImported}
-        onClose={() => setOpenConfirmImported(false)}
-        rows={importRows}
-        onConfirm={confirmImport}
-      />
-
       <ViewParticipantDialog
         open={openView}
-        onClose={() => setOpenView(false)}
+        onClose={() => {
+          setOpenView(false);
+        }}
         participant={viewing}
-        subjectId={subjectData?.id || ""}
+        onStudentAdded={loadManagedSubject}
       />
 
       <EditStudentAdvisorDialog

@@ -40,12 +40,12 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
     
     // PDT pages
     "/accounts": { breadcrumb: "Quản lý tài khoản", title: "Quản lý tài khoản" },
-    "/menu-list": { breadcrumb: "Quản lý môn thực tập", title: "Quản lý môn thực tập" },
+    "/hocky": { breadcrumb: "Quản lý học kỳ", title: "Quản lý học kỳ" },
     "/summary": { breadcrumb: "Quản lý tổng kết", title: "Quản lý tổng kết" },
     "/stats": { breadcrumb: "Thống kê điểm thực tập", title: "Thống kê điểm thực tập" },
     
     // BCN pages
-    "/bcn-internship": { breadcrumb: "Quản lý môn thực tập", title: "Quản lý môn thực tập" },
+    "/bcn-internship": { breadcrumb: "Quản lý khoa", title: "Quản lý khoa" },
     "/bcn-page": { breadcrumb: "Quản lý trang khoa", title: "Quản lý trang khoa" },
     "/request": { breadcrumb: "Quản lý yêu cầu", title: "Quản lý yêu cầu" },
     "/bcn-reports": { breadcrumb: "Quản lý báo cáo", title: "Quản lý báo cáo" },
@@ -55,13 +55,11 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
     "/teacher-students": { breadcrumb: "Quản lý sinh viên", title: "Quản lý sinh viên" },
     "/docs-dept": { breadcrumb: "Xem tài liệu khoa", title: "Xem tài liệu khoa" },
     "/teacher-page": { breadcrumb: "Quản lý trang giảng viên", title: "Quản lý trang giảng viên" },
-    "/teacher-internship-registration": { breadcrumb: "Đăng ký môn thực tập", title: "Đăng ký môn thực tập" },
     "/teacher-reports": { breadcrumb: "Quản lý báo cáo", title: "Quản lý báo cáo" },
     "/grade-management": { breadcrumb: "Quản lý điểm", title: "Quản lý điểm thực tập" },
     
     // SV pages
     "/docs-teacher": { breadcrumb: "Xem tài liệu giảng viên", title: "Xem tài liệu giảng viên" },
-    "/internship-registration": { breadcrumb: "Đăng ký môn thực tập", title: "Đăng ký môn thực tập" },
     "/my-internship": { breadcrumb: "Thực tập của tôi", title: "Thực tập của tôi" },
     "/profile": { breadcrumb: "Hồ sơ cá nhân", title: "Hồ sơ cá nhân" },
   };

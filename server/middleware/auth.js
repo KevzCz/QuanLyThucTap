@@ -1,6 +1,5 @@
 import jwt from "jsonwebtoken";
 import Account from "../models/Account.js";
-import InternshipSubject from "../models/InternshipSubject.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
@@ -92,18 +91,15 @@ export const authBCNForSubject = async (req, res, next) => {
       return res.status(403).json({ error: "Không có quyền truy cập" });
     }
 
-    // Get subject from params or body
-    const subjectId = req.params.subjectId || req.body.subjectId;
-    if (subjectId) {
-      const subject = await InternshipSubject.findOne({ id: subjectId });
-      if (subject) {
-        const bcnProfile = await BanChuNhiem.findOne({ 
-          account: req.account._id,
-          internshipSubject: subject._id 
-        });
-        if (!bcnProfile) {
-          return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
-        }
+    // Get khoa from params or body
+    const khoa = req.params.khoa || req.body.khoa;
+    if (khoa) {
+      const bcnProfile = await BanChuNhiem.findOne({ 
+        account: req.account._id,
+        khoa: khoa
+      });
+      if (!bcnProfile) {
+        return res.status(403).json({ error: "Bạn không quản lý khoa này" });
       }
     }
 

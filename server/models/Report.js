@@ -66,9 +66,10 @@ const ReportSchema = new mongoose.Schema(
         message: "Instructor must be giang-vien role"
       }
     },
-    internshipSubject: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "InternshipSubject",
+    // Khoa of the instructor (populated from GiangVien)
+    khoa: {
+      type: String,
+      trim: true,
       required: true
     },
     reviewedBy: {
@@ -116,7 +117,7 @@ ReportSchema.pre('validate', async function (next) {
 // Index for efficient queries
 // Note: id already has a unique index, no need to duplicate
 ReportSchema.index({ instructor: 1, createdAt: -1 });
-ReportSchema.index({ internshipSubject: 1, status: 1 });
+ReportSchema.index({ khoa: 1, status: 1 });
 ReportSchema.index({ status: 1, createdAt: -1 });
 ReportSchema.index({ reportType: 1, status: 1 });
 ReportSchema.index({ createdAt: -1 });

@@ -11,6 +11,11 @@ export interface Account {
   email: string;
   role: Role;
   status: Status;
+  khoa?: string;
+  year?: number;
+  maxStudents?: number; // Calculated dynamically for GV
+  currentStudentCount?: number; // For GV
+  mustChangePassword?: boolean; // Force password change on first login
 }
 
 /* DTOs for write operations */
@@ -21,6 +26,9 @@ export interface CreateAccountDTO {
   password: string;
   role: Role;
   status?: Status; // server defaults to "open"
+  khoa?: string;
+  year?: number;
+  hocKyId?: string; // Optional học kỳ to add sinh viên to
 }
 
 export type UpdateAccountDTO = Partial<{
@@ -29,6 +37,8 @@ export type UpdateAccountDTO = Partial<{
   role: Role;
   status: Status;
   password: string;
+  khoa: string;
+  year: number;
 }>;
 
 export interface LoginResponse {
@@ -49,13 +59,129 @@ export interface PaginatedAccountsResponse {
   pagination: { page: number; pages: number; total: number };
 }
 
+/* HocKy Types */
+export interface HocKy {
+  id: string;
+  hocKyNumber: number;
+  namHoc: string;
+  durationStart: string;
+  durationEnd: string;
+  sinhViens: string[]; // Array of SinhVien IDs
+  studentCount?: number;
+  importDate?: string;
+  importedBy?: {
+    id: string;
+    name: string;
+    username: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ImportedStudent {
+  accountId: string;
+  sinhVienId: string;
+  username: string;
+  password: string | null;
+  name: string;
+  existing?: boolean;
+}
+
+export interface HocKyImportResponse {
+  message: string;
+  hocKy: {
+    id: string;
+    hocKyNumber: number;
+    namHoc: string;
+    durationStart: string;
+    durationEnd: string;
+    studentCount: number;
+  };
+  students: ImportedStudent[];
+  errors?: string[];
+}
+
+/* Grade Appeal Types */
+export interface GradeAppeal {
+  _id: string;
+  student: {
+    _id: string;
+    id: string;
+    name: string;
+    email: string;
+  };
+  internshipGrade: {
+    _id: string;
+    workType: string;
+    finalGrade?: number;
+    letterGrade?: string;
+  };
+  originalSupervisor: {
+    _id: string;
+    id: string;
+    name: string;
+    email: string;
+  };
+  newSupervisor?: {
+    _id: string;
+    id: string;
+    name: string;
+    email: string;
+  };
+  appealReason: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'reviewing' | 'completed';
+  khoa: string;
+  reviewedBy?: {
+    _id: string;
+    id: string;
+    name: string;
+    email: string;
+  };
+  reviewedAt?: string;
+  reviewNote?: string;
+  assignedAt?: string;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AvailableLecturer {
+  _id: string;
+  id: string;
+  name: string;
+  email: string;
+  khoa: string;
+  currentStudentCount: number;
+  maxStudents: number;
+}
+
+export interface InstructorRequest {
+  _id: string;
+  student: {
+    _id: string;
+    id: string;
+    name: string;
+    email: string;
+  };
+  requestedInstructor: {
+    _id: string;
+    id: string;
+    name: string;
+    email: string;
+  };
+  message?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  responseMessage?: string;
+  respondedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /* Internship Subject Types */
 import type {
   InternshipSubject,
   CreateInternshipSubjectDTO,
   UpdateInternshipSubjectDTO,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  InternshipStatus,
 } from "../pages/PDT/internship_subject_management/InternshipSubjectTypes";
 import type { PageStructure } from "../services/pageApi";
 
@@ -84,6 +210,7 @@ export type GVStudentStatus =
 export interface LecturerSummary {
   id: string;
   name: string;
+  khoa?: string;
   subjectId?: string;
   subjectTitle?: string;
 }
@@ -94,7 +221,7 @@ export interface GVManagedStudentRaw {
   name: string;
   email: string;
   status?: GVStudentStatus;
-  internshipSubject?: { id: string; title: string };
+  khoa?: string;
   studentClass?: string;
   year?: number;
   content?: string; // Add content property for compatibility
@@ -215,6 +342,13 @@ class ApiClient {
     return this.request<ApiResponse>("/auth/logout", { method: "POST" });
   }
 
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.request<ApiResponse>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword })
+    });
+  }
+
   getCurrentUser() {
     return this.request<LoginResponse>("/auth/me");
   }
@@ -231,6 +365,9 @@ class ApiClient {
         password: data.password,
         role: data.role,
         status: data.status ?? "open",
+        khoa: data.khoa,
+        year: data.year,
+        hocKyId: data.hocKyId,
         // Don't send id - let server generate it
       }),
     });
@@ -255,6 +392,10 @@ class ApiClient {
     return this.request<PaginatedAccountsResponse>(endpoint);
   }
 
+  getAccountById(id: string) {
+    return this.request<{ success: boolean; account: Account }>(`/accounts/${id}`).then(res => res.account);
+  }
+
   updateAccount(id: string, updates: UpdateAccountDTO) {
     return this.request<{ success: boolean; account: Account }>(`/accounts/${id}`, {
       method: "PUT",
@@ -264,6 +405,10 @@ class ApiClient {
 
   deleteAccount(id: string) {
     return this.request<ApiResponse>(`/accounts/${id}`, { method: "DELETE" });
+  }
+
+  getKhoaList() {
+    return this.request<{ success: boolean; khoa: string[] }>("/accounts/khoa").then(res => res.khoa);
   }
 
   // ===== Internship Subjects =====
@@ -334,9 +479,9 @@ class ApiClient {
 
   // ===== BCN Participant Management =====
   
-  // Get BCN's managed internship subject
+  // Get BCN's managed khoa (department) - Updated to use profile endpoint
   getBCNManagedSubject() {
-    return this.request<{ success: boolean; subject: InternshipSubject | null }>("/internship-subjects/bcn/managed");
+    return this.request<{ success: boolean; khoa: InternshipSubject | null }>("/profile/bcn/khoa-info");
   }
 
   // Add lecturer to subject
@@ -369,27 +514,36 @@ class ApiClient {
     });
   }
 
-  // Update student supervisor
-  updateStudentSupervisor(subjectId: string, studentId: string, supervisorId?: string) {
-    return this.request<{ success: boolean; subject: InternshipSubject }>(`/internship-subjects/${subjectId}/students/${studentId}/supervisor`, {
+  // Update student supervisor (khoa-based)
+  updateStudentSupervisor(studentId: string, supervisorId?: string) {
+    return this.request<{ success: boolean; message: string }>(`/students/${studentId}/supervisor`, {
       method: "PUT",
       body: JSON.stringify({ supervisorId }),
     });
   }
 
-  // Get available lecturers for subject
-  getAvailableLecturers(subjectId: string) {
-    return this.request<{ success: boolean; lecturers: Array<{ id: string; name: string; email: string }> }>(`/internship-subjects/${subjectId}/available-lecturers`);
-  }
-
-  // Get available students for subject  
-  getAvailableStudents(subjectId: string) {
-    return this.request<{ success: boolean; students: Array<{ id: string; name: string; email: string }> }>(`/internship-subjects/${subjectId}/available-students`);
+  // Get available students for BCN's khoa (students without supervisor)
+  getAvailableStudents() {
+    return this.request<{ success: boolean; students: Array<{ id: string; name: string; email: string }> }>(`/students/available`);
   }
 
   // Get lecturer's managed students
   getLecturerManagedStudents() {
     return this.request<LecturerManagedStudentsResponse>("/lecturers/managed-students");
+  }
+
+  // Get lecturers by khoa (for BCN to select appeal reviewers)
+  getLecturersByKhoa(khoa: string) {
+    return this.request<{ 
+      success: boolean; 
+      lecturers: Array<{
+        _id: string;
+        id: string;
+        name: string;
+        email: string;
+        khoa: string;
+      }>
+    }>(`/lecturers/by-khoa/${khoa}`);
   }
   getStudentAvailableSubjects() {
     return this.request<{ success: boolean; subjects: InternshipSubject[]; studentRegistration?: StudentRegistration }>(
@@ -534,8 +688,8 @@ class ApiClient {
   }
 
   // Add reordering methods for teacher pages
-  reorderTeacherHeaders(subjectId: string, headerIds: string[]) {
-    return this.request(`/pages/teacher/subjects/${subjectId}/headers/reorder`, {
+  reorderTeacherHeaders(headerIds: string[]) {
+    return this.request(`/pages/teacher/headers/reorder`, {
       method: 'PUT',
       body: JSON.stringify({ headerIds })
     });
@@ -655,7 +809,7 @@ class ApiClient {
         type: "add-student" | "remove-student";
         status: "pending";
         createdAt: string;
-        internshipSubject: { id: string; title: string };
+        khoa?: string;
       }>;
       pagination: { page: number; pages: number; total: number };
     }>(endpoint);
@@ -698,9 +852,10 @@ class ApiClient {
   // Get student's assigned instructor and page data
   getStudentAssignedInstructor() {
     return this.request<{
+      student?: { id: string; khoa: string };
       instructor?: { id: string; name: string; email: string };
       subject?: { id: string; title: string };
-    }>("/internship-subjects/student/assigned-instructor");
+    }>("/profile/student/info");
   }
 
   // Teacher report management methods
@@ -904,7 +1059,7 @@ class ApiClient {
     status: "submitted" | "reviewed" | "accepted" | "rejected";
     reviewNote?: string;
   }) {
-    return this.request(`/pages/teacher/submissions/${submissionId}/status`, {
+    return this.request(`/pages/teacher/submissions/${submissionId}`, {
       method: "PUT",
       body: JSON.stringify(data)
     });
@@ -946,7 +1101,7 @@ class ApiClient {
         }>;
         createdAt: string;
         updatedAt: string;
-        internshipSubject: { id: string; title: string };
+        khoa: string;
         instructor: { id: string; name: string; email: string };
         reviewedBy?: { id: string; name: string; email: string };
       }>;
@@ -1022,6 +1177,165 @@ class ApiClient {
       "/notifications",
       { method: "DELETE" }
     );
+  }
+
+  /* HocKy API methods */
+  importHocKy(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    return this.request<HocKyImportResponse>("/hocky/import", {
+      method: "POST",
+      body: formData,
+      // Don't set Content-Type header, let browser set it with boundary
+      headers: {},
+    });
+  }
+
+  getHocKyList(namHoc?: string) {
+    const qs = new URLSearchParams();
+    if (namHoc) qs.append("namHoc", namHoc);
+    const endpoint = `/hocky${qs.toString() ? `?${qs.toString()}` : ""}`;
+    return this.request<HocKy[]>(endpoint);
+  }
+
+  getNamHocList() {
+    return this.request<string[]>("/hocky/nam-hoc");
+  }
+
+  getHocKyDetails(id: string) {
+    return this.request<HocKy>(`/hocky/${id}`);
+  }
+
+  updateHocKy(id: string, data: Partial<{
+    hocKyNumber: number;
+    namHoc: string;
+    durationStart: string;
+    durationEnd: string;
+  }>) {
+    return this.request<{ message: string; hocKy: HocKy }>(`/hocky/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  deleteHocKy(id: string) {
+    return this.request<{ message: string }>(`/hocky/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  /* Notification Management API methods */
+  sendNotification(data: {
+    title: string;
+    message: string;
+    recipientType: string;
+    recipients?: string[];
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    link?: string;
+  }) {
+    return this.request<{ success: boolean; message: string; recipientCount: number }>(
+      "/notification-management/send",
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  getNotificationRecipients(type: 'users' | 'khoa' | 'roles') {
+    return this.request<{
+      users?: Array<{ _id: string; id: string; name: string; email: string; role: Role }>;
+      khoa?: string[];
+      roles?: Array<{ value: string; label: string }>;
+    }>(`/notification-management/recipients?type=${type}`);
+  }
+
+  /* Grade Appeals API methods */
+  createGradeAppeal(gradeId: string, appealReason: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      appeal: GradeAppeal;
+    }>("/grade-appeals", {
+      method: "POST",
+      body: JSON.stringify({ gradeId, appealReason }),
+    });
+  }
+
+  getMyGradeAppeals() {
+    return this.request<{ appeals: GradeAppeal[] }>("/grade-appeals/my-appeals");
+  }
+
+  getBCNGradeAppeals(status?: string) {
+    const qs = status ? `?status=${status}` : '';
+    return this.request<{ appeals: GradeAppeal[] }>(`/grade-appeals/bcn${qs}`);
+  }
+
+  acceptGradeAppeal(appealId: string, newSupervisorId: string, reviewNote?: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      appeal: GradeAppeal;
+    }>(`/grade-appeals/${appealId}/accept`, {
+      method: "PUT",
+      body: JSON.stringify({ newSupervisorId, reviewNote }),
+    });
+  }
+
+  rejectGradeAppeal(appealId: string, reviewNote?: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      appeal: GradeAppeal;
+    }>(`/grade-appeals/${appealId}/reject`, {
+      method: "PUT",
+      body: JSON.stringify({ reviewNote }),
+    });
+  }
+
+  getGradeAppealDetails(appealId: string) {
+    return this.request<{ appeal: GradeAppeal }>(`/grade-appeals/${appealId}`);
+  }
+
+  // Instructor Request methods
+  createInstructorRequest(instructorId: string, message?: string) {
+    return this.request<{ success: boolean; message: string; request: InstructorRequest }>("/instructor-requests", {
+      method: "POST",
+      body: JSON.stringify({ instructorId, message })
+    });
+  }
+
+  getMyInstructorRequests() {
+    return this.request<{ success: boolean; requests: InstructorRequest[] }>("/instructor-requests/my-requests");
+  }
+
+  getInstructorRequestsForMe() {
+    return this.request<{ success: boolean; requests: InstructorRequest[] }>("/instructor-requests/for-instructor");
+  }
+
+  approveInstructorRequest(requestId: string, responseMessage?: string) {
+    return this.request<{ success: boolean; message: string; request: InstructorRequest }>(`/instructor-requests/${requestId}/approve`, {
+      method: "PUT",
+      body: JSON.stringify({ responseMessage })
+    });
+  }
+
+  rejectInstructorRequest(requestId: string, responseMessage?: string) {
+    return this.request<{ success: boolean; message: string; request: InstructorRequest }>(`/instructor-requests/${requestId}/reject`, {
+      method: "PUT",
+      body: JSON.stringify({ responseMessage })
+    });
+  }
+
+  cancelInstructorRequest(requestId: string) {
+    return this.request<{ success: boolean; message: string }>(`/instructor-requests/${requestId}`, {
+      method: "DELETE"
+    });
+  }
+
+  getAvailableLecturers() {
+    return this.request<{ success: boolean; lecturers: AvailableLecturer[] }>("/lecturers/available");
   }
 }
 

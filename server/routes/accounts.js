@@ -73,7 +73,7 @@ router.get("/", ...authPDT, async (req, res) => {
 // Create account (PDT only)
 router.post("/", ...authPDT, async (req, res) => {
   try {
-    const { name, email, password, role, status } = req.body;
+    const { name, email, password, role, status, khoa, year, hocKyId } = req.body;
 
     // Validate required fields
     if (!name || !email || !password || !role) {
@@ -102,6 +102,16 @@ router.post("/", ...authPDT, async (req, res) => {
       return res.status(400).json({ error: "Vai trò không hợp lệ" });
     }
 
+    // Validate khoa for specific roles
+    if ((role === "ban-chu-nhiem" || role === "giang-vien" || role === "sinh-vien") && !khoa) {
+      return res.status(400).json({ error: "Khoa là bắt buộc cho vai trò này" });
+    }
+
+    // Validate học kỳ for sinh viên (required)
+    if (role === "sinh-vien" && !hocKyId) {
+      return res.status(400).json({ error: "Học kỳ là bắt buộc cho sinh viên" });
+    }
+
     // Validate status
     if (status && !["open", "locked"].includes(status)) {
       return res.status(400).json({ error: "Trạng thái không hợp lệ" });
@@ -111,6 +121,15 @@ router.post("/", ...authPDT, async (req, res) => {
     const existingAccount = await Account.findOne({ email }).lean();
     if (existingAccount) {
       return res.status(400).json({ error: "Email đã được sử dụng" });
+    }
+
+    // For BCN, check if khoa is already taken
+    if (role === "ban-chu-nhiem" && khoa) {
+      const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
+      const existingBCN = await BanChuNhiem.findOne({ khoa: khoa.trim() });
+      if (existingBCN) {
+        return res.status(400).json({ error: "Khoa này đã có Ban Chủ Nhiệm" });
+      }
     }
 
     const account = new Account({
@@ -123,6 +142,46 @@ router.post("/", ...authPDT, async (req, res) => {
 
     await account.save();
 
+    // Create role-specific record
+    if (role === "sinh-vien") {
+      const SinhVien = (await import("../models/SinhVien.js")).default;
+      const sinhVien = await SinhVien.create({
+        account: account._id,
+        khoa: khoa.trim(),
+        year: year || new Date().getFullYear()
+      });
+      
+      // Add student to học kỳ (required for sinh viên)
+      const HocKy = (await import("../models/HocKy.js")).default;
+      const hocKy = await HocKy.findById(hocKyId);
+      if (!hocKy) {
+        // Clean up created records if học kỳ not found
+        await SinhVien.deleteOne({ _id: sinhVien._id });
+        await Account.deleteOne({ _id: account._id });
+        return res.status(400).json({ error: "Học kỳ không tồn tại" });
+      }
+      await hocKy.addStudents([sinhVien._id]);
+      
+      // Update maxStudents for all instructors in this khoa
+      const GiangVien = (await import("../models/GiangVien.js")).default;
+      await GiangVien.updateMaxStudentsForKhoa(khoa.trim());
+    } else if (role === "giang-vien") {
+      const GiangVien = (await import("../models/GiangVien.js")).default;
+      await GiangVien.create({
+        account: account._id,
+        khoa: khoa.trim()
+      });
+      
+      // Update maxStudents for all instructors in this khoa
+      await GiangVien.updateMaxStudentsForKhoa(khoa.trim());
+    } else if (role === "ban-chu-nhiem") {
+      const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
+      await BanChuNhiem.create({
+        account: account._id,
+        khoa: khoa.trim()
+      });
+    }
+
     // Notify the account user about their account creation
     try {
       const io = req.app.get('io');
@@ -132,7 +191,7 @@ router.post("/", ...authPDT, async (req, res) => {
         type: 'system',
         title: 'Tài khoản được tạo thành công',
         message: `Tài khoản của bạn đã được tạo với vai trò ${role === 'phong-dao-tao' ? 'Phòng Đào Tạo' : role === 'ban-chu-nhiem' ? 'Ban Chủ Nhiệm' : role === 'giang-vien' ? 'Giảng viên' : 'Sinh viên'}`,
-        link: '/profile',
+        link: '',
         priority: 'high',
         metadata: { accountId: account.id }
       }, io);
@@ -147,7 +206,8 @@ router.post("/", ...authPDT, async (req, res) => {
         name: account.name,
         email: account.email,
         role: account.role,
-        status: account.status
+        status: account.status,
+        khoa: khoa || null
       }
     });
   } catch (error) {
@@ -159,7 +219,7 @@ router.post("/", ...authPDT, async (req, res) => {
 // Update account (PDT only)
 router.put("/:id", ...authPDT, async (req, res) => {
   try {
-    const { name, email, role, status, password } = req.body;
+    const { name, email, role, status, password, khoa, year } = req.body;
     
     // Validate account ID format
     if (!req.params.id || req.params.id.length < 3) {
@@ -233,6 +293,72 @@ router.put("/:id", ...authPDT, async (req, res) => {
     if (password) account.password = password;
 
     await account.save();
+
+    // Update role-specific records
+    if (account.role === "sinh-vien") {
+      const SinhVien = (await import("../models/SinhVien.js")).default;
+      const updateData = {};
+      if (khoa) updateData.khoa = khoa.trim();
+      if (year) updateData.year = year;
+      
+      if (Object.keys(updateData).length > 0) {
+        const sv = await SinhVien.findOne({ account: account._id });
+        const oldKhoa = sv?.khoa;
+        
+        await SinhVien.findOneAndUpdate(
+          { account: account._id },
+          updateData,
+          { new: true }
+        );
+        
+        // If khoa changed, update maxStudents for both old and new khoa
+        if (khoa && oldKhoa !== khoa.trim()) {
+          const GiangVien = (await import("../models/GiangVien.js")).default;
+          await Promise.all([
+            GiangVien.updateMaxStudentsForKhoa(oldKhoa),
+            GiangVien.updateMaxStudentsForKhoa(khoa.trim())
+          ]);
+        }
+      }
+    } else if (account.role === "giang-vien") {
+      const GiangVien = (await import("../models/GiangVien.js")).default;
+      
+      if (khoa) {
+        const gv = await GiangVien.findOne({ account: account._id });
+        const oldKhoa = gv?.khoa;
+        
+        await GiangVien.findOneAndUpdate(
+          { account: account._id },
+          { khoa: khoa.trim() },
+          { new: true }
+        );
+        
+        // Update maxStudents for both old and new khoa
+        if (oldKhoa !== khoa.trim()) {
+          await Promise.all([
+            GiangVien.updateMaxStudentsForKhoa(oldKhoa),
+            GiangVien.updateMaxStudentsForKhoa(khoa.trim())
+          ]);
+        }
+      }
+    } else if (account.role === "ban-chu-nhiem") {
+      const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
+      if (khoa) {
+        // Check if khoa is already taken by another BCN
+        const existingBCN = await BanChuNhiem.findOne({ 
+          khoa: khoa.trim(),
+          account: { $ne: account._id }
+        });
+        if (existingBCN) {
+          return res.status(400).json({ error: "Khoa này đã có Ban Chủ Nhiệm" });
+        }
+        await BanChuNhiem.findOneAndUpdate(
+          { account: account._id },
+          { khoa: khoa.trim() },
+          { new: true }
+        );
+      }
+    }
 
     // Notify user about important account changes
     try {
@@ -354,17 +480,23 @@ router.get("/search", authenticate, async (req, res) => {
         .limit(10)
         .lean();
     } else if (currentUser.role === "ban-chu-nhiem") {
-      // BCN can search GV and SV in their subject
+      // BCN can search GV and SV in their khoa
       const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
-      const bcn = await BanChuNhiem.findOne({ account: currentUser._id }).populate("internshipSubject");
+      const bcn = await BanChuNhiem.findOne({ account: currentUser._id });
       
-      if (bcn && bcn.internshipSubject) {
-        const subject = bcn.internshipSubject;
+      if (bcn && bcn.khoa) {
+        const GiangVien = (await import("../models/GiangVien.js")).default;
+        const SinhVien = (await import("../models/SinhVien.js")).default;
         
-        // Get lecturer and student IDs from the subject
+        // Find all GV and SV in the same khoa
+        const [gvList, svList] = await Promise.all([
+          GiangVien.find({ khoa: bcn.khoa }).select("account"),
+          SinhVien.find({ khoa: bcn.khoa }).select("account")
+        ]);
+
         const allowedIds = [
-          ...subject.lecturers.map(id => id.toString()),
-          ...subject.students.map(id => id.toString())
+          ...gvList.map(gv => gv.account.toString()),
+          ...svList.map(sv => sv.account.toString())
         ];
 
         // Find accounts matching search and in allowed list
@@ -424,6 +556,24 @@ router.get("/search", authenticate, async (req, res) => {
   }
 });
 
+// Get all khoa (department names) from BanChuNhiem (PDT only)
+// MUST be before /:id route to avoid "khoa" being treated as an ID
+router.get("/khoa", ...authPDT, async (req, res) => {
+  try {
+    const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
+    const bcnList = await BanChuNhiem.find().select("khoa").lean();
+    const khoaList = bcnList.map(bcn => bcn.khoa).filter(Boolean).sort();
+    
+    res.json({
+      success: true,
+      khoa: khoaList,
+    });
+  } catch (error) {
+    console.error("Get khoa list error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server" });
+  }
+});
+
 // Get account by ID (authenticated users)
 router.get("/:id", authenticate, async (req, res) => {
   try {
@@ -444,15 +594,21 @@ router.get("/:id", authenticate, async (req, res) => {
       // PDT can view any account
       hasPermission = true;
     } else if (currentUser.role === "ban-chu-nhiem") {
-      // BCN can view GV and SV in their subject
+      // BCN can view GV and SV in their khoa
       const BanChuNhiem = (await import("../models/BanChuNhiem.js")).default;
-      const bcn = await BanChuNhiem.findOne({ account: currentUser._id }).populate("internshipSubject");
+      const bcn = await BanChuNhiem.findOne({ account: currentUser._id });
 
-      if (bcn && bcn.internshipSubject) {
-        const subject = bcn.internshipSubject;
-        const canViewGV = subject.lecturers?.some(l => l.toString() === account._id.toString());
-        const canViewSV = subject.students?.some(s => s.toString() === account._id.toString());
-        hasPermission = canViewGV || canViewSV;
+      if (bcn && bcn.khoa && (account.role === "giang-vien" || account.role === "sinh-vien")) {
+        const GiangVien = (await import("../models/GiangVien.js")).default;
+        const SinhVien = (await import("../models/SinhVien.js")).default;
+        
+        if (account.role === "giang-vien") {
+          const gv = await GiangVien.findOne({ account: account._id });
+          hasPermission = gv && gv.khoa === bcn.khoa;
+        } else if (account.role === "sinh-vien") {
+          const sv = await SinhVien.findOne({ account: account._id });
+          hasPermission = sv && sv.khoa === bcn.khoa;
+        }
       }
     } else if (currentUser.role === "giang-vien") {
       // GV can view their students
@@ -489,7 +645,7 @@ router.get("/:id", authenticate, async (req, res) => {
       const sv = await SinhVien.findOne({ account: account._id });
       if (sv) {
         additionalInfo = {
-          studentClass: sv.class,
+          khoa: sv.khoa,
           year: sv.year,
           internshipStatus: sv.internshipStatus,
         };
@@ -498,9 +654,12 @@ router.get("/:id", authenticate, async (req, res) => {
       const GiangVien = (await import("../models/GiangVien.js")).default;
       const gv = await GiangVien.findOne({ account: account._id });
       if (gv) {
+        // Calculate maxStudents dynamically
+        const maxStudents = await gv.getMaxStudents();
         additionalInfo = {
-          department: gv.department,
-          maxStudents: gv.maxStudents,
+          khoa: gv.khoa,
+          maxStudents: maxStudents,
+          currentStudentCount: gv.currentStudentCount
         };
       }
     } else if (account.role === "ban-chu-nhiem") {
@@ -508,7 +667,7 @@ router.get("/:id", authenticate, async (req, res) => {
       const bcn = await BanChuNhiem.findOne({ account: account._id });
       if (bcn) {
         additionalInfo = {
-          department: bcn.department,
+          khoa: bcn.khoa,
         };
       }
     }

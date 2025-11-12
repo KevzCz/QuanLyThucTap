@@ -3,7 +3,6 @@ import Request from "../models/Request.js";
 import Account from "../models/Account.js";
 import GiangVien from "../models/GiangVien.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
-import InternshipSubject from "../models/InternshipSubject.js";
 import SinhVien from "../models/SinhVien.js";
 import { authenticate, authGV, authBCN } from "../middleware/auth.js";
 import notificationService from "../services/notificationService.js";
@@ -35,11 +34,14 @@ router.post("/", ...authGV, async (req, res) => {
     }
 
     // Find lecturer profile
-    const lecturerProfile = await GiangVien.findOne({ account: req.account._id })
-      .populate('internshipSubject', 'id title');
+    const lecturerProfile = await GiangVien.findOne({ account: req.account._id });
 
-    if (!lecturerProfile || !lecturerProfile.internshipSubject) {
-      return res.status(400).json({ error: "Bạn chưa được phân công môn thực tập" });
+    if (!lecturerProfile) {
+      return res.status(400).json({ error: "Không tìm thấy hồ sơ giảng viên" });
+    }
+
+    if (!lecturerProfile.khoa) {
+      return res.status(400).json({ error: "Giảng viên chưa có thông tin khoa" });
     }
 
     // Validate students format
@@ -60,19 +62,17 @@ router.post("/", ...authGV, async (req, res) => {
       idgv: req.account.id,
       students,
       type,
-      internshipSubject: lecturerProfile.internshipSubject._id,
+      khoa: lecturerProfile.khoa,
       reviewNote: reviewNote || ""
     });
 
     await request.save();
 
-    await request.populate('internshipSubject', 'id title');
-
     // Notify BCN about new request
     try {
       const io = req.app.get('io');
       const bcnProfile = await BanChuNhiem.findOne({ 
-        internshipSubject: lecturerProfile.internshipSubject._id 
+        khoa: lecturerProfile.khoa
       });
       
       if (bcnProfile) {
@@ -114,7 +114,6 @@ router.get("/my-requests", ...authGV, async (req, res) => {
 
     const [requests, total] = await Promise.all([
       Request.find(query)
-        .populate('internshipSubject', 'id title')
         .populate('reviewedBy', 'id name email')
         .sort({ createdAt: -1 })
         .limit(limitNum)
@@ -144,12 +143,10 @@ router.get("/bcn/pending", ...authBCN, async (req, res) => {
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
 
-    // Find BCN's managed subject
-    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject')
-      .lean();
+    // Find BCN's khoa
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id }).lean();
 
-    if (!bcnProfile || !bcnProfile.internshipSubject) {
+    if (!bcnProfile) {
       return res.json({
         success: true,
         requests: [],
@@ -158,7 +155,7 @@ router.get("/bcn/pending", ...authBCN, async (req, res) => {
     }
 
     const query = { 
-      internshipSubject: bcnProfile.internshipSubject._id,
+      khoa: bcnProfile.khoa,
       status: "pending"
     };
     
@@ -174,7 +171,6 @@ router.get("/bcn/pending", ...authBCN, async (req, res) => {
 
     const [requests, total] = await Promise.all([
       Request.find(query)
-        .populate('internshipSubject', 'id title')
         .sort({ createdAt: -1 })
         .limit(limitNum)
         .skip((pageNum - 1) * limitNum)
@@ -201,7 +197,6 @@ router.get("/bcn/pending", ...authBCN, async (req, res) => {
 router.get("/:id", authenticate, async (req, res) => {
   try {
     const request = await Request.findById(req.params.id)
-      .populate('internshipSubject', 'id title')
       .populate('reviewedBy', 'id name email');
 
     if (!request) {
@@ -215,11 +210,9 @@ router.get("/:id", authenticate, async (req, res) => {
     } else if (req.account.role === "giang-vien" && request.idgv === req.account.id) {
       canView = true;
     } else if (req.account.role === "ban-chu-nhiem") {
-      const bcnProfile = await BanChuNhiem.findOne({ 
-        account: req.account._id,
-        internshipSubject: request.internshipSubject._id 
-      });
-      canView = !!bcnProfile;
+      const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id });
+      // Check if request is for BCN's khoa
+      canView = bcnProfile && request.khoa === bcnProfile.khoa;
     }
 
     if (!canView) {
@@ -246,8 +239,7 @@ router.put("/:id/accept", ...authBCN, async (req, res) => {
       return res.status(400).json({ error: "Ghi chú không được vượt quá 500 ký tự" });
     }
 
-    const request = await Request.findById(req.params.id)
-      .populate('internshipSubject');
+    const request = await Request.findById(req.params.id);
 
     if (!request) {
       return res.status(404).json({ error: "Không tìm thấy yêu cầu" });
@@ -257,13 +249,10 @@ router.put("/:id/accept", ...authBCN, async (req, res) => {
       return res.status(400).json({ error: "Yêu cầu đã được xử lý" });
     }
 
-    // Verify BCN manages this subject
-    const bcnProfile = await BanChuNhiem.findOne({ 
-      account: req.account._id,
-      internshipSubject: request.internshipSubject._id 
-    });
-    if (!bcnProfile) {
-      return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
+    // Verify BCN manages this khoa
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id });
+    if (!bcnProfile || bcnProfile.khoa !== request.khoa) {
+      return res.status(403).json({ error: "Bạn không quản lý khoa này" });
     }
 
     // Find the lecturer account
@@ -274,22 +263,15 @@ router.put("/:id/accept", ...authBCN, async (req, res) => {
 
     // Process the request based on type
     if (request.type === "add-student") {
-      // Add students to subject and assign supervisor
+      // Add students and assign supervisor
       for (const studentData of request.students) {
         const studentAccount = await Account.findOne({ id: studentData.id, role: "sinh-vien" });
         if (studentAccount) {
-          // Add to subject if not already there
-          const subject = await InternshipSubject.findById(request.internshipSubject._id);
-          if (!subject.students.includes(studentAccount._id)) {
-            subject.students.push(studentAccount._id);
-            await subject.save();
-          }
-
           // Update or create student profile
           await SinhVien.findOneAndUpdate(
             { account: studentAccount._id },
             { 
-              internshipSubject: request.internshipSubject._id,
+              khoa: request.khoa,
               supervisor: lecturerAccount._id,
               internshipStatus: "duoc-huong-dan"
             },
@@ -369,8 +351,7 @@ router.put("/:id/reject", ...authBCN, async (req, res) => {
       return res.status(400).json({ error: "Ghi chú không được vượt quá 500 ký tự" });
     }
 
-    const request = await Request.findById(req.params.id)
-      .populate('internshipSubject');
+    const request = await Request.findById(req.params.id);
 
     if (!request) {
       return res.status(404).json({ error: "Không tìm thấy yêu cầu" });
@@ -380,13 +361,10 @@ router.put("/:id/reject", ...authBCN, async (req, res) => {
       return res.status(400).json({ error: "Yêu cầu đã được xử lý" });
     }
 
-    // Verify BCN manages this subject
-    const bcnProfile = await BanChuNhiem.findOne({ 
-      account: req.account._id,
-      internshipSubject: request.internshipSubject._id 
-    });
-    if (!bcnProfile) {
-      return res.status(403).json({ error: "Bạn không quản lý môn thực tập này" });
+    // Verify BCN manages this khoa
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id });
+    if (!bcnProfile || bcnProfile.khoa !== request.khoa) {
+      return res.status(403).json({ error: "Bạn không quản lý khoa này" });
     }
 
     // Update request status

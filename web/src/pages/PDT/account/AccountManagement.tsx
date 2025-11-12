@@ -118,7 +118,7 @@ const AccountManagement: React.FC = () => {
   }, [status, role, query]);
 
 // dialog handlers
-const onCreate = async (acc: Omit<Account, 'id'> & { password: string }) => {
+const onCreate = async (acc: Omit<Account, 'id'> & { password: string; hocKyId?: string }) => {
   try {
     if (!acc.email) {
       throw new Error("Email is required");
@@ -128,7 +128,10 @@ const onCreate = async (acc: Omit<Account, 'id'> & { password: string }) => {
       email: acc.email,
       role: acc.role,
       status: acc.status,
-      password: acc.password
+      password: acc.password,
+      ...(acc.khoa ? { khoa: acc.khoa } : {}),
+      ...(acc.year ? { year: acc.year } : {}),
+      ...(acc.hocKyId ? { hocKyId: acc.hocKyId } : {})
     };
     await apiClient.createAccount(accountData);
     setOpenCreate(false);
@@ -151,7 +154,9 @@ const onCreate = async (acc: Omit<Account, 'id'> & { password: string }) => {
       email: acc.email,
       role: acc.role,
       status: acc.status,
-      ...(acc.password ? { password: acc.password } : {})
+      ...(acc.password ? { password: acc.password } : {}),
+      ...(acc.khoa ? { khoa: acc.khoa } : {}),
+      ...(acc.year ? { year: acc.year } : {})
     };
     await apiClient.updateAccount(acc.id, updates);
     setOpenEdit(false);
@@ -324,9 +329,16 @@ const onCreate = async (acc: Omit<Account, 'id'> & { password: string }) => {
                         <IconBtn
                           className="bg-sky-500 hover:bg-sky-600"
                           title="Xem"
-                          onClick={() => {
-                            setSelected(acc);
-                            setOpenView(true);
+                          onClick={async () => {
+                            try {
+                              // Fetch full account details including khoa
+                              const fullAccount = await apiClient.getAccountById(acc.id);
+                              setSelected(fullAccount);
+                              setOpenView(true);
+                            } catch (error) {
+                              console.error('Failed to fetch account details:', error);
+                              showError('Không thể tải thông tin tài khoản');
+                            }
                           }}
                         >
                           <svg viewBox="0 0 24 24" className="h-4 w-4">
@@ -340,9 +352,16 @@ const onCreate = async (acc: Omit<Account, 'id'> & { password: string }) => {
                         <IconBtn
                           className="bg-emerald-500 hover:bg-emerald-600"
                           title="Sửa"
-                          onClick={() => {
-                            setSelected(acc);
-                            setOpenEdit(true);
+                          onClick={async () => {
+                            try {
+                              // Fetch full account details including khoa
+                              const fullAccount = await apiClient.getAccountById(acc.id);
+                              setSelected(fullAccount);
+                              setOpenEdit(true);
+                            } catch (error) {
+                              console.error('Failed to fetch account details:', error);
+                              showError('Không thể tải thông tin tài khoản');
+                            }
                           }}
                         >
                           <svg viewBox="0 0 24 24" className="h-4 w-4">

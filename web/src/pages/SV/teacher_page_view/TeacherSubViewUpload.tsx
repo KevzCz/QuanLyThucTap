@@ -13,7 +13,7 @@ import {
 import dayjs from "dayjs";
 
 const TeacherSubViewUpload: React.FC = () => {
-  const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
+  const { state } = useLocation() as { state?: { khoa?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
@@ -189,7 +189,7 @@ const TeacherSubViewUpload: React.FC = () => {
             ← Quay lại trang giảng viên
           </button>
           <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-            <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "CNTT - TT2025"}
+            <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.khoa ? `Khoa ${state.khoa}` : "Giảng viên"}
           </span>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
@@ -227,7 +227,7 @@ const TeacherSubViewUpload: React.FC = () => {
           ← Quay lại trang giảng viên
         </button>
         <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "CNTT - TT2025"}
+          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.khoa ? `Khoa ${state.khoa}` : "Giảng viên"}
         </span>
       </div>
 

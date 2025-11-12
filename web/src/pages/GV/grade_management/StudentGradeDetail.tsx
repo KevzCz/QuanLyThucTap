@@ -38,6 +38,12 @@ const StudentGradeDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+  // Check if current user is the appeal reviewer for this grade
+  // Backend already calculates this and sends isAppealReview flag
+  const isAppealReviewer = grade?.isAppealReview === true && 
+    grade?.appealStatus === 'reviewing';
 
   // Form states
   const [gradeComponents, setGradeComponents] = useState<GradeComponent[]>([]);
@@ -146,19 +152,20 @@ const StudentGradeDetail: React.FC = () => {
     // Find the milestone being updated
     const milestone = grade.milestones.find(m => m.id === milestoneId);
     
-    // Validation for "Bắt đầu thực tập" milestone
-    if (milestone?.title === 'Bắt đầu thực tập' && status === 'completed') {
-      if (!company.name || !company.address || !company.supervisorName) {
-        showError('Vui lòng điền đầy đủ thông tin doanh nghiệp (tên, địa chỉ, người hướng dẫn) trong tab "Cài đặt" trước khi bắt đầu thực tập.');
-        return;
-      }
-    }
-
-    // Validation for "Bắt đầu đồ án" milestone
-    if (milestone?.title === 'Bắt đầu đồ án' && status === 'completed') {
-      if (!projectTopic.trim()) {
-        showError('Vui lòng điền chủ đề đồ án trong tab "Cài đặt" trước khi bắt đầu đồ án.');
-        return;
+    // Validation for "Bắt đầu" milestone
+    if (milestone?.title === 'Bắt đầu' && status === 'completed') {
+      if (workType === 'thuc_tap') {
+        // Validate company info for internship
+        if (!company.name || !company.address || !company.supervisorName) {
+          showError('Vui lòng điền đầy đủ thông tin doanh nghiệp (tên, địa chỉ, người hướng dẫn) trong tab "Cài đặt" trước khi bắt đầu.');
+          return;
+        }
+      } else if (workType === 'do_an') {
+        // Validate project topic for thesis
+        if (!projectTopic.trim()) {
+          showError('Vui lòng điền chủ đề đồ án trong tab "Cài đặt" trước khi bắt đầu.');
+          return;
+        }
       }
     }
 
@@ -194,6 +201,7 @@ const StudentGradeDetail: React.FC = () => {
         i === index ? { ...component, [field]: value } : component
       )
     );
+    setHasUnsavedChanges(true);
   };
 
   const handleSaveGrades = async () => {
@@ -222,6 +230,7 @@ const StudentGradeDetail: React.FC = () => {
         };
       });
 
+      setHasUnsavedChanges(false);
       showSuccess('Đã lưu điểm thành công!');
     } catch (err) {
       console.error('Failed to save grades:', err);
@@ -512,7 +521,7 @@ const StudentGradeDetail: React.FC = () => {
           </div>
           <p className="text-red-700 mt-1">{error || 'Không tìm thấy thông tin điểm'}</p>
           <button
-            onClick={() => navigate('/teacher-grade-management')}
+            onClick={() => navigate(-1)}
             className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             Quay lại
@@ -527,7 +536,7 @@ const StudentGradeDetail: React.FC = () => {
       {/* Toolbar outside PageLayout */}
       <div className="flex items-center justify-between gap-4 mb-4">
         <button
-          onClick={() => navigate('/teacher-grade-management')}
+          onClick={() => navigate(-1)}
           className="h-10 px-4 flex items-center gap-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
         >
           <Icons.close className="w-4 h-4" />
@@ -560,6 +569,21 @@ const StudentGradeDetail: React.FC = () => {
 
       <PageLayout>
       <div className="space-y-6">
+        {/* Appeal Reviewer Notice */}
+        {isAppealReviewer && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <Icons.info className="w-5 h-5 text-blue-600" />
+              <div>
+                <h4 className="text-sm font-medium text-blue-900">Chế độ phúc khảo</h4>
+                <p className="text-sm text-blue-700 mt-1">
+                  Bạn đang phúc khảo điểm cho sinh viên này. Điểm và nhận xét của bạn sẽ thay thế điểm ban đầu sau khi hoàn thành phúc khảo.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Student info card */}
         <div className="bg-white border border-gray-200 rounded-lg p-6">
           <div className="space-y-3">
@@ -570,10 +594,6 @@ const StudentGradeDetail: React.FC = () => {
             <div>
               <p className="text-sm text-gray-600">Email</p>
               <p className="font-medium text-gray-900">{grade.student.email}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600">Môn thực tập</p>
-              <p className="font-medium text-gray-900">{grade.subject.title}</p>
             </div>
           </div>
           
@@ -655,7 +675,7 @@ const StudentGradeDetail: React.FC = () => {
                       <div>
                         <h4 className="text-sm font-medium text-blue-900">Bắt đầu quá trình học tập</h4>
                         <p className="text-sm text-blue-700 mt-1">
-                          Đánh dấu hoàn thành mốc "Bắt đầu {grade.workType === 'do_an' ? 'đồ án' : 'thực tập'}" để có thể thêm các mốc thời gian tùy chỉnh.
+                          Đánh dấu hoàn thành mốc "Bắt đầu" để có thể thêm các mốc thời gian tùy chỉnh.
                         </p>
                       </div>
                     </div>
@@ -800,7 +820,7 @@ const StudentGradeDetail: React.FC = () => {
                             value={component.score}
                             onChange={(e) => handleGradeComponentChange(index, 'score', parseFloat(e.target.value) || 0)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            disabled={grade.status === 'submitted' || grade.status === 'approved'}
+                            disabled={!isAppealReviewer && (grade.status === 'submitted' || grade.status === 'approved')}
                           />
                         </div>
                         <div>
@@ -813,7 +833,7 @@ const StudentGradeDetail: React.FC = () => {
                             onChange={(e) => handleGradeComponentChange(index, 'comment', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             placeholder="Nhận xét về thành phần này..."
-                            disabled={grade.status === 'submitted' || grade.status === 'approved'}
+                            disabled={!isAppealReviewer && (grade.status === 'submitted' || grade.status === 'approved')}
                           />
                         </div>
                       </div>
@@ -838,15 +858,18 @@ const StudentGradeDetail: React.FC = () => {
                 {/* Supervisor final comment */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nhận xét tổng kết của giảng viên hướng dẫn
+                    {isAppealReviewer ? 'Nhận xét của giảng viên phúc khảo' : 'Nhận xét tổng kết của giảng viên hướng dẫn'}
                   </label>
                   <textarea
                     value={supervisorComment}
-                    onChange={(e) => setSupervisorComment(e.target.value)}
+                    onChange={(e) => {
+                      setSupervisorComment(e.target.value);
+                      setHasUnsavedChanges(true);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     rows={4}
-                    placeholder="Nhập đánh giá tổng thể về quá trình thực tập của sinh viên..."
-                    disabled={grade.status === 'submitted' || grade.status === 'approved'}
+                    placeholder={isAppealReviewer ? 'Nhập đánh giá của giảng viên phúc khảo...' : 'Nhập đánh giá tổng thể về quá trình thực tập của sinh viên...'}
+                    disabled={!isAppealReviewer && (grade.status === 'submitted' || grade.status === 'approved')}
                   />
                 </div>
 
@@ -861,11 +884,14 @@ const StudentGradeDetail: React.FC = () => {
                     </label>
                     <textarea
                       value={gradingNotes}
-                      onChange={(e) => setGradingNotes(e.target.value)}
+                      onChange={(e) => {
+                        setGradingNotes(e.target.value);
+                        setHasUnsavedChanges(true);
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       rows={3}
                       placeholder="Ghi chú chi tiết về quá trình chấm điểm, tiêu chí đánh giá..."
-                      disabled={grade.status === 'submitted' || grade.status === 'approved'}
+                      disabled={!isAppealReviewer && (grade.status === 'submitted' || grade.status === 'approved')}
                     />
                   </div>
 
@@ -884,12 +910,12 @@ const StudentGradeDetail: React.FC = () => {
                         onChange={handleFileUpload}
                         className="hidden"
                         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png"
-                        disabled={grade.status === 'submitted' || grade.status === 'approved'}
+                        disabled={!isAppealReviewer && (grade.status === 'submitted' || grade.status === 'approved')}
                       />
                       <label
                         htmlFor="grading-files"
                         className={`inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors ${
-                          grade.status === 'submitted' || grade.status === 'approved' 
+                          !isAppealReviewer && (grade.status === 'submitted' || grade.status === 'approved')
                             ? 'opacity-50 cursor-not-allowed' 
                             : ''
                         }`}
@@ -925,7 +951,7 @@ const StudentGradeDetail: React.FC = () => {
                                 >
                                   Xem
                                 </a>
-                                {grade.status !== 'submitted' && grade.status !== 'approved' && (
+                                {(isAppealReviewer || (grade.status !== 'submitted' && grade.status !== 'approved')) && (
                                   <button
                                     onClick={() => handleDeleteFile(file.id)}
                                     className="text-red-600 hover:text-red-700 text-sm"
@@ -943,22 +969,43 @@ const StudentGradeDetail: React.FC = () => {
                 </div>
 
                 {/* Action buttons */}
-                {grade.status !== 'submitted' && grade.status !== 'approved' && (
+                {(isAppealReviewer || (grade.status !== 'submitted' && grade.status !== 'approved')) && (
                   <div className="flex gap-3 pt-4 border-t border-gray-200">
                     <button
                       onClick={handleSaveGrades}
                       disabled={saving}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {saving ? 'Đang lưu...' : 'Lưu điểm'}
+                      {saving ? 'Đang lưu...' : isAppealReviewer ? 'Lưu điểm phúc khảo' : 'Lưu điểm'}
                     </button>
-                    <button
-                      onClick={handleSubmitToBCN}
-                      disabled={submitting || !supervisorComment.trim() || gradeComponents.some(c => c.score === 0)}
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {submitting ? 'Đang nộp...' : 'Nộp điểm lên khoa'}
-                    </button>
+                    {!isAppealReviewer && (
+                      <button
+                        onClick={handleSubmitToBCN}
+                        disabled={
+                          submitting || 
+                          !supervisorComment.trim() || 
+                          gradeComponents.some(c => c.score === 0) ||
+                          hasUnsavedChanges
+                        }
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {submitting ? 'Đang nộp...' : 'Nộp điểm lên khoa'}
+                      </button>
+                    )}
+                    {isAppealReviewer && (
+                      <button
+                        onClick={handleSubmitToBCN}
+                        disabled={
+                          submitting || 
+                          !supervisorComment.trim() || 
+                          gradeComponents.some(c => c.score === 0) ||
+                          hasUnsavedChanges
+                        }
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {submitting ? 'Đang nộp...' : 'Hoàn thành phúc khảo'}
+                      </button>
+                    )}
                   </div>
                 )}
 

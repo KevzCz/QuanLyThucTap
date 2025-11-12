@@ -18,11 +18,9 @@ dayjs.locale("vi");
 interface Statistics {
   totalAccounts: number;
   activeAccounts: number;
-  totalSubjects: number;
-  activeSubjects: number;
-  totalReports: number;
-  totalGrades: number;
-  averageGrade: number;
+  totalHocKy: number;
+  currentHocKyStudents: number;
+  totalNotificationsSent: number;
   pendingChatRequests: number;
 }
 
@@ -35,11 +33,9 @@ const PDTDashboard: React.FC = () => {
   const [statistics, setStatistics] = useState<Statistics>({
     totalAccounts: 0,
     activeAccounts: 0,
-    totalSubjects: 0,
-    activeSubjects: 0,
-    totalReports: 0,
-    totalGrades: 0,
-    averageGrade: 0,
+    totalHocKy: 0,
+    currentHocKyStudents: 0,
+    totalNotificationsSent: 0,
     pendingChatRequests: 0,
   });
   const [chatRequests, setChatRequests] = useState<ChatRequest[]>([]);
@@ -86,37 +82,25 @@ const PDTDashboard: React.FC = () => {
       const totalAccounts = accounts.length;
       const activeAccounts = accounts.filter(a => a.status === "open").length;
 
-      // Fetch internship subjects
-      const subjectsResponse = await apiClient.request<{
+      // Fetch học kỳ
+      const hocKyResponse = await apiClient.request<{
         success: boolean;
-        subjects: Array<{ status: string }>;
-      }>("/internship-subjects");
+        data: Array<{ students: string[] }>;
+      }>("/hocky");
       
-      const subjects = subjectsResponse.subjects || [];
-      const totalSubjects = subjects.length;
-      const activeSubjects = subjects.filter(s => s.status === "open").length;
+      const hocKyList = hocKyResponse.data || [];
+      const totalHocKy = hocKyList.length;
+      const currentHocKyStudents = hocKyList.length > 0 
+        ? (hocKyList[0].students || []).length 
+        : 0;
 
-      // Fetch reports statistics
-      const reportsStatsResponse = await apiClient.request<{
+      // Fetch notifications sent by PDT
+      const notificationsResponse = await apiClient.request<{
         success: boolean;
-        statistics: {
-          total: number;
-        };
-      }>("/reports/pdt/statistics?limit=1");
+        notifications: { _id: string }[];
+      }>("/notifications?sender=pdt");
       
-      const totalReports = reportsStatsResponse.statistics?.total || 0;
-
-      // Fetch grades statistics
-      const gradesStatsResponse = await apiClient.request<{
-        success: boolean;
-        statistics: {
-          total: number;
-          averageGrade: number;
-        };
-      }>("/grades/pdt/statistics?limit=1");
-      
-      const totalGrades = gradesStatsResponse.statistics?.total || 0;
-      const averageGrade = gradesStatsResponse.statistics?.averageGrade || 0;
+      const totalNotificationsSent = notificationsResponse.notifications?.length || 0;
 
       // Fetch pending chat requests
       const chatRequestsResponse = await chatAPI.getChatRequests({ direction: "all", status: "pending" });
@@ -125,11 +109,9 @@ const PDTDashboard: React.FC = () => {
       setStatistics({
         totalAccounts,
         activeAccounts,
-        totalSubjects,
-        activeSubjects,
-        totalReports,
-        totalGrades,
-        averageGrade,
+        totalHocKy,
+        currentHocKyStudents,
+        totalNotificationsSent,
         pendingChatRequests,
       });
     } catch (error) {
@@ -185,11 +167,11 @@ const PDTDashboard: React.FC = () => {
   };
 
   const CircleDiagram: React.FC<{ statistics: Statistics }> = ({ statistics }) => {
-    const total = statistics.totalAccounts + statistics.totalSubjects + statistics.totalReports + statistics.totalGrades;
+    const total = statistics.totalAccounts + statistics.totalHocKy + statistics.currentHocKyStudents + statistics.totalNotificationsSent;
     const accountPercentage = total > 0 ? (statistics.totalAccounts / total) * 100 : 0;
-    const subjectPercentage = total > 0 ? (statistics.totalSubjects / total) * 100 : 0;
-    const reportPercentage = total > 0 ? (statistics.totalReports / total) * 100 : 0;
-    const gradePercentage = total > 0 ? (statistics.totalGrades / total) * 100 : 0;
+    const hocKyPercentage = total > 0 ? (statistics.totalHocKy / total) * 100 : 0;
+    const studentsPercentage = total > 0 ? (statistics.currentHocKyStudents / total) * 100 : 0;
+    const notificationsPercentage = total > 0 ? (statistics.totalNotificationsSent / total) * 100 : 0;
 
     return (
       <div className="flex flex-col items-center">
@@ -205,7 +187,7 @@ const PDTDashboard: React.FC = () => {
             strokeDasharray={`${accountPercentage * 4.4} 440`}
             strokeDashoffset="0"
           />
-          {/* Subjects segment (green) */}
+          {/* Học kỳ segment (green) */}
           <circle
             cx="100"
             cy="100"
@@ -213,10 +195,10 @@ const PDTDashboard: React.FC = () => {
             fill="none"
             stroke="#10B981"
             strokeWidth="30"
-            strokeDasharray={`${subjectPercentage * 4.4} 440`}
+            strokeDasharray={`${hocKyPercentage * 4.4} 440`}
             strokeDashoffset={`-${accountPercentage * 4.4}`}
           />
-          {/* Reports segment (purple) */}
+          {/* Students segment (purple) */}
           <circle
             cx="100"
             cy="100"
@@ -224,10 +206,10 @@ const PDTDashboard: React.FC = () => {
             fill="none"
             stroke="#8B5CF6"
             strokeWidth="30"
-            strokeDasharray={`${reportPercentage * 4.4} 440`}
-            strokeDashoffset={`-${(accountPercentage + subjectPercentage) * 4.4}`}
+            strokeDasharray={`${studentsPercentage * 4.4} 440`}
+            strokeDashoffset={`-${(accountPercentage + hocKyPercentage) * 4.4}`}
           />
-          {/* Grades segment (orange) */}
+          {/* Notifications segment (orange) */}
           <circle
             cx="100"
             cy="100"
@@ -235,8 +217,8 @@ const PDTDashboard: React.FC = () => {
             fill="none"
             stroke="#F59E0B"
             strokeWidth="30"
-            strokeDasharray={`${gradePercentage * 4.4} 440`}
-            strokeDashoffset={`-${(accountPercentage + subjectPercentage + reportPercentage) * 4.4}`}
+            strokeDasharray={`${notificationsPercentage * 4.4} 440`}
+            strokeDashoffset={`-${(accountPercentage + hocKyPercentage + studentsPercentage) * 4.4}`}
           />
         </svg>
         <div className="mt-4 grid grid-cols-2 gap-4 w-full">
@@ -251,25 +233,26 @@ const PDTDashboard: React.FC = () => {
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <div className="w-3 h-3 rounded-full bg-green-500"></div>
-              <span className="text-xs text-gray-600">Môn TT</span>
+              <span className="text-xs text-gray-600">Học kỳ</span>
             </div>
-            <div className="text-lg font-bold text-green-600">{statistics.totalSubjects}</div>
-            <div className="text-xs text-gray-500">{statistics.activeSubjects} đang mở</div>
+            <div className="text-lg font-bold text-green-600">{statistics.totalHocKy}</div>
+            <div className="text-xs text-gray-500">học kỳ</div>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-              <span className="text-xs text-gray-600">Báo cáo</span>
+              <span className="text-xs text-gray-600">Sinh viên</span>
             </div>
-            <div className="text-lg font-bold text-purple-600">{statistics.totalReports}</div>
+            <div className="text-lg font-bold text-purple-600">{statistics.currentHocKyStudents}</div>
+            <div className="text-xs text-gray-500">học kỳ hiện tại</div>
           </div>
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-1">
               <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-              <span className="text-xs text-gray-600">Điểm</span>
+              <span className="text-xs text-gray-600">Thông báo</span>
             </div>
-            <div className="text-lg font-bold text-orange-600">{statistics.totalGrades}</div>
-            <div className="text-xs text-gray-500">TB: {statistics.averageGrade.toFixed(1)}</div>
+            <div className="text-lg font-bold text-orange-600">{statistics.totalNotificationsSent}</div>
+            <div className="text-xs text-gray-500">đã gửi</div>
           </div>
         </div>
       </div>
@@ -348,37 +331,38 @@ const PDTDashboard: React.FC = () => {
 
               <div 
                 className="flex items-center justify-between p-3 bg-green-50 rounded-lg cursor-pointer hover:bg-green-100 transition-colors"
-                onClick={() => navigate("/menu-list")}
+                onClick={() => navigate("/hocky")}
               >
                 <div>
-                  <div className="text-xs text-green-600 font-medium">Môn thực tập</div>
-                  <div className="text-2xl font-bold text-green-700">{statistics.totalSubjects}</div>
-                  <div className="text-xs text-green-600 mt-1">{statistics.activeSubjects} đang mở</div>
+                  <div className="text-xs text-green-600 font-medium">Học kỳ</div>
+                  <div className="text-2xl font-bold text-green-700">{statistics.totalHocKy}</div>
+                  <div className="text-xs text-green-600 mt-1">học kỳ</div>
                 </div>
-                <span className="text-3xl">📚</span>
+                <span className="text-3xl">�</span>
               </div>
 
               <div 
                 className="flex items-center justify-between p-3 bg-purple-50 rounded-lg cursor-pointer hover:bg-purple-100 transition-colors"
-                onClick={() => navigate("/summary")}
+                onClick={() => navigate("/students")}
               >
                 <div>
-                  <div className="text-xs text-purple-600 font-medium">Báo cáo</div>
-                  <div className="text-2xl font-bold text-purple-700">{statistics.totalReports}</div>
+                  <div className="text-xs text-purple-600 font-medium">Sinh viên</div>
+                  <div className="text-2xl font-bold text-purple-700">{statistics.currentHocKyStudents}</div>
+                  <div className="text-xs text-purple-600 mt-1">học kỳ hiện tại</div>
                 </div>
-                <span className="text-3xl">📋</span>
+                <span className="text-3xl">🎓</span>
               </div>
 
               <div 
                 className="flex items-center justify-between p-3 bg-orange-50 rounded-lg cursor-pointer hover:bg-orange-100 transition-colors"
-                onClick={() => navigate("/stats")}
+                onClick={() => navigate("/notification-management")}
               >
                 <div>
-                  <div className="text-xs text-orange-600 font-medium">Điểm thực tập</div>
-                  <div className="text-2xl font-bold text-orange-700">{statistics.totalGrades}</div>
-                  <div className="text-xs text-orange-600 mt-1">TB: {statistics.averageGrade.toFixed(1)}/10</div>
+                  <div className="text-xs text-orange-600 font-medium">Thông báo</div>
+                  <div className="text-2xl font-bold text-orange-700">{statistics.totalNotificationsSent}</div>
+                  <div className="text-xs text-orange-600 mt-1">đã gửi</div>
                 </div>
-                <span className="text-3xl">🎯</span>
+                <span className="text-3xl">📢</span>
               </div>
             </div>
           </div>

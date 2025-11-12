@@ -3,8 +3,6 @@ import { apiClient } from "../../../utils/api";
 import SearchInput from "../../../components/UI/SearchInput";
 import Pagination from "../../../components/UI/Pagination";
 import ViewKhoaReportDialog from "./ViewKhoaReportDialog";
-import ReviewReportDialog from "./ReviewReportDialog";
-import { useToast } from "../../../components/UI/Toast";
 import dayjs from "dayjs";
 import { useDebounce } from "../../../hooks/useDebounce";
 import EmptyState from "../../../components/UI/EmptyState";
@@ -26,10 +24,7 @@ export interface KhoaReport {
   }>;
   createdAt: string;
   updatedAt: string;
-  internshipSubject: {
-    id: string;
-    title: string;
-  };
+  khoa: string;
   instructor: {
     id: string;
     name: string;
@@ -67,8 +62,6 @@ const StatusColors = {
 };
 
 const KhoaReportManagement: React.FC = () => {
-  const { showSuccess, showError } = useToast();
-  
   const [reports, setReports] = useState<KhoaReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -88,7 +81,6 @@ const KhoaReportManagement: React.FC = () => {
 
   // Dialogs
   const [viewingReport, setViewingReport] = useState<KhoaReport | null>(null);
-  const [reviewingReport, setReviewingReport] = useState<KhoaReport | null>(null);
 
   useEffect(() => {
     loadReports();
@@ -99,20 +91,20 @@ const KhoaReportManagement: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      // Get BCN's managed subject and its reports
-      const [subjectResponse, reportsResponse] = await Promise.all([
+      // Get BCN's managed khoa and its reports
+      const [khoaResponse, reportsResponse] = await Promise.all([
         apiClient.getBCNManagedSubject(),
         apiClient.getBCNReports()
       ]);
 
-      if (!subjectResponse.success || !subjectResponse.subject) {
-        setError("Bạn chưa được phân công quản lý môn thực tập nào");
+      if (!khoaResponse.success || !khoaResponse.khoa) {
+        setError("Bạn chưa được phân công quản lý khoa nào");
         return;
       }
 
       setManagedSubject({
-        id: subjectResponse.subject.id,
-        title: subjectResponse.subject.title
+        id: khoaResponse.khoa.id,
+        title: khoaResponse.khoa.title
       });
 
       setReports((reportsResponse.reports || []) as KhoaReport[]);
@@ -142,31 +134,7 @@ const KhoaReportManagement: React.FC = () => {
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-const handleReviewReport = async (reportId: string, status: "reviewed" | "approved" | "rejected", reviewNote?: string) => {
-    try {
-        const response = await apiClient.reviewReport(reportId, { status, reviewNote });
-        
-        // Update the report in the local state by merging the response data
-        setReports(prev => prev.map(r => {
-            if (r._id === reportId) {
-                return {
-                    ...r,
-                    status,
-                    reviewNote,
-                    reviewedBy: response.report.reviewedBy,
-                    reviewedAt: response.report.reviewedAt
-                };
-            }
-            return r;
-        }));
-        
-        setReviewingReport(null);
-        showSuccess("Đã cập nhật trạng thái báo cáo");
-    } catch (err) {
-        console.error("Error reviewing report:", err);
-        showError("Không thể cập nhật trạng thái báo cáo");
-    }
-};
+// BCN can only VIEW reports, not approve/reject them - review functionality removed
 
   // Get unique instructors for filter
   const instructors = useMemo(() => {
@@ -309,18 +277,6 @@ const handleReviewReport = async (reportId: string, status: "reviewed" | "approv
                           <path fill="currentColor" d="M12 5c-7 0-10 7-10 7s3 7 10 7 10-7 10-7-3-7-10-7Zm0 12a5 5 0 1 1 0-10a5 5 0 0 1 0 10Z"/>
                         </svg>
                       </button>
-                      
-                      {report.status === "submitted" && (
-                        <button
-                          onClick={() => setReviewingReport(report)}
-                          className="h-7 w-7 grid place-items-center rounded-md bg-emerald-600 text-white hover:bg-emerald-700 touch-manipulation"
-                          title="Xem xét"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4">
-                            <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                          </svg>
-                        </button>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -356,13 +312,6 @@ const handleReviewReport = async (reportId: string, status: "reviewed" | "approv
         open={!!viewingReport}
         onClose={() => setViewingReport(null)}
         report={viewingReport}
-      />
-
-      <ReviewReportDialog
-        open={!!reviewingReport}
-        onClose={() => setReviewingReport(null)}
-        report={reviewingReport}
-        onSubmit={handleReviewReport}
       />
     </div>
   );

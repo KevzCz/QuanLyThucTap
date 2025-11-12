@@ -5,12 +5,11 @@ import SinhVien from "../models/SinhVien.js";
 import GiangVien from "../models/GiangVien.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
 import Account from "../models/Account.js";
-import InternshipSubject from "../models/InternshipSubject.js";
 import notificationService from "../services/notificationService.js";
 
 const router = express.Router();
 
-// Get all grades managed by a supervisor (GV only)
+// Get all grades managed by a supervisor (GV only) - Latest học kỳ only
 router.get("/supervisor/students", authenticate, authorize(["giang-vien"]), async (req, res) => {
   try {
     const { status } = req.query;
@@ -20,46 +19,117 @@ router.get("/supervisor/students", authenticate, authorize(["giang-vien"]), asyn
       return res.status(400).json({ success: false, error: "Trạng thái không hợp lệ" });
     }
     
-    // Get supervisor's managed students
-    const students = await SinhVien.find({ supervisor: req.account._id })
-      .populate('account', 'id name email')
-      .populate('internshipSubject', 'id title')
+    // Get teacher's khoa information
+    const GiangVien = (await import("../models/GiangVien.js")).default;
+    const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
+    
+    if (!giangVien) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin giảng viên" });
+    }
+    
+    // Find latest học kỳ
+    const HocKy = (await import("../models/HocKy.js")).default;
+    const latestHocKy = await HocKy.findOne({ isActive: true })
+      .sort({ namHoc: -1, hocKyNumber: -1 })
       .lean();
 
-    if (!students.length) {
+    if (!latestHocKy) {
       return res.json({
         success: true,
         grades: [],
-        message: "Bạn chưa được phân công hướng dẫn sinh viên nào"
+        message: "Chưa có học kỳ nào đang hoạt động"
+      });
+    }
+    
+    // Get supervisor's managed students in latest học kỳ
+    const students = await SinhVien.find({ 
+      supervisor: req.account._id,
+      _id: { $in: latestHocKy.sinhViens }
+    })
+      .populate('account', 'id name email')
+      .lean();
+
+    // Get existing grade records using account ObjectIds (if teacher has supervised students)
+    let grades = [];
+    if (students.length > 0) {
+      const studentAccountIds = students.map(s => s.account._id);
+      let query = { 
+        student: { $in: studentAccountIds },
+        hocKy: latestHocKy._id
+      };
+      if (status && status !== 'all') {
+        query.status = status;
+      }
+
+      grades = await InternshipGrade.find(query)
+        .populate('student', 'id name email')
+        .sort({ updatedAt: -1 })
+        .lean();
+    }
+
+    // Also get grades where this teacher is the appeal reviewer
+    let appealQuery = {
+      appealReviewer: req.account._id,
+      appealStatus: 'reviewing',
+      hocKy: latestHocKy._id
+    };
+    
+    // Apply status filter to appeal grades too
+    if (status && status !== 'all') {
+      appealQuery.status = status;
+    }
+    
+    const appealGrades = await InternshipGrade.find(appealQuery)
+      .populate('student', 'id name email')
+      .lean();
+
+    // Merge and deduplicate grades
+    const allGrades = [...grades];
+    const existingIds = new Set(grades.map(g => g._id.toString()));
+    for (const appealGrade of appealGrades) {
+      if (!existingIds.has(appealGrade._id.toString())) {
+        allGrades.push(appealGrade);
+      }
+    }
+
+    // If no grades found at all (neither supervised nor appeal review), return empty
+    if (allGrades.length === 0 && students.length === 0) {
+      return res.json({
+        success: true,
+        grades: [],
+        hocKy: {
+          id: latestHocKy._id,
+          hocKyNumber: latestHocKy.hocKyNumber,
+          namHoc: latestHocKy.namHoc
+        },
+        message: "Bạn chưa được phân công hướng dẫn hoặc phúc khảo sinh viên nào trong học kỳ này"
       });
     }
 
-    // Get existing grade records using account ObjectIds
-    const studentAccountIds = students.map(s => s.account._id);
-    let query = { student: { $in: studentAccountIds } };
-    if (status && status !== 'all') {
-      query.status = status;
-    }
-
-    const grades = await InternshipGrade.find(query)
-      .populate('student', 'id name email')
-      .populate('internshipSubject', 'id title')
-      .sort({ updatedAt: -1 })
-      .lean();
-
     // Create grade records for students who don't have them yet
-    const existingStudentAccountIds = grades.map(g => g.student._id.toString());
+    const existingStudentAccountIds = allGrades.map(g => g.student._id.toString());
     const studentsWithoutGrades = students.filter(s => 
       !existingStudentAccountIds.includes(s.account._id.toString())
     );
 
     for (const student of studentsWithoutGrades) {
+      // Double-check if grade already exists (prevent race condition duplicates)
+      const existingGrade = await InternshipGrade.findOne({
+        student: student.account._id,
+        hocKy: latestHocKy._id
+      }).populate('student', 'id name email').lean();
+      
+      if (existingGrade) {
+        grades.push(existingGrade);
+        continue;
+      }
+
       const workType = student.workType || 'thuc_tap';
       
       const newGrade = new InternshipGrade({
         student: student.account._id,
         supervisor: req.account._id,
-        internshipSubject: student.internshipSubject._id,
+        hocKy: latestHocKy._id,
         workType: workType,
         startDate: new Date(),
         endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
@@ -74,36 +144,56 @@ router.get("/supervisor/students", authenticate, authorize(["giang-vien"]), asyn
       await newGrade.save();
       const populatedGrade = await InternshipGrade.findById(newGrade._id)
         .populate('student', 'id name email')
-        .populate('internshipSubject', 'id title')
         .lean();
-      grades.push(populatedGrade);
+      allGrades.push(populatedGrade);
     }
 
     res.json({
       success: true,
-      grades: grades.map(grade => ({
-        id: grade._id,
-        student: grade.student ? {
-          id: grade.student.id,
-          name: grade.student.name,
-          email: grade.student.email
-        } : null,
-        subject: grade.internshipSubject ? {
-          id: grade.internshipSubject.id,
-          title: grade.internshipSubject.title
-        } : null,
-  workType: grade.workType,
-  company: grade.company,
-  projectTopic: grade.projectTopic,
-  status: grade.status,
-        finalGrade: grade.finalGrade,
-        letterGrade: grade.letterGrade,
-        progressPercentage: grade.progressPercentage || grade.getProgressPercentage?.() || 0,
-        submittedToBCN: grade.submittedToBCN,
-        startDate: grade.startDate,
-        endDate: grade.endDate,
-        updatedAt: grade.updatedAt
-      }))
+      hocKy: {
+        id: latestHocKy._id,
+        hocKyNumber: latestHocKy.hocKyNumber,
+        namHoc: latestHocKy.namHoc
+      },
+      grades: allGrades.map(grade => {
+        // Calculate progress percentage manually for lean objects
+        let progressPercentage = grade.progressPercentage || 0;
+        if (!progressPercentage && grade.milestones && Array.isArray(grade.milestones)) {
+          const completedMilestones = grade.milestones.filter(m => m.status === 'completed').length;
+          progressPercentage = grade.milestones.length > 0 
+            ? Math.round((completedMilestones / grade.milestones.length) * 100)
+            : 0;
+        }
+
+        // Check if this is an appeal review
+        const isAppealReview = grade.appealReviewer && grade.appealReviewer.toString() === req.account._id.toString();
+
+        return {
+          id: grade._id,
+          student: grade.student ? {
+            id: grade.student.id,
+            name: grade.student.name,
+            email: grade.student.email
+          } : null,
+          subject: {
+            id: giangVien.khoa,
+            title: `Khoa ${giangVien.khoa}`
+          },
+          workType: grade.workType,
+          company: grade.company,
+          projectTopic: grade.projectTopic,
+          status: grade.status,
+          appealStatus: grade.appealStatus,
+          isAppealReview: isAppealReview,
+          finalGrade: grade.finalGrade,
+          letterGrade: grade.letterGrade,
+          progressPercentage: progressPercentage,
+          submittedToBCN: grade.submittedToBCN,
+          startDate: grade.startDate,
+          endDate: grade.endDate,
+          updatedAt: grade.updatedAt
+        };
+      })
     });
   } catch (error) {
     console.error("Get supervisor grades error:", error);
@@ -122,10 +212,20 @@ router.get("/students/:studentId", authenticate, authorize(["giang-vien", "ban-c
       return res.status(404).json({ success: false, error: "Không tìm thấy sinh viên" });
     }
 
+    // Get teacher's khoa for subject info
+    const GiangVien = (await import("../models/GiangVien.js")).default;
+    let supervisorKhoa = null;
+    
+    if (req.account.role === "giang-vien") {
+      const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
+      if (giangVien) {
+        supervisorKhoa = giangVien.khoa;
+      }
+    }
+
     let grade = await InternshipGrade.findOne({ student: studentAccount._id })
       .populate('student', 'id name email')
-      .populate('supervisor', 'id name email')
-      .populate('internshipSubject', 'id title');
+      .populate('supervisor', 'id name email');
 
     // If no grade record exists, create one for GV
     if (!grade && req.account.role === "giang-vien") {
@@ -133,32 +233,34 @@ router.get("/students/:studentId", authenticate, authorize(["giang-vien", "ban-c
       const student = await SinhVien.findOne({ 
         account: studentAccount._id,
         supervisor: req.account._id 
-      }).populate('internshipSubject', 'id title');
+      });
 
       if (!student) {
         return res.status(403).json({ success: false, error: "Bạn không được phân công hướng dẫn sinh viên này" });
       }
 
+      const workType = student.workType || 'thuc_tap';
+
       // Create new grade record
       const newGrade = new InternshipGrade({
         student: studentAccount._id,
         supervisor: req.account._id,
-        internshipSubject: student.internshipSubject._id,
+        workType: workType,
         startDate: new Date(),
         endDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days from now
         milestones: InternshipGrade.createDefaultMilestones(
+          workType,
           new Date(),
           new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
         ),
-        gradeComponents: InternshipGrade.createDefaultGradeComponents()
+        gradeComponents: InternshipGrade.createDefaultGradeComponents(workType)
       });
       
       await newGrade.save();
       
       grade = await InternshipGrade.findById(newGrade._id)
         .populate('student', 'id name email')
-        .populate('supervisor', 'id name email')
-        .populate('internshipSubject', 'id title');
+        .populate('supervisor', 'id name email');
     }
 
     if (!grade) {
@@ -166,20 +268,45 @@ router.get("/students/:studentId", authenticate, authorize(["giang-vien", "ban-c
     }
 
     // Check permissions
-    if (req.account.role === "giang-vien" && grade.supervisor._id.toString() !== req.account._id.toString()) {
+    const isOriginalSupervisor = grade.supervisor._id.toString() === req.account._id.toString();
+    const isAppealReviewer = grade.appealReviewer && grade.appealReviewer.toString() === req.account._id.toString();
+    
+    if (req.account.role === "giang-vien" && !isOriginalSupervisor && !isAppealReviewer) {
       return res.status(403).json({ success: false, error: "Bạn không có quyền xem điểm sinh viên này" });
     }
 
     if (req.account.role === "ban-chu-nhiem") {
-      // BCN can only view grades from their managed subject
-      const bcnProfile = await BanChuNhiem.findOne({ 
-        account: req.account._id,
-        internshipSubject: grade.internshipSubject._id 
-      });
-      if (!bcnProfile) {
-        return res.status(403).json({ success: false, error: "Bạn không quản lý môn thực tập này" });
+      // BCN can view grades from their khoa
+      const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id });
+      if (bcnProfile) {
+        supervisorKhoa = bcnProfile.khoa;
+      }
+      
+      // Get supervisor's khoa to check
+      if (grade.supervisor) {
+        const supervisorGV = await GiangVien.findOne({ account: grade.supervisor._id }).lean();
+        if (!supervisorGV || supervisorGV.khoa !== supervisorKhoa) {
+          return res.status(403).json({ success: false, error: "Bạn không quản lý khoa này" });
+        }
       }
     }
+
+    // Determine subject based on supervisor's khoa
+    let subjectInfo = { id: 'N/A', title: 'Chưa có thông tin' };
+    if (supervisorKhoa) {
+      subjectInfo = { id: supervisorKhoa, title: `Khoa ${supervisorKhoa}` };
+    } else if (grade.supervisor) {
+      const supervisorGV = await GiangVien.findOne({ account: grade.supervisor._id }).lean();
+      if (supervisorGV) {
+        subjectInfo = { id: supervisorGV.khoa, title: `Khoa ${supervisorGV.khoa}` };
+      }
+    }
+
+    // Calculate progress percentage
+    const completedMilestones = grade.milestones.filter(m => m.status === 'completed').length;
+    const progressPercentage = grade.milestones.length > 0 
+      ? Math.round((completedMilestones / grade.milestones.length) * 100) 
+      : 0;
 
     res.json({
       success: true,
@@ -187,8 +314,11 @@ router.get("/students/:studentId", authenticate, authorize(["giang-vien", "ban-c
         id: grade._id,
         student: grade.student,
         supervisor: grade.supervisor,
-        subject: grade.internshipSubject,
+        subject: subjectInfo,
         status: grade.status,
+        appealStatus: grade.appealStatus || 'none',
+        appealReviewer: grade.appealReviewer,
+        isAppealReview: isAppealReviewer,
         workType: grade.workType,
         company: grade.company,
         projectTopic: grade.projectTopic,
@@ -198,7 +328,7 @@ router.get("/students/:studentId", authenticate, authorize(["giang-vien", "ban-c
         gradeComponents: grade.gradeComponents,
         finalGrade: grade.finalGrade,
         letterGrade: grade.letterGrade,
-        progressPercentage: grade.getProgressPercentage(),
+        progressPercentage: progressPercentage,
         submittedToBCN: grade.submittedToBCN,
         submittedAt: grade.submittedAt,
         supervisorFinalComment: grade.supervisorFinalComment,
@@ -268,6 +398,12 @@ router.put("/students/:studentId/milestones/:milestoneId", authenticate, authori
     // Update overall grade status based on milestone progress
     if (milestone.type === 'start' && status === 'completed' && grade.status === 'not_started') {
       grade.status = 'in_progress';
+    }
+
+    // Check if all milestones are completed
+    const allMilestonesCompleted = grade.milestones.every(m => m.status === 'completed');
+    if (allMilestonesCompleted && grade.status === 'in_progress') {
+      grade.status = 'draft_completed';
     }
 
     await grade.save();
@@ -501,8 +637,11 @@ router.put("/students/:studentId/grades", authenticate, authorize(["giang-vien"]
       return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });
     }
 
-    // Check if supervisor owns this grade record
-    if (grade.supervisor.toString() !== req.account._id.toString()) {
+    // Check if supervisor owns this grade record OR is the appeal reviewer
+    const isOriginalSupervisor = grade.supervisor.toString() === req.account._id.toString();
+    const isAppealReviewer = grade.appealReviewer && grade.appealReviewer.toString() === req.account._id.toString();
+    
+    if (!isOriginalSupervisor && !isAppealReviewer) {
       return res.status(403).json({ success: false, error: "Bạn không có quyền cập nhật điểm sinh viên này" });
     }
 
@@ -577,15 +716,17 @@ router.post("/students/:studentId/submit", authenticate, authorize(["giang-vien"
     }
 
     const grade = await InternshipGrade.findOne({ student: studentAccount._id })
-      .populate('student', 'id name email')
-      .populate('internshipSubject', 'id title');
+      .populate('student', 'id name email');
 
     if (!grade) {
       return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });
     }
 
-    // Check if supervisor owns this grade record
-    if (grade.supervisor.toString() !== req.account._id.toString()) {
+    // Check if supervisor owns this grade record OR is the appeal reviewer
+    const isOriginalSupervisor = grade.supervisor.toString() === req.account._id.toString();
+    const isAppealReviewer = grade.appealReviewer && grade.appealReviewer.toString() === req.account._id.toString();
+    
+    if (!isOriginalSupervisor && !isAppealReviewer) {
       return res.status(403).json({ success: false, error: "Bạn không có quyền submit điểm sinh viên này" });
     }
 
@@ -599,14 +740,68 @@ router.post("/students/:studentId/submit", authenticate, authorize(["giang-vien"
       return res.status(400).json({ success: false, error: "Vui lòng nhập nhận xét cuối cùng" });
     }
 
-    grade.status = 'submitted';
+    // Handle appeal review submission
+    if (isAppealReviewer && grade.appealStatus === 'reviewing') {
+      // Complete the appeal review
+      grade.appealStatus = 'completed';
+      grade.status = 'approved';
+      grade.submittedAt = new Date();
+      grade.approvedAt = new Date();
+      await grade.save();
+
+      // Update the appeal record
+      const GradeAppeal = (await import("../models/GradeAppeal.js")).default;
+      const appeal = await GradeAppeal.findOne({ 
+        internshipGrade: grade._id, 
+        status: 'reviewing' 
+      }).populate('student', 'id name email');
+      
+      if (appeal) {
+        appeal.status = 'completed';
+        appeal.completedAt = new Date();
+        await appeal.save();
+
+        // Notify student
+        const io = req.app.get('io');
+        await notificationService.createNotification({
+          recipient: appeal.student._id,
+          sender: req.account._id,
+          type: 'grade-appeal-completed',
+          title: 'Phúc khảo điểm hoàn tất',
+          message: `Điểm phúc khảo của bạn đã được hoàn tất (Điểm mới: ${grade.finalGrade.toFixed(1)})`,
+          link: `/student-grades`,
+          priority: 'high'
+        }, io);
+      }
+
+      return res.json({
+        success: true,
+        message: "Đã hoàn tất phúc khảo điểm",
+        grade: {
+          status: grade.status,
+          appealStatus: grade.appealStatus,
+          submittedAt: grade.submittedAt,
+          approvedAt: grade.approvedAt
+        }
+      });
+    }
+
+    // Auto-approve grade when submitted (BCN only views, doesn't review)
+    grade.status = 'approved';
     grade.submittedToBCN = true;
     grade.submittedAt = new Date();
+    grade.approvedAt = new Date();
     await grade.save();
 
-    // Find BCN of this subject to send notification
+    // Get supervisor's khoa
+    const supervisorProfile = await GiangVien.findOne({ account: req.account._id });
+    if (!supervisorProfile) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin giảng viên" });
+    }
+
+    // Find BCN of this khoa to send notification
     const bcnProfile = await BanChuNhiem.findOne({ 
-      internshipSubject: grade.internshipSubject._id 
+      khoa: supervisorProfile.khoa 
     });
 
     if (bcnProfile) {
@@ -615,14 +810,14 @@ router.post("/students/:studentId/submit", authenticate, authorize(["giang-vien"
         recipient: bcnProfile.account,
         sender: req.account._id,
         type: 'grade-submitted',
-        title: 'Điểm thực tập cần duyệt',
+        title: 'Điểm thực tập đã nộp',
         message: `Giảng viên ${req.account.name} đã nộp điểm thực tập cho sinh viên ${grade.student.name} (Điểm: ${grade.finalGrade.toFixed(1)})`,
-        link: `/grade-review`,
-        priority: 'high',
+        link: `/grade-management`,
+        priority: 'normal',
         metadata: { 
           gradeId: grade._id.toString(),
           studentId: grade.student.id,
-          subjectId: grade.internshipSubject.id
+          khoa: supervisorProfile.khoa
         }
       }, io);
     }
@@ -632,9 +827,9 @@ router.post("/students/:studentId/submit", authenticate, authorize(["giang-vien"
     await notificationService.createNotification({
       recipient: grade.student._id,
       sender: req.account._id,
-      type: 'grade-submitted',
+      type: 'grade-approved',
       title: 'Điểm thực tập đã được nộp',
-      message: `Giảng viên ${req.account.name} đã nộp điểm thực tập của bạn lên khoa để duyệt (Điểm: ${grade.finalGrade.toFixed(1)})`,
+      message: `Giảng viên ${req.account.name} đã nộp điểm thực tập của bạn (Điểm: ${grade.finalGrade.toFixed(1)})`,
       link: `/my-internship`,
       priority: 'normal',
       metadata: { 
@@ -649,7 +844,8 @@ router.post("/students/:studentId/submit", authenticate, authorize(["giang-vien"
       grade: {
         status: grade.status,
         submittedToBCN: grade.submittedToBCN,
-        submittedAt: grade.submittedAt
+        submittedAt: grade.submittedAt,
+        approvedAt: grade.approvedAt
       }
     });
   } catch (error) {
@@ -839,25 +1035,27 @@ router.delete("/students/:studentId/milestones/:milestoneId", authenticate, auth
 // Get all submitted grades for BCN review (including approved/rejected)
 router.get("/bcn/submitted-grades", authenticate, authorize(["ban-chu-nhiem"]), async (req, res) => {
   try {
-    // Find BCN's managed subject
-    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject', 'id title');
+    // Find BCN's khoa
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id });
 
-    if (!bcnProfile) {
+    if (!bcnProfile || !bcnProfile.khoa) {
       return res.json({
         success: true,
         grades: [],
-        message: "Bạn chưa được phân công quản lý môn thực tập nào"
+        message: "Bạn chưa được phân công quản lý khoa nào"
       });
     }
 
+    // Find all students in this khoa
+    const students = await SinhVien.find({ khoa: bcnProfile.khoa }).select('account');
+    const studentAccountIds = students.map(s => s.account);
+
     const grades = await InternshipGrade.find({
-      internshipSubject: bcnProfile.internshipSubject._id,
+      student: { $in: studentAccountIds },
       status: { $in: ['submitted', 'approved', 'rejected'] }
     })
       .populate('student', 'id name email')
       .populate('supervisor', 'id name email')
-      .populate('internshipSubject', 'id title')
       .sort({ submittedAt: -1 });
 
     res.json({
@@ -865,7 +1063,7 @@ router.get("/bcn/submitted-grades", authenticate, authorize(["ban-chu-nhiem"]), 
       grades: grades.map(grade => ({
         ...grade.toJSON(),
         id: grade._id,
-        subject: grade.internshipSubject
+        khoa: bcnProfile.khoa
       }))
     });
   } catch (error) {
@@ -877,20 +1075,23 @@ router.get("/bcn/submitted-grades", authenticate, authorize(["ban-chu-nhiem"]), 
 // Get all pending grades for BCN review (only submitted status)
 router.get("/bcn/pending-grades", authenticate, authorize(["ban-chu-nhiem"]), async (req, res) => {
   try {
-    // Find BCN's managed subject
-    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id })
-      .populate('internshipSubject', 'id title');
+    // Find BCN's khoa
+    const bcnProfile = await BanChuNhiem.findOne({ account: req.account._id });
 
-    if (!bcnProfile) {
+    if (!bcnProfile || !bcnProfile.khoa) {
       return res.json({
         success: true,
         grades: [],
-        message: "Bạn chưa được phân công quản lý môn thực tập nào"
+        message: "Bạn chưa được phân công quản lý khoa nào"
       });
     }
 
+    // Find all students in this khoa
+    const students = await SinhVien.find({ khoa: bcnProfile.khoa }).select('account');
+    const studentAccountIds = students.map(s => s.account);
+
     const grades = await InternshipGrade.find({
-      internshipSubject: bcnProfile.internshipSubject._id,
+      student: { $in: studentAccountIds },
       status: 'submitted'
     })
       .populate('student', 'id name email')
@@ -899,9 +1100,9 @@ router.get("/bcn/pending-grades", authenticate, authorize(["ban-chu-nhiem"]), as
 
     res.json({
       success: true,
-      subject: {
-        id: bcnProfile.internshipSubject.id,
-        title: bcnProfile.internshipSubject.title
+      khoa: {
+        name: bcnProfile.khoa,
+        title: `Khoa ${bcnProfile.khoa}`
       },
       grades: grades.map(grade => ({
         id: grade._id,
@@ -919,24 +1120,29 @@ router.get("/bcn/pending-grades", authenticate, authorize(["ban-chu-nhiem"]), as
   }
 });
 
-// Get grade details for BCN review
+// Get grade details for BCN view
 router.get("/bcn/grades/:gradeId", authenticate, authorize(["ban-chu-nhiem"]), async (req, res) => {
   try {
     const { gradeId } = req.params;
 
     const grade = await InternshipGrade.findById(gradeId)
       .populate('student', 'id name email')
-      .populate('supervisor', 'id name email')
-      .populate('internshipSubject', 'id title');
+      .populate('supervisor', 'id name email');
 
     if (!grade) {
       return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });
     }
 
-    // Check if BCN manages this subject
+    // Get supervisor's khoa
+    const supervisorProfile = await GiangVien.findOne({ account: grade.supervisor._id });
+    if (!supervisorProfile) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin giảng viên" });
+    }
+
+    // Check if BCN manages this khoa
     const bcnProfile = await BanChuNhiem.findOne({ 
       account: req.account._id,
-      internshipSubject: grade.internshipSubject._id 
+      khoa: supervisorProfile.khoa
     });
 
     if (!bcnProfile) {
@@ -948,107 +1154,22 @@ router.get("/bcn/grades/:gradeId", authenticate, authorize(["ban-chu-nhiem"]), a
       grade: {
         ...grade.toJSON(),
         id: grade._id,
-        subject: grade.internshipSubject
+        khoa: supervisorProfile.khoa
       }
     });
   } catch (error) {
-    console.error("Get grade details for review error:", error);
+    console.error("Get grade details for view error:", error);
     res.status(500).json({ success: false, error: "Lỗi server" });
   }
 });
 
-// Approve or reject grade by BCN
-router.post("/bcn/grades/:gradeId/review", authenticate, authorize(["ban-chu-nhiem"]), async (req, res) => {
-  try {
-    const { gradeId } = req.params;
-    const { action, bcnComment } = req.body; // action: 'approve' or 'reject'
 
-    const grade = await InternshipGrade.findById(gradeId)
-      .populate('student', 'id name email')
-      .populate('supervisor', 'id name email')
-      .populate('internshipSubject', 'id title');
-
-    if (!grade) {
-      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });
-    }
-
-    // Check if BCN manages this subject
-    const bcnProfile = await BanChuNhiem.findOne({ 
-      account: req.account._id,
-      internshipSubject: grade.internshipSubject._id 
-    });
-    if (!bcnProfile) {
-      return res.status(403).json({ success: false, error: "Bạn không quản lý môn thực tập này" });
-    }
-
-    if (grade.status !== 'submitted') {
-      return res.status(400).json({ success: false, error: "Điểm này không ở trạng thái chờ duyệt" });
-    }
-
-    grade.status = action === 'approve' ? 'approved' : 'rejected';
-    grade.bcnComment = bcnComment || '';
-    grade.approvedBy = req.account._id;
-    grade.approvedAt = new Date();
-
-    await grade.save();
-
-    const io = req.app.get('io');
-
-    // Notify supervisor
-    await notificationService.createNotification({
-      recipient: grade.supervisor._id,
-      sender: req.account._id,
-      type: action === 'approve' ? 'grade-approved' : 'grade-rejected',
-      title: action === 'approve' ? 'Điểm thực tập đã được duyệt' : 'Điểm thực tập bị từ chối',
-      message: `BCN ${req.account.name} đã ${action === 'approve' ? 'duyệt' : 'từ chối'} điểm thực tập cho sinh viên ${grade.student.name}${bcnComment ? `: ${bcnComment}` : ''}`,
-      link: `/grade-management`,
-      priority: 'normal',
-      metadata: { 
-        gradeId: grade._id.toString(),
-        studentId: grade.student.id,
-        action: action
-      }
-    }, io);
-
-    // Notify student
-    await notificationService.createNotification({
-      recipient: grade.student._id,
-      sender: req.account._id,
-      type: action === 'approve' ? 'grade-approved' : 'grade-rejected',
-      title: action === 'approve' ? 'Điểm thực tập đã được phê duyệt' : 'Điểm thực tập cần xem xét lại',
-      message: action === 'approve' 
-        ? `Điểm thực tập của bạn đã được BCN phê duyệt (Điểm: ${grade.finalGrade.toFixed(1)})`
-        : `Điểm thực tập của bạn cần được xem xét lại${bcnComment ? `: ${bcnComment}` : ''}`,
-      link: `/my-internship`,
-      priority: action === 'approve' ? 'normal' : 'high',
-      metadata: { 
-        gradeId: grade._id.toString(),
-        finalGrade: grade.finalGrade,
-        action: action
-      }
-    }, io);
-
-    res.json({
-      success: true,
-      message: action === 'approve' ? "Đã duyệt điểm thành công" : "Đã từ chối điểm",
-      grade: {
-        status: grade.status,
-        bcnComment: grade.bcnComment,
-        approvedAt: grade.approvedAt
-      }
-    });
-  } catch (error) {
-    console.error("Review grade error:", error);
-    res.status(500).json({ success: false, error: "Lỗi server" });
-  }
-});
 
 // Student route to view their own progress
 router.get("/student/my-progress", authenticate, authorize(["sinh-vien"]), async (req, res) => {
   try {
     const grade = await InternshipGrade.findOne({ student: req.account._id })
-      .populate('supervisor', 'id name email')
-      .populate('internshipSubject', 'id title');
+      .populate('supervisor', 'id name email');
 
     if (!grade) {
       return res.json({
@@ -1058,12 +1179,27 @@ router.get("/student/my-progress", authenticate, authorize(["sinh-vien"]), async
       });
     }
 
+    // Determine subject based on supervisor's khoa
+    let subjectInfo = { id: 'N/A', title: 'Chưa có thông tin' };
+    if (grade.supervisor) {
+      const supervisorGV = await GiangVien.findOne({ account: grade.supervisor._id }).lean();
+      if (supervisorGV) {
+        subjectInfo = { id: supervisorGV.khoa, title: `Khoa ${supervisorGV.khoa}` };
+      }
+    }
+
+    // Calculate progress percentage manually
+    const completedMilestones = grade.milestones.filter(m => m.status === 'completed').length;
+    const progressPercentage = grade.milestones.length > 0 
+      ? Math.round((completedMilestones / grade.milestones.length) * 100) 
+      : 0;
+
     res.json({
       success: true,
       grade: {
         id: grade._id,
         supervisor: grade.supervisor,
-        subject: grade.internshipSubject,
+        subject: subjectInfo,
         workType: grade.workType,
         company: grade.company,
         projectTopic: grade.projectTopic,
@@ -1074,16 +1210,22 @@ router.get("/student/my-progress", authenticate, authorize(["sinh-vien"]), async
           id: m._id,
           type: m.type,
           title: m.title,
+          description: m.description,
           dueDate: m.dueDate,
           status: m.status,
           completedAt: m.completedAt,
-          supervisorNotes: m.supervisorNotes
+          supervisorNotes: m.supervisorNotes,
+          fileSubmissions: m.fileSubmissions || [],
+          submittedDocuments: m.submittedDocuments || []
         })),
-        progressPercentage: grade.getProgressPercentage(),
+        gradeComponents: grade.gradeComponents || [],
+        progressPercentage: progressPercentage,
         finalGrade: grade.status === 'approved' ? grade.finalGrade : null,
         letterGrade: grade.status === 'approved' ? grade.letterGrade : null,
         supervisorFinalComment: grade.status === 'submitted' || grade.status === 'approved' ? grade.supervisorFinalComment : null,
-        submittedToBCN: grade.submittedToBCN
+        submittedToBCN: grade.submittedToBCN,
+        appealStatus: grade.appealStatus || 'none',
+        appealReviewer: grade.appealReviewer
       }
     });
   } catch (error) {
@@ -1099,7 +1241,7 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Chỉ Phòng Đào Tạo mới có quyền truy cập" });
     }
 
-    const { page = 1, limit = 20, status, workType, subjectId, supervisorId, search } = req.query;
+    const { page = 1, limit = 20, status, workType, khoa, supervisorId, search } = req.query;
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
 
@@ -1107,7 +1249,6 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
     const query = {};
     if (status && status !== "all") query.status = status;
     if (workType && workType !== "all") query.workType = workType;
-    if (subjectId) query.internshipSubject = subjectId;
     if (supervisorId) query.supervisor = supervisorId;
 
     // Handle text search
@@ -1116,14 +1257,12 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       grades = await InternshipGrade.find(query)
         .populate('student', 'id name email')
         .populate('supervisor', 'id name email')
-        .populate('internshipSubject', 'id title')
         .sort({ updatedAt: -1 });
       
       const searchLower = search.toLowerCase();
       grades = grades.filter(grade => 
         grade.student?.name.toLowerCase().includes(searchLower) ||
-        grade.supervisor?.name.toLowerCase().includes(searchLower) ||
-        grade.internshipSubject?.title.toLowerCase().includes(searchLower)
+        grade.supervisor?.name.toLowerCase().includes(searchLower)
       );
       
       const total = grades.length;
@@ -1184,9 +1323,16 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
         ? ((passCount / validGrades.length) * 100).toFixed(1)
         : 0;
 
-      return res.json({
-        success: true,
-        grades: grades.map(grade => ({
+      // Get khoa for each grade's supervisor
+      const gradesWithKhoa = await Promise.all(grades.map(async grade => {
+        let khoaInfo = 'N/A';
+        if (grade.supervisor) {
+          const supervisorGV = await GiangVien.findOne({ account: grade.supervisor._id }).lean();
+          if (supervisorGV) {
+            khoaInfo = supervisorGV.khoa;
+          }
+        }
+        return {
           id: grade._id,
           student: grade.student ? {
             id: grade.student.id,
@@ -1197,10 +1343,7 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
             id: grade.supervisor.id,
             name: grade.supervisor.name
           } : null,
-          subject: grade.internshipSubject ? {
-            id: grade.internshipSubject.id,
-            title: grade.internshipSubject.title
-          } : null,
+          khoa: khoaInfo,
           workType: grade.workType,
           company: grade.company,
           projectTopic: grade.projectTopic,
@@ -1212,7 +1355,12 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
           startDate: grade.startDate,
           endDate: grade.endDate,
           updatedAt: grade.updatedAt
-        })),
+        };
+      }));
+
+      return res.json({
+        success: true,
+        grades: gradesWithKhoa,
         pagination: {
           page: pageNum,
           pages: Math.max(1, Math.ceil(total / limitNum)),
@@ -1236,7 +1384,6 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       InternshipGrade.find(query)
         .populate('student', 'id name email')
         .populate('supervisor', 'id name email')
-        .populate('internshipSubject', 'id title')
         .sort({ updatedAt: -1 })
         .limit(limitNum)
         .skip((pageNum - 1) * limitNum),
@@ -1302,9 +1449,16 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       ? ((passCount / validGrades.length) * 100).toFixed(1)
       : 0;
 
-    res.json({
-      success: true,
-      grades: grades.map(grade => ({
+    // Get khoa for each grade's supervisor
+    const gradesWithKhoa = await Promise.all(grades.map(async grade => {
+      let khoaInfo = 'N/A';
+      if (grade.supervisor) {
+        const supervisorGV = await GiangVien.findOne({ account: grade.supervisor._id }).lean();
+        if (supervisorGV) {
+          khoaInfo = supervisorGV.khoa;
+        }
+      }
+      return {
         id: grade._id,
         student: grade.student ? {
           id: grade.student.id,
@@ -1315,14 +1469,11 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
           id: grade.supervisor.id,
           name: grade.supervisor.name
         } : null,
-        subject: grade.internshipSubject ? {
-          id: grade.internshipSubject.id,
-          title: grade.internshipSubject.title
-        } : null,
-          workType: grade.workType,
-          company: grade.company,
-          projectTopic: grade.projectTopic,
-          status: grade.status,
+        khoa: khoaInfo,
+        workType: grade.workType,
+        company: grade.company,
+        projectTopic: grade.projectTopic,
+        status: grade.status,
         finalGrade: grade.finalGrade,
         letterGrade: grade.letterGrade,
         progressPercentage: grade.getProgressPercentage(),
@@ -1330,7 +1481,12 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
         startDate: grade.startDate,
         endDate: grade.endDate,
         updatedAt: grade.updatedAt
-      })),
+      };
+    }));
+
+    res.json({
+      success: true,
+      grades: gradesWithKhoa,
       pagination: {
         page: pageNum,
         pages: Math.max(1, Math.ceil(total / limitNum)),
@@ -1369,8 +1525,7 @@ router.put("/students/:studentId/work-info", authenticate, authorize(["giang-vie
     // Find the grade record
     let grade = await InternshipGrade.findOne({ student: studentAccount._id })
       .populate('student', 'id name email')
-      .populate('supervisor', 'id name email')
-      .populate('internshipSubject', 'id title');
+      .populate('supervisor', 'id name email');
 
     if (!grade) {
       return res.status(404).json({ success: false, error: "Không tìm thấy thông tin điểm" });

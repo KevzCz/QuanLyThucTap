@@ -49,9 +49,8 @@ class DeadlineReminderService {
         }
       }).populate({
         path: 'pageHeader',
-        select: 'pageType internshipSubject instructor',
+        select: 'pageType khoa instructor',
         populate: [
-          { path: 'internshipSubject', select: 'name students' },
           { path: 'instructor', select: 'fullName account' }
         ]
       });
@@ -79,14 +78,14 @@ class DeadlineReminderService {
         return;
       }
 
-      const { pageType, internshipSubject, instructor } = subHeader.pageHeader;
+      const { pageType, khoa, instructor } = subHeader.pageHeader;
       let students = [];
 
       // Get relevant students based on page type
-      if (pageType === 'khoa' && internshipSubject) {
-        // For khoa pages, get all students in the subject (internshipSubject.students is array of Account IDs)
+      if (pageType === 'khoa' && khoa) {
+        // For khoa pages, get all students in that khoa
         students = await SinhVien.find({
-          account: { $in: internshipSubject.students }
+          khoa: khoa
         }).select('account _id');
       } else if (pageType === 'teacher' && instructor && instructor.account) {
         // For teacher pages, get students supervised by this teacher (using Account ID)
@@ -101,7 +100,7 @@ class DeadlineReminderService {
       for (const student of students) {
         const hasSubmitted = await FileSubmission.exists({
           subHeader: subHeader._id,
-          student: student._id
+          submitter: student.account
         });
 
         if (!hasSubmitted) {
@@ -124,9 +123,6 @@ class DeadlineReminderService {
       const now = new Date();
       const daysUntilDeadline = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
 
-      const instructorName = subHeader.pageHeader.instructor?.fullName || 'Giảng viên';
-      const subjectName = subHeader.pageHeader.internshipSubject?.name || '';
-
       let urgencyText = '';
       let priority = 'normal';
       
@@ -148,7 +144,7 @@ class DeadlineReminderService {
       await notificationService.createNotification({
         recipient: student.account,
         type: 'deadline-reminder',
-        title: `Nhắc nhở nộp file${subjectName ? ` - ${subjectName}` : ''}`,
+        title: 'Nhắc nhở nộp file',
         message,
         link,
         priority,

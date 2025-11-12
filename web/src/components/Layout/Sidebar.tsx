@@ -15,18 +15,19 @@ const ROLE_MENUS: Record<Role, Item[]> = {
   "phong-dao-tao": [
     baseHome,
     { path: "/accounts", label: "Quản lý tài khoản", icon: <span>👥</span> },
-    { path: "/menu-list", label: "Quản lý môn thực tập", icon: <span>📚</span> },
-    { path: "/summary", label: "Quản lý tổng kết", icon: <span>📋</span> },
+    { path: "/hocky", label: "Quản lý học kỳ", icon: <span>📅</span> },
     { path: "/stats", label: "Thống kê điểm", icon: <span>📊</span> },
+    { path: "/notifications", label: "Quản lý thông báo", icon: <span>🔔</span> },
     { path: "/chat", label: "Chat hỗ trợ", icon: <span>💬</span> },
   ],
   "ban-chu-nhiem": [
     baseHome,
-    { path: "/bcn-internship", label: "Quản lý môn thực tập", icon: <span>📚</span> },
+    { path: "/bcn-internship", label: "Quản lý khoa", icon: <span>📚</span> },
     { path: "/bcn-page", label: "Quản lý trang khoa", icon: <span>🏫</span> },
     { path: "/request", label: "Quản lý yêu cầu", icon: <span>📝</span> },
     { path: "/bcn-reports", label: "Quản lý báo cáo", icon: <span>📄</span> },
-    { path: "/grade-review", label: "Duyệt điểm thực tập", icon: <span>✅</span> },
+    { path: "/grade-management", label: "Xem điểm thực tập", icon: <span>📊</span> },
+    { path: "/notifications", label: "Quản lý thông báo", icon: <span>🔔</span> },
     { path: "/chat", label: "Chat hỗ trợ", icon: <span>💬</span> },
   ],
   "giang-vien": [
@@ -34,9 +35,9 @@ const ROLE_MENUS: Record<Role, Item[]> = {
     { path: "/teacher-students", label: "Quản lý sinh viên", icon: <span>👨‍🎓</span> },
     { path: "/docs-dept", label: "Xem tài liệu khoa", icon: <span>📖</span> },
     { path: "/teacher-page", label: "Quản lý trang gv", icon: <span>👨‍🏫</span> },
-    { path: "/teacher-internship-registration", label: "Đăng ký môn", icon: <span>📝</span> },
     { path: "/teacher-reports", label: "Quản lý báo cáo", icon: <span>📑</span> },
     { path: "/grade-management", label: "Quản lý điểm", icon: <span>🎯</span> },
+    { path: "/notifications", label: "Quản lý thông báo", icon: <span>🔔</span> },
     { path: "/chat", label: "Chat hỗ trợ", icon: <span>💬</span> },
   ],
   "sinh-vien": [
@@ -44,8 +45,8 @@ const ROLE_MENUS: Record<Role, Item[]> = {
     { path: "/docs-dept", label: "Xem tài liệu khoa", icon: <span>📖</span> },
     { path: "/docs-teacher", label: "Xem tài liệu gv", icon: <span>👨‍🏫</span> },
     { path: "/my-internship", label: "Tiến độ thực tập", icon: <span>📊</span> },
+    { path: "/notifications", label: "Quản lý thông báo", icon: <span>🔔</span> },
     { path: "/chat", label: "Chat hỗ trợ", icon: <span>💬</span> },
-    { path: "/internship-registration", label: "Đăng ký môn", icon: <span>✍️</span> },
   ],
 };
 

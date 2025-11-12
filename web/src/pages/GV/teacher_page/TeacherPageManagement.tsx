@@ -106,7 +106,7 @@ const TeacherPageManagement: React.FC = () => {
       const response = await apiClient.request('/pages/teacher/managed') as TeacherPageStructure;
       
       if (!response.subject) {
-        setError("Bạn chưa được phân công hướng dẫn môn thực tập nào");
+        setError("Bạn chưa có trang giảng viên");
         setTeacherData(response);
         setData([]);
         return;
@@ -159,15 +159,15 @@ const TeacherPageManagement: React.FC = () => {
     if (!teacherData?.subject) return;
     
     try {
-      // Use the correct API route from pages.js
-      const response = await apiClient.request(`/pages/teacher/subjects/${teacherData.subject.id}/headers`, {
+      // Use the correct API route - teachers don't use subject ID in path
+      const response = await apiClient.request(`/pages/teacher/headers`, {
         method: 'POST',
         body: JSON.stringify({
           title: h.title,
-          order: 1, // Server will auto-adjust if needed
+          order: data.length + 1, // Add at the end
           audience: h.audience
         })
-      }) as { header: HeaderBlock };
+      }) as { success: boolean; header: HeaderBlock };
       
       const newHeader = response.header;
       const transformedHeader = {
@@ -296,7 +296,7 @@ const TeacherPageManagement: React.FC = () => {
   const gotoSub = (h: HeaderBlock, s: SubHeader) => {
     const base = `/teacher-page/sub/${encodeURIComponent(s.id)}`;
     const path = s.kind === "nop-file" ? `${base}/upload` : base;
-    navigate(path, { state: { header: h, sub: s, subjectId: teacherData?.subject?.id } });
+    navigate(path, { state: { header: h, sub: s, khoa: teacherData?.subject?.id } });
   };
 
   // Enhanced drag and drop handlers for headers
@@ -360,7 +360,7 @@ const TeacherPageManagement: React.FC = () => {
 
       // Create a simple reorder endpoint call
       const headerIds = newData.map(h => h._id || h.id);
-      await apiClient.reorderTeacherHeaders(teacherData.subject.id, headerIds);
+      await apiClient.reorderTeacherHeaders(headerIds);
       showSuccess('Đã thay đổi thứ tự header thành công');
     } catch (err) {
       console.error('Failed to reorder headers:', err);
@@ -492,10 +492,10 @@ const TeacherPageManagement: React.FC = () => {
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
           <div className="text-6xl mb-4">👨‍🏫</div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            {error || "Chưa có môn hướng dẫn"}
+            {error || "Chưa có trang giảng viên"}
           </h3>
           <p className="text-gray-600">
-            {error || "Bạn chưa được phân công hướng dẫn môn thực tập nào."}
+            {error || "Bạn chưa có trang giảng viên để quản lý."}
           </p>
           <button
             onClick={loadTeacherPageData}

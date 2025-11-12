@@ -36,6 +36,7 @@ const GradeManagement: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await getSupervisorGrades(statusFilter);
+      console.log('Loaded grades:', response.grades.map(g => ({ id: g.student.id, workType: g.workType })));
       setGrades(response.grades);
     } catch (err) {
       console.error('Failed to load grades:', err);
@@ -49,6 +50,27 @@ const GradeManagement: React.FC = () => {
 
   useEffect(() => {
     loadGrades();
+  }, [loadGrades]);
+
+  // Reload grades when page becomes visible (user returns from detail page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadGrades();
+      }
+    };
+
+    const handleFocus = () => {
+      loadGrades();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [loadGrades]);
 
   // Filter and paginate grades

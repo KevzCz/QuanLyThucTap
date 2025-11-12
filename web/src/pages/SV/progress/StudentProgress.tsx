@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PageLayout from '../../../components/UI/PageLayout';
+import Modal from '../../../util/Modal';
 import { Icons } from '../../../components/UI/Icons';
 import { useToast } from '../../../components/UI/Toast';
 import { 
@@ -15,6 +16,7 @@ import {
   deleteMilestoneFile
 } from '../../../services/gradeApi';
 import { resolveFileHref } from '../../../utils/fileLinks';
+import { apiClient } from '../../../utils/api';
 import dayjs from 'dayjs';
 import { useAuth } from '../../../contexts/UseAuth';
 
@@ -23,6 +25,9 @@ const StudentProgress: React.FC = () => {
   const [grade, setGrade] = useState<InternshipGrade | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploadingFileForMilestone, setUploadingFileForMilestone] = useState<string | null>(null);
+  const [showAppealDialog, setShowAppealDialog] = useState(false);
+  const [appealReason, setAppealReason] = useState('');
+  const [submittingAppeal, setSubmittingAppeal] = useState(false);
   const { showError, showSuccess } = useToast();
 
   const loadProgress = useCallback(async () => {
@@ -105,6 +110,28 @@ const StudentProgress: React.FC = () => {
     }
   };
 
+  const handleSubmitAppeal = async () => {
+    if (!grade || !appealReason.trim()) {
+      showError('Vui lòng nhập lý do phúc khảo');
+      return;
+    }
+
+    try {
+      setSubmittingAppeal(true);
+      await apiClient.createGradeAppeal(grade.id, appealReason);
+      showSuccess('Đã gửi yêu cầu phúc khảo thành công');
+      setShowAppealDialog(false);
+      setAppealReason('');
+      // Reload grade to show appeal status
+      await loadProgress();
+    } catch (err) {
+      console.error('Failed to submit appeal:', err);
+      showError('Không thể gửi yêu cầu phúc khảo');
+    } finally {
+      setSubmittingAppeal(false);
+    }
+  };
+
   useEffect(() => {
     loadProgress();
   }, [loadProgress]);
@@ -171,7 +198,7 @@ const StudentProgress: React.FC = () => {
               <div className="space-y-3">
                 <div>
                   <span className="text-sm font-medium text-gray-500">Đề tài:</span>
-                  <p className="text-sm text-gray-900">{grade.subject.title}</p>
+                  <p className="text-sm text-gray-900">{grade.subject?.title || 'Chưa cập nhật'}</p>
                 </div>
                 <div>
                   <span className="text-sm font-medium text-gray-500">Loại:</span>
@@ -406,7 +433,7 @@ const StudentProgress: React.FC = () => {
                 </div>
               ))}
               
-              {grade.finalGrade !== undefined && (
+              {grade.finalGrade != null && (
                 <div className="border-t pt-4">
                   <div className="flex items-center justify-between p-4 bg-blue-50 rounded">
                     <span className="text-lg font-bold text-blue-900">Điểm tổng kết</span>
@@ -427,9 +454,120 @@ const StudentProgress: React.FC = () => {
                 <p className="text-green-800 mt-1">{grade.supervisorFinalComment}</p>
               </div>
             )}
+
+            {/* Appeal Button */}
+            {grade.status === 'approved' && grade.appealStatus === 'none' && (
+              <div className="mt-4 pt-4 border-t">
+                <button
+                  onClick={() => setShowAppealDialog(true)}
+                  className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center justify-center gap-2"
+                >
+                  <Icons.info className="w-5 h-5" />
+                  Phúc khảo chấm lại
+                </button>
+                <p className="text-xs text-gray-500 text-center mt-2">
+                  Nếu bạn không đồng ý với điểm số, bạn có thể gửi yêu cầu phúc khảo
+                </p>
+              </div>
+            )}
+
+            {/* Appeal Status */}
+            {grade.appealStatus && grade.appealStatus !== 'none' && (
+              <div className={`mt-4 p-4 rounded ${
+                grade.appealStatus === 'pending' ? 'bg-yellow-50 border border-yellow-200' :
+                grade.appealStatus === 'reviewing' ? 'bg-blue-50 border border-blue-200' :
+                grade.appealStatus === 'completed' ? 'bg-green-50 border border-green-200' :
+                'bg-red-50 border border-red-200'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <Icons.info className={`w-5 h-5 ${
+                    grade.appealStatus === 'pending' ? 'text-yellow-600' :
+                    grade.appealStatus === 'reviewing' ? 'text-blue-600' :
+                    grade.appealStatus === 'completed' ? 'text-green-600' :
+                    'text-red-600'
+                  }`} />
+                  <span className={`font-medium ${
+                    grade.appealStatus === 'pending' ? 'text-yellow-900' :
+                    grade.appealStatus === 'reviewing' ? 'text-blue-900' :
+                    grade.appealStatus === 'completed' ? 'text-green-900' :
+                    'text-red-900'
+                  }`}>
+                    {grade.appealStatus === 'pending' && 'Yêu cầu phúc khảo đang chờ xử lý'}
+                    {grade.appealStatus === 'reviewing' && 'Đang phúc khảo điểm'}
+                    {grade.appealStatus === 'completed' && 'Phúc khảo hoàn tất'}
+                    {grade.appealStatus === 'rejected' && 'Yêu cầu phúc khảo bị từ chối'}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Appeal Dialog */}
+      <Modal
+        open={showAppealDialog}
+        onClose={() => {
+          setShowAppealDialog(false);
+          setAppealReason('');
+        }}
+        title="Yêu cầu phúc khảo chấm lại"
+        widthClass="max-w-2xl"
+        actions={
+          <>
+            <button
+              onClick={() => {
+                setShowAppealDialog(false);
+                setAppealReason('');
+              }}
+              disabled={submittingAppeal}
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Hủy
+            </button>
+            <button
+              onClick={handleSubmitAppeal}
+              disabled={!appealReason.trim() || submittingAppeal}
+              className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submittingAppeal ? 'Đang gửi...' : 'Gửi yêu cầu'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Lý do phúc khảo <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={appealReason}
+              onChange={(e) => setAppealReason(e.target.value)}
+              rows={6}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              placeholder="Vui lòng nêu rõ lý do bạn muốn phúc khảo điểm..."
+              maxLength={1000}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {appealReason.length}/1000 ký tự
+            </p>
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            <div className="flex gap-2">
+              <Icons.info className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+              <div className="text-sm text-yellow-800">
+                <p className="font-medium">Lưu ý:</p>
+                <ul className="list-disc list-inside mt-1 space-y-1">
+                  <li>Yêu cầu phúc khảo sẽ được gửi đến BCN để xem xét</li>
+                  <li>BCN sẽ phân công giảng viên khác chấm lại</li>
+                  <li>Điểm sau khi phúc khảo có thể cao hơn hoặc thấp hơn điểm hiện tại</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </PageLayout>
   );
 };

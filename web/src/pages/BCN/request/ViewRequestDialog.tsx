@@ -66,10 +66,10 @@ const ViewRequestDialog: React.FC<Props> = ({ open, onClose, row, onAccept, onRe
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Môn thực tập</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Khoa</label>
             <input
               disabled
-              value={row.internshipSubject ? `${row.internshipSubject.title} (${row.internshipSubject.id})` : ""}
+              value={row.khoa || "Chưa có thông tin khoa"}
               className="w-full h-11 rounded-lg border border-gray-200 px-3 bg-gray-50"
             />
           </div>

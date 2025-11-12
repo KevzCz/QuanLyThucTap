@@ -28,10 +28,7 @@ export interface TeacherReport {
   }>;
   createdAt: string;
   updatedAt: string;
-  internshipSubject: {
-    id: string;
-    title: string;
-  };
+  khoa?: string;
   instructor: {
     id: string;
     name: string;
@@ -82,8 +79,8 @@ const ReportManagement: React.FC = () => {
   const [currentLecturer, setCurrentLecturer] = useState<{
     id: string;
     name: string;
-    subjectId?: string;
-    subjectTitle?: string;
+    khoa?: string;
+    khoaTitle?: string;
   } | null>(null);
 
   // Filters and pagination
@@ -281,7 +278,7 @@ setReports(prev => prev.map(r =>
         </select>
 
         <div className="w-full sm:w-auto whitespace-nowrap h-10 rounded-full border border-gray-300 bg-white px-4 sm:px-6 text-xs sm:text-sm text-gray-700 text-center flex items-center justify-center">
-          {currentLecturer.subjectTitle || 'Chưa có môn thực tập'} ({currentLecturer.name})
+          {currentLecturer.khoaTitle || (currentLecturer.khoa ? `Khoa ${currentLecturer.khoa}` : 'Chưa có thông tin khoa')} ({currentLecturer.name})
         </div>
 
         <button

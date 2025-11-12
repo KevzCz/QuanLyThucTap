@@ -47,6 +47,17 @@ const AccountSchema = new mongoose.Schema(
       required: true,
       enum: ["open", "locked"],
       default: "open"
+    },
+    mustChangePassword: {
+      type: Boolean,
+      default: function() {
+        // Only sinh viên accounts must change password on first login
+        return this.role === 'sinh-vien';
+      }
+    },
+    lastPasswordChange: {
+      type: Date,
+      default: null
     }
   },
   { 

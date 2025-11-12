@@ -33,6 +33,26 @@ const ViewAccountDialog: React.FC<Props> = ({ open, onClose, account }) => {
             <Item label="Vai trò" value={roleLabel[account.role]} />
             <Item label="Email" value={account.email} />
             <Item label="Trạng thái" value={account.status === "open" ? "Mở" : "Khóa"} />
+            
+            {(account.role === "ban-chu-nhiem" || account.role === "giang-vien" || account.role === "sinh-vien") && account.khoa && (
+              <Item label="Khoa" value={account.khoa} />
+            )}
+            
+            {account.role === "sinh-vien" && account.year && (
+              <Item label="Năm học" value={account.year} />
+            )}
+            
+            {account.role === "giang-vien" && account.maxStudents !== undefined && (
+              <Item 
+                label="Số SV tối đa" 
+                value={
+                  <span>
+                    {account.maxStudents} 
+                    <span className="text-xs text-gray-500 ml-1">(tự động)</span>
+                  </span>
+                } 
+              />
+            )}
           </div>
         </div>
       )}

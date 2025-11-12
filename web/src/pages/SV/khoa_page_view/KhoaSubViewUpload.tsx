@@ -15,7 +15,7 @@ import dayjs from "dayjs";
 import { resolveFileHref /*, buildDownloadHref */ } from "../../../utils/fileLinks";
 
 const KhoaSubViewUpload: React.FC = () => {
-  const { state } = useLocation() as { state?: { subjectId?: string; sub?: SubHeader } };
+  const { state } = useLocation() as { state?: { khoa?: string; sub?: SubHeader } };
   const { subId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -219,7 +219,7 @@ const KhoaSubViewUpload: React.FC = () => {
             ← Quay lại trang khoa
           </button>
           <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-            <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "Môn thực tập"}
+            <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.khoa ? `Khoa ${state.khoa}` : "Trang khoa"}
           </span>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm p-8 text-center">
@@ -245,7 +245,7 @@ const KhoaSubViewUpload: React.FC = () => {
           ← Quay lại trang khoa
         </button>
         <span className="inline-flex items-center gap-2 rounded-full border px-3 h-9 text-sm text-gray-700">
-          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.subjectId ?? "Môn thực tập"}
+          <span className="w-2 h-2 rounded-full bg-blue-500" /> {state?.khoa ? `Khoa ${state.khoa}` : "Trang khoa"}
         </span>
       </div>
 

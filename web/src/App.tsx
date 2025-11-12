@@ -7,28 +7,39 @@ import DashboardLayout from "./components/Layout/DashboardLayout";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
 import AccountManagement from "./pages/PDT/account/AccountManagement";
-import InternshipSubjectManagement from "./pages/PDT/internship_subject_management/InternshipSubjectManagement";
-import BCNInternshipSubjectManagement from "./pages/BCN/internship_subject/InternshipSubjectManagement";
+import HocKyManagement from "./pages/PDT/hocky/HocKyManagement";
+import BCNInternshipSubjectManagement from "./pages/BCN/khoa_management/KhoaManagement";
 import KhoaPageManagement from "./pages/BCN/khoa_page/KhoaPageManagement";
 import KhoaPageRoutes from "./pages/BCN/khoa_page/KhoaPageRoutes";
 import RequestManagement from "./pages/BCN/request/RequestManagement";
-import GradeReviewList from "./pages/BCN/grade_review/GradeReviewList";
-import GradeReviewDetail from "./pages/BCN/grade_review/GradeReviewDetail";
+import GradeManagementBCN from "./pages/BCN/grade_management/GradeManagementBCN";
 import StudentManagement from "./pages/GV/student_management/StudentManagement";
 import GradeManagement from "./pages/GV/grade_management/GradeManagement";
 import StudentGradeDetail from "./pages/GV/grade_management/StudentGradeDetail";
 import { TeacherPageRoutes, ReportManagement as GVReportManagement } from "./pages/GV";
-import { KhoaPageViewRoutes, TeacherPageViewRoutes, InternshipSubjectRegister as SVInternshipSubjectRegister, StudentProgress } from "./pages/SV";
+import { KhoaPageViewRoutes, TeacherPageViewRoutes, StudentProgress } from "./pages/SV";
 import { ChatManagement as PDTChatManagement, ReportSummaryManagement, GradeStatistics } from "./pages/PDT";
 import { ChatManagement as BCNChatManagement } from "./pages/BCN";
 import { ChatManagement as GVChatManagement } from "./pages/GV";
 import { ChatManagement as SVChatManagement } from "./pages/SV";
-import { InternshipSubjectRegister as GVInternshipSubjectRegister, KhoaPageViewRoutes as GVKhoaPageViewRoutes } from "./pages/GV";
+import { KhoaPageViewRoutes as GVKhoaPageViewRoutes } from "./pages/GV";
 import { ToastProvider } from './components/UI/Toast';
 import KhoaReportManagement from "./pages/BCN/report/KhoaReportManagement";
+import NotificationManagement from "./pages/NotificationManagement";
+import ChangePasswordDialog from "./components/ChangePasswordDialog";
 
 const AppRoutes: React.FC = () => {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
+  const [showPasswordDialog, setShowPasswordDialog] = React.useState(false);
+
+  // Check if user needs to change password
+  React.useEffect(() => {
+    if (isAuthenticated && user?.mustChangePassword) {
+      setShowPasswordDialog(true);
+    } else {
+      setShowPasswordDialog(false);
+    }
+  }, [isAuthenticated, user?.mustChangePassword]);
 
   if (isLoading) {
     return (
@@ -44,6 +55,7 @@ const AppRoutes: React.FC = () => {
   const Stub = (t: string) => <div className="p-6 text-gray-800">{t}</div>;
 
   return (
+    <>
     <Routes>
       {/* Public */}
       <Route 
@@ -66,6 +78,7 @@ const AppRoutes: React.FC = () => {
 
         {/* Common */}
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="notifications" element={<NotificationManagement />} />
         <Route path="chat" element={
           user?.role === "phong-dao-tao" ? <PDTChatManagement /> :
           user?.role === "ban-chu-nhiem" ? <BCNChatManagement /> :
@@ -78,7 +91,7 @@ const AppRoutes: React.FC = () => {
         {user?.role === "phong-dao-tao" && (
           <>
             <Route path="accounts" element={<AccountManagement />} />
-            <Route path="menu-list" element={<InternshipSubjectManagement />} />
+            <Route path="hocky" element={<HocKyManagement />} />
             <Route path="summary" element={<ReportSummaryManagement />} />
             <Route path="stats" element={<GradeStatistics />} />
           </>
@@ -92,8 +105,7 @@ const AppRoutes: React.FC = () => {
             <Route path="bcn-page/*" element={<KhoaPageRoutes />} />
             <Route path="request" element={<RequestManagement />} />
             <Route path="bcn-reports" element={<KhoaReportManagement />}/>
-            <Route path="grade-review" element={<GradeReviewList />} />
-            <Route path="grade-review/:gradeId" element={<GradeReviewDetail />} />
+            <Route path="grade-management" element={<GradeManagementBCN />} />
           </>
         )}
 
@@ -103,7 +115,6 @@ const AppRoutes: React.FC = () => {
             <Route path="teacher-students" element={<StudentManagement />} />
             <Route path="docs-dept/*" element={<GVKhoaPageViewRoutes />} />
             <Route path="teacher-page/*" element={<TeacherPageRoutes />} />
-            <Route path="teacher-internship-registration" element={<GVInternshipSubjectRegister />} />
             <Route path="teacher-reports" element={<GVReportManagement />} />
             <Route path="grade-management" element={<GradeManagement />} />
             <Route path="grade-management/:studentId" element={<StudentGradeDetail />} />
@@ -115,7 +126,6 @@ const AppRoutes: React.FC = () => {
           <>
             <Route path="docs-dept/*" element={<KhoaPageViewRoutes />} />
             <Route path="docs-teacher/*" element={<TeacherPageViewRoutes />} />
-            <Route path="internship-registration" element={<SVInternshipSubjectRegister />} />
             <Route path="my-internship" element={<StudentProgress />} />
             <Route path="profile" element={Stub("Hồ sơ cá nhân")} />
           </>
@@ -124,6 +134,19 @@ const AppRoutes: React.FC = () => {
 
       <Route path="*" element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} />
     </Routes>
+
+    {/* Password change dialog */}
+    {isAuthenticated && (
+      <ChangePasswordDialog
+        open={showPasswordDialog}
+        isForced={true}
+        onSuccess={async () => {
+          await refreshUser();
+          setShowPasswordDialog(false);
+        }}
+      />
+    )}
+    </>
   );
 };
 

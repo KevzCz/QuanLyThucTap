@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Modal from "../../../util/Modal";
-import FileDrop from "../../BCN/internship_subject/_FileDrop";
+import FileDrop from "../../BCN/khoa_management/_FileDrop";
 import { apiClient } from "../../../utils/api";
 import { useToast } from "../../../components/UI/Toast";
 
@@ -11,7 +11,7 @@ interface Props {
   onClose: () => void;
   advisorId: string;
   advisorName: string;
-  subjectId?: string;
+  khoa?: string;
   onParsed: (rows: RowLite[]) => void;
   onRequestSingle: (sv: RowLite) => void;
 }
@@ -30,7 +30,7 @@ const GVAddStudentsDialog: React.FC<Props> = ({
   onClose, 
   advisorId, 
   advisorName, 
-  subjectId,
+  khoa,
   onParsed, 
   onRequestSingle 
 }) => {
@@ -44,7 +44,7 @@ const GVAddStudentsDialog: React.FC<Props> = ({
 
   // Load available students when dialog opens
   useEffect(() => {
-    if (open && subjectId) {
+    if (open && khoa) {
       loadAvailableStudents();
       // Reset form
       setSvId("");
@@ -53,34 +53,32 @@ const GVAddStudentsDialog: React.FC<Props> = ({
       setValidationError("");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, subjectId]);
+  }, [open, khoa]);
 
   const loadAvailableStudents = async () => {
     try {
       setLoading(true);
       setError("");
       
-      // Get students in the subject who don't have supervisors
+      // Get students in the khoa who don't have supervisors
       const response = await apiClient.request<{
         success: boolean;
-        subject: {
-          students: Array<{
-            id: string;
-            name: string;
-            email: string;
-            supervisor?: { id: string; name: string };
-          }>;
-        };
-      }>(`/internship-subjects/${subjectId}`);
+        students: Array<{
+          id: string;
+          name: string;
+          email: string;
+          supervisor?: { id: string; name: string };
+        }>;
+      }>(`/students?khoa=${khoa}`);
 
-      if (response.success && response.subject) {
-        const studentsData = response.subject.students.map(student => ({
+      if (response.success && response.students) {
+        const studentsData = response.students.map(student => ({
           id: student.id,
           name: student.name,
           email: student.email,
           hasNoSupervisor: !student.supervisor,
           currentSupervisor: student.supervisor?.name,
-          isCurrentAdvisor: student.supervisor?.id === advisorId // This will be true/false, not undefined
+          isCurrentAdvisor: student.supervisor?.id === advisorId
         }));
         
         setAvailableStudents(studentsData);
@@ -115,7 +113,7 @@ const GVAddStudentsDialog: React.FC<Props> = ({
       // Check if student ID exists but not in subject
       const allStudentsInDb = availableStudents.some(s => s.id.toLowerCase().includes(value.toLowerCase()));
       if (!allStudentsInDb && value.length >= 4) {
-        setValidationError("Sinh viên này không tham gia môn thực tập hoặc không tồn tại trong hệ thống");
+        setValidationError("Sinh viên này không tồn tại trong hệ thống hoặc không thuộc khoa");
       }
       setSvName("");
     } else {
@@ -131,7 +129,7 @@ const GVAddStudentsDialog: React.FC<Props> = ({
 
     const student = availableStudents.find(s => s.id === svId);
     if (!student) {
-      setValidationError("Sinh viên không tồn tại trong môn thực tập này");
+      setValidationError("Sinh viên không tồn tại trong khoa này");
       return;
     }
 
@@ -248,7 +246,7 @@ const GVAddStudentsDialog: React.FC<Props> = ({
               <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
                 <p className="text-sm text-blue-700">
                   <strong>Thống kê:</strong> Có {unassignedStudents.length} sinh viên chưa được phân giảng viên hướng dẫn 
-                  trong tổng số {availableStudents.length} sinh viên tham gia môn thực tập này.
+                  trong tổng số {availableStudents.length} sinh viên trong khoa.
                   {availableStudents.filter(s => s.isCurrentAdvisor === true).length > 0 && (
                     <span className="block mt-1">
                       (Bạn đang hướng dẫn {availableStudents.filter(s => s.isCurrentAdvisor === true).length} sinh viên)
@@ -268,7 +266,7 @@ const GVAddStudentsDialog: React.FC<Props> = ({
                 rows.forEach(row => {
                   const student = availableStudents.find(s => s.id === row.id);
                   if (!student) {
-                    invalidRows.push(`${row.id}: Không tồn tại trong môn thực tập`);
+                    invalidRows.push(`${row.id}: Không tồn tại trong khoa này`);
                   } else if (student.isCurrentAdvisor === true) {
                     invalidRows.push(`${row.id}: Bạn đã đang hướng dẫn sinh viên này`);
                   } else if (!student.hasNoSupervisor) {
