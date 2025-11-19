@@ -4,6 +4,13 @@ export type Audience = "tat-ca" | "sinh-vien" | "giang-vien";
 // + add "thong-bao"
 export type SubKind  = "thuong" | "nop-file" | "van-ban" | "thong-bao" | "file";
 
+export interface Attachment {
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  uploadedAt: string;
+}
+
 export interface SubHeader {
   id: string;
   _id?: string; // Backend compatibility
@@ -16,6 +23,7 @@ export interface SubHeader {
   endAt?: string;         // only for "nop-file"
   fileUrl?: string;       // only for "file" - the download URL
   fileName?: string;      // only for "file" - display name
+  attachments?: Attachment[]; // files that can be added to any subheader
 }
 
 export interface HeaderBlock {

@@ -219,6 +219,17 @@ const internshipGradeSchema = new mongoose.Schema({
   }],
   bcnComment: String,
   
+  // Grade locking
+  isLocked: {
+    type: Boolean,
+    default: false
+  },
+  lockedAt: Date,
+  lockedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Account'
+  },
+  
   // Metadata
   createdAt: {
     type: Date,

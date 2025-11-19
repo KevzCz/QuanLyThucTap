@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
-import type { SubHeader } from "./TeacherPageTypes";
+import type { SubHeader, Attachment } from "./TeacherPageTypes";
 import dayjs from "dayjs";
 import RichTextEditor from "../../../util/RichTextEditor";
 import { apiClient } from "../../../utils/api";
@@ -8,6 +8,7 @@ import { resolveFileHref } from "../../../utils/fileLinks";
 import { useToast } from "../../../components/UI/Toast";
 import StandardDialog from "../../../components/UI/StandardDialog";
 import { Icons } from "../../../components/UI/Icons";
+import { Upload, X, File, Download } from "lucide-react";
 
 interface FileSubmission {
   _id: string;
@@ -49,6 +50,9 @@ const TeacherSubUpload: React.FC = () => {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [showReviewNoteDialog, setShowReviewNoteDialog] = useState(false);
   const [reviewNoteInput, setReviewNoteInput] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [editingSubmission, setEditingSubmission] = useState<FileSubmission | null>(null);
 
   // Group submissions by submitter for reviewer view
@@ -92,6 +96,7 @@ const TeacherSubUpload: React.FC = () => {
       setCanEdit(subResponse.canEdit);
       setSubmissions(submissionsResponse.submissions);
       setCanReview(submissionsResponse.canReview);
+      setAttachments((subResponse.subHeader as SubHeader).attachments || []);
     } catch (error) {
       console.error('Failed to load data:', error);
       if (state?.sub) {
@@ -99,10 +104,64 @@ const TeacherSubUpload: React.FC = () => {
         setHtml(state.sub.content || "<p>Mô tả cho mục nộp file…</p>");
         setCanEdit(true);
         setCanReview(true); // Teachers can review by default
+        setAttachments(state.sub.attachments || []);
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleAttachmentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    try {
+      setUploadingAttachment(true);
+      const newAttachments: Attachment[] = [];
+
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const uploadResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/uploads`, {
+          method: 'POST',
+          credentials: 'include',
+          body: formData
+        });
+
+        if (!uploadResponse.ok) throw new Error('Upload failed');
+
+        const uploadData = await uploadResponse.json();
+        newAttachments.push({
+          fileUrl: uploadData.fileUrl,
+          fileName: uploadData.fileName,
+          fileSize: uploadData.fileSize,
+          uploadedAt: new Date().toISOString()
+        });
+      }
+
+      setAttachments(prev => [...prev, ...newAttachments]);
+    } catch (error) {
+      console.error('File upload error:', error);
+      showError('Không thể tải file lên');
+    } finally {
+      setUploadingAttachment(false);
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const handleSave = async () => {
@@ -117,7 +176,8 @@ const TeacherSubUpload: React.FC = () => {
         startAt: sub.startAt,
         endAt: sub.endAt,
         fileUrl: sub.fileUrl,
-        fileName: sub.fileName
+        fileName: sub.fileName,
+        attachments
       });
       setEditing(false);
       
@@ -293,6 +353,70 @@ const TeacherSubUpload: React.FC = () => {
               <RichTextEditor html={html} onChange={setHtml} />
             ) : (
               <div className="prose max-w-none text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
+            )}
+          </div>
+
+          {/* Attachments Section */}
+          <div className="mt-6 border-t pt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">📎 File đính kèm (mẫu/tài liệu)</h3>
+              {editing && canEdit && (
+                <button
+                  onClick={() => attachmentInputRef.current?.click()}
+                  disabled={uploadingAttachment}
+                  className="inline-flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                >
+                  <Upload className="w-4 h-4" />
+                  {uploadingAttachment ? 'Đang tải...' : 'Thêm file'}
+                </button>
+              )}
+            </div>
+
+            <input
+              ref={attachmentInputRef}
+              type="file"
+              multiple
+              onChange={handleAttachmentSelect}
+              className="hidden"
+            />
+
+            {attachments.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">Chưa có file đính kèm</p>
+            ) : (
+              <div className="space-y-2">
+                {attachments.map((attachment, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <File className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">{attachment.fileName}</p>
+                        <p className="text-xs text-gray-500">
+                          {formatFileSize(attachment.fileSize)} • {new Date(attachment.uploadedAt).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <a
+                        href={attachment.fileUrl}
+                        download={attachment.fileName}
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-md"
+                        title="Tải xuống"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                      {editing && canEdit && (
+                        <button
+                          onClick={() => handleRemoveAttachment(index)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-md"
+                          title="Xóa"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 

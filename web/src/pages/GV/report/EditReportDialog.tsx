@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import Modal from "../../../util/Modal";
 import RichTextEditor from "../../../util/RichTextEditor";
 import type { TeacherReport } from "./ReportManagement";
+import type { HocKy } from "../../../utils/api";
 import { useToast } from "../../../components/UI/Toast";
 import LoadingButton from "../../../components/UI/LoadingButton";
 import { useFormValidation } from "../../../hooks/useFormValidation";
@@ -12,12 +13,13 @@ interface Props {
   onClose: () => void;
   report: TeacherReport | null;
   onSubmit: (updates: UpdateReportData) => void;
+  hocKyList: HocKy[];
 }
 
 interface UpdateReportData {
   title: string;
   content: string;
-  reportType: TeacherReport["reportType"];
+  reportType: string;
   attachments?: Array<{
     fileName: string;
     fileUrl: string;
@@ -25,11 +27,11 @@ interface UpdateReportData {
   }>;
 }
 
-const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) => {
+const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit, hocKyList }) => {
   const { showWarning, showError } = useToast();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [reportType, setReportType] = useState<TeacherReport["reportType"]>("tuan");
+  const [reportType, setReportType] = useState<string>("");
   const [attachments, setAttachments] = useState<Array<{ fileName: string; fileUrl: string; fileSize: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,6 +45,9 @@ const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) 
     content: {
       required: 'Vui lòng nhập nội dung báo cáo',
       minLength: { value: 10, message: 'Nội dung phải có ít nhất 10 ký tự' }
+    },
+    reportType: {
+      required: 'Vui lòng chọn học kỳ'
     }
   });
 
@@ -100,9 +105,14 @@ const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) 
   };
 
   const handleSubmit = async () => {
-    const isValid = validateAll({ title, content });
+    const isValid = validateAll({ title, content, reportType });
     if (!isValid) {
       showWarning("Vui lòng kiểm tra lại thông tin nhập vào");
+      return;
+    }
+    
+    if (!reportType) {
+      showWarning("Vui lòng chọn học kỳ");
       return;
     }
 
@@ -156,18 +166,6 @@ const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) 
       }
     >
       <div className="space-y-6">
-        {/* Subject info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-            <div className="text-sm text-blue-800">
-              <span className="font-medium">Khoa:</span> {report.khoa || "Chưa có thông tin khoa"} - {report.instructor.name}
-            </div>
-          </div>
-        </div>
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Title */}
           <div className="md:col-span-2">
@@ -190,19 +188,42 @@ const EditReportDialog: React.FC<Props> = ({ open, onClose, report, onSubmit }) 
           {/* Report type */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Loại báo cáo <span className="text-red-500">*</span>
+              Học kỳ <span className="text-red-500">*</span>
             </label>
             <select
-              className="w-full h-11 rounded-lg border border-gray-300 px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              className={`w-full h-11 rounded-lg border px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
+                getFieldError('reportType') ? 'border-red-300' : 'border-gray-300'
+              }`}
               value={reportType}
-              onChange={(e) => setReportType(e.target.value as TeacherReport["reportType"])}
+              onChange={(e) => {
+                setReportType(e.target.value);
+                validate('reportType', e.target.value, { title, content, reportType: e.target.value });
+              }}
+              onBlur={() => setFieldTouched('reportType')}
             >
-              <option value="tuan">Báo cáo tuần</option>
-              <option value="thang">Báo cáo tháng</option>
-              <option value="quy">Báo cáo quý</option>
-              <option value="nam">Báo cáo năm</option>
-              <option value="khac">Báo cáo khác</option>
+              <option value="">-- Chọn học kỳ --</option>
+              {hocKyList.map((hk) => (
+                <option key={hk.id} value={hk.id}>
+                  Học kỳ {hk.hocKyNumber} - {hk.namHoc}
+                </option>
+              ))}
             </select>
+            {getFieldError('reportType') && (
+              <div className="flex items-center gap-1.5 text-red-600 text-sm mt-1.5">
+                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span>{getFieldError('reportType')}</span>
+              </div>
+            )}
+            {hocKyList.length === 0 && (
+              <div className="flex items-center gap-1.5 text-amber-600 text-sm mt-1.5">
+                <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span>Chưa có học kỳ nào. Vui lòng liên hệ Phòng Đào Tạo để tạo học kỳ.</span>
+              </div>
+            )}
           </div>
         </div>
 

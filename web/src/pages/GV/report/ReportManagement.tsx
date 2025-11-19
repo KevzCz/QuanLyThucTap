@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { apiClient } from "../../../utils/api";
+import { apiClient, type HocKy } from "../../../utils/api";
 import SearchInput from "../../../components/UI/SearchInput";
 import Pagination from "../../../components/UI/Pagination";
 import CreateReportDialog from "./CreateReportDialog";
@@ -16,7 +16,7 @@ export interface TeacherReport {
   id: string;
   title: string;
   content: string;
-  reportType: "tuan" | "thang" | "quy" | "nam" | "khac";
+  reportType: string; // học kỳ ID or name
   status: "draft" | "submitted" | "reviewed" | "approved" | "rejected";
   submittedAt?: string;
   reviewedAt?: string;
@@ -38,21 +38,13 @@ export interface TeacherReport {
 export interface CreateReportData {
   title: string;
   content: string;
-  reportType: "tuan" | "thang" | "quy" | "nam" | "khac";
+  reportType: string; // học kỳ ID or name
   attachments?: Array<{
     fileName: string;
     fileUrl: string;
     fileSize: number;
   }>;
 }
-
-const ReportTypeLabels = {
-  "tuan": "Báo cáo tuần",
-  "thang": "Báo cáo tháng", 
-  "quy": "Báo cáo quý",
-  "nam": "Báo cáo năm",
-  "khac": "Báo cáo khác"
-};
 
 const StatusLabels = {
   "draft": "Bản nháp",
@@ -74,6 +66,7 @@ const ReportManagement: React.FC = () => {
   const { showSuccess, showError } = useToast();
   
   const [reports, setReports] = useState<TeacherReport[]>([]);
+  const [hocKyList, setHocKyList] = useState<HocKy[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentLecturer, setCurrentLecturer] = useState<{
@@ -87,7 +80,7 @@ const ReportManagement: React.FC = () => {
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebounce(query, 300);
   const [statusFilter, setStatusFilter] = useState<"all" | TeacherReport["status"]>("all");
-  const [typeFilter, setTypeFilter] = useState<"all" | TeacherReport["reportType"]>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | string>("all");
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
@@ -99,7 +92,19 @@ const ReportManagement: React.FC = () => {
 
   useEffect(() => {
     loadReports();
+    loadHocKyList();
   }, []);
+
+  const loadHocKyList = async () => {
+    try {
+      const response = await apiClient.getHocKyList();
+      const data = Array.isArray(response) ? response : (response as { success: boolean; data: HocKy[] })?.data || [];
+      console.log("Loaded học kỳ list:", data);
+      setHocKyList(data);
+    } catch (err) {
+      console.error("Error loading học kỳ list:", err);
+    }
+  };
 
   const loadReports = async () => {
     try {
@@ -139,6 +144,11 @@ const ReportManagement: React.FC = () => {
       return byStatus && byType && byQuery;
     });
   }, [reports, statusFilter, typeFilter, debouncedQuery]);
+
+  const getReportTypeLabel = (reportType: string) => {
+    const hocKy = hocKyList.find(hk => hk.id === reportType);
+    return hocKy ? `Học kỳ ${hocKy.hocKyNumber}` : reportType;
+  };
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const current = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -266,14 +276,14 @@ setReports(prev => prev.map(r =>
         <select
           value={typeFilter}
           onChange={(e) => {
-            setTypeFilter(e.target.value as "all" | TeacherReport["reportType"]);
+            setTypeFilter(e.target.value);
             setPage(1);
           }}
           className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-xs sm:text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none w-full sm:w-auto sm:min-w-[140px] touch-manipulation"
         >
-          <option value="all">Tất cả loại</option>
-          {Object.entries(ReportTypeLabels).map(([key, label]) => (
-            <option key={key} value={key}>{label}</option>
+          <option value="all">Tất cả học kỳ</option>
+          {hocKyList.map((hk) => (
+            <option key={hk.id} value={hk.id}>Học kỳ {hk.hocKyNumber}</option>
           ))}
         </select>
 
@@ -315,7 +325,7 @@ setReports(prev => prev.map(r =>
                   </td>
                   <td className="px-3 sm:px-4 py-2 sm:py-3">
                     <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-medium">
-                      {ReportTypeLabels[report.reportType] || "Không xác định"}
+                      {getReportTypeLabel(report.reportType)}
                     </span>
                   </td>
                   <td className="px-3 sm:px-4 py-2 sm:py-3">
@@ -427,7 +437,7 @@ setReports(prev => prev.map(r =>
         open={openCreate}
         onClose={() => setOpenCreate(false)}
         onSubmit={handleCreateReport}
-        currentLecturer={currentLecturer}
+        hocKyList={hocKyList}
       />
 
       <ViewReportDialog
@@ -442,6 +452,7 @@ setReports(prev => prev.map(r =>
         onClose={() => setEditingReport(null)}
         report={editingReport}
         onSubmit={(updates) => editingReport && handleUpdateReport(editingReport._id, updates)}
+        hocKyList={hocKyList}
       />
 
       <DeleteReportDialog

@@ -5,7 +5,7 @@ import HocKy from "../models/HocKy.js";
 import Account from "../models/Account.js";
 import SinhVien from "../models/SinhVien.js";
 import bcrypt from "bcryptjs";
-import { authPDT, authPDTOrBCN } from "../middleware/auth.js";
+import { authPDT, authPDTOrBCN, authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -172,6 +172,74 @@ router.post("/import", authPDT, upload.single("file"), async (req, res) => {
       });
     }
     
+    // Check if any existing students are in an ACTIVE học kỳ BEFORE processing
+    console.log("\n=== Checking for students in active học kỳ ===");
+    const activeHocKyForStudentCheck = await HocKy.findOne({ isActive: true }).populate('sinhViens');
+    const studentsInActiveHocKy = [];
+    
+    if (activeHocKyForStudentCheck) {
+      console.log(`Found active học kỳ: ${activeHocKyForStudentCheck.hocKyNumber} - ${activeHocKyForStudentCheck.namHoc}`);
+      
+      for (let i = 0; i < studentRows.length; i++) {
+        const row = studentRows[i];
+        let excelId, fullName, username;
+        
+        if (hasIdColumn) {
+          excelId = String(row[0] || "").trim();
+          fullName = String(row[1] || "").trim();
+        } else {
+          fullName = String(row[0] || "").trim();
+        }
+        
+        if (!fullName) continue;
+        
+        // Check if this student exists and is in the active học kỳ
+        if (excelId && /^SV\d{4}$/i.test(excelId)) {
+          username = excelId.toLowerCase();
+        } else {
+          // Try to find by name (less reliable but better than nothing)
+          const existingAccount = await Account.findOne({ 
+            name: fullName, 
+            role: "sinh-vien" 
+          });
+          if (existingAccount) {
+            username = existingAccount.username;
+          }
+        }
+        
+        if (username) {
+          const account = await Account.findOne({ username });
+          if (account) {
+            const sinhVien = await SinhVien.findOne({ account: account._id });
+            if (sinhVien && activeHocKyForStudentCheck.sinhViens) {
+              const isInActiveHocKy = activeHocKyForStudentCheck.sinhViens.some(
+                sv => sv._id.toString() === sinhVien._id.toString()
+              );
+              
+              if (isInActiveHocKy) {
+                studentsInActiveHocKy.push({
+                  name: fullName,
+                  username: account.username,
+                  row: i + 3
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    // If any students are in active học kỳ, fail the entire import
+    if (studentsInActiveHocKy.length > 0) {
+      console.log("❌ Found students in active học kỳ:", studentsInActiveHocKy);
+      return res.status(400).json({
+        error: `Không thể import! ${studentsInActiveHocKy.length} sinh viên đang tham gia học kỳ ${activeHocKyForStudentCheck.hocKyNumber} (${activeHocKyForStudentCheck.namHoc}) chưa kết thúc. Vui lòng kết thúc học kỳ hiện tại trước khi import sinh viên vào học kỳ mới.`,
+        details: studentsInActiveHocKy.map(s => `${s.name} (${s.username}) - Dòng ${s.row}`),
+      });
+    }
+    
+    console.log("✅ No students in active học kỳ. Proceeding with import...\n");
+    
     const createdStudents = [];
     const errors = [];
 
@@ -298,7 +366,7 @@ router.post("/import", authPDT, upload.single("file"), async (req, res) => {
             email,
           });
         } else {
-          console.log(`   ⚠️  Account ALREADY EXISTS - adding to học kỳ`);
+          console.log(`   ⚠️  Account ALREADY EXISTS - adding to new học kỳ`);
           
           // Update existing account info if needed
           let needsUpdate = false;
@@ -328,6 +396,12 @@ router.post("/import", authPDT, upload.single("file"), async (req, res) => {
               year: parseInt(namHoc.split("-")[0]),
               internshipStatus: "chua-duoc-huong-dan",
             });
+            await sinhVien.save();
+          } else {
+            // Reset internship status for new học kỳ
+            console.log(`   🔄 Resetting internship status for new học kỳ`);
+            sinhVien.internshipStatus = "chua-duoc-huong-dan";
+            sinhVien.supervisor = undefined; // Clear old supervisor
             await sinhVien.save();
           }
           
@@ -360,6 +434,7 @@ router.post("/import", authPDT, upload.single("file"), async (req, res) => {
             name: fullName,
             email: account.email,
             existing: true,
+            retaking: true, // Flag to indicate this is a retake
           });
         }
       } catch (error) {
@@ -519,6 +594,44 @@ router.get("/", authPDTOrBCN, async (req, res) => {
     res.json({ success: true, data: hocKyList });
   } catch (error) {
     console.error("Error fetching học kỳ:", error);
+    res.status(500).json({ error: "Failed to fetch học kỳ list" });
+  }
+});
+
+// GET /api/hocky/list - List all học kỳ (basic info, accessible by all authenticated users)
+router.get("/list", authenticate, async (req, res) => {
+  try {
+    const { namHoc, limit } = req.query;
+    const query = {};
+    
+    if (namHoc) {
+      query.namHoc = namHoc;
+    }
+
+    let queryBuilder = HocKy.find(query)
+      .select('hocKyNumber namHoc durationStart durationEnd isActive createdAt')
+      .sort({ namHoc: -1, hocKyNumber: -1 });
+
+    if (limit) {
+      queryBuilder = queryBuilder.limit(parseInt(limit, 10));
+    }
+
+    const hocKyList = await queryBuilder;
+
+    // Format response to match expected structure
+    const formattedList = hocKyList.map(hk => ({
+      id: hk._id.toString(),
+      hocKyNumber: hk.hocKyNumber,
+      namHoc: hk.namHoc,
+      durationStart: hk.durationStart,
+      durationEnd: hk.durationEnd,
+      isActive: hk.isActive,
+      createdAt: hk.createdAt
+    }));
+
+    res.json(formattedList);
+  } catch (error) {
+    console.error("Error fetching học kỳ list:", error);
     res.status(500).json({ error: "Failed to fetch học kỳ list" });
   }
 });

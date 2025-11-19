@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Send, Users, AlertCircle, CheckCircle2, Search } from "lucide-react";
+import { Send, Users, AlertCircle, CheckCircle2, Search, Clock, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../contexts/UseAuth";
 import { apiClient, type Role } from "../utils/api";
 
@@ -8,6 +8,25 @@ interface RecipientOption {
   label: string;
   email?: string;
   role?: Role;
+}
+
+interface SentNotification {
+  _id: string;
+  title: string;
+  message: string;
+  priority: string;
+  link?: string;
+  createdAt: string;
+  recipientType: string;
+  recipients: Array<{
+    _id: string;
+    id: string;
+    name: string;
+    email: string;
+    role: Role;
+    isRead: boolean;
+    readAt?: string;
+  }>;
 }
 
 export default function NotificationManagement() {
@@ -31,6 +50,30 @@ export default function NotificationManagement() {
   
   // Search state
   const [userSearchQuery, setUserSearchQuery] = useState("");
+
+  // Sent notifications state
+  const [sentNotifications, setSentNotifications] = useState<SentNotification[]>([]);
+  const [loadingSent, setLoadingSent] = useState(false);
+  const [expandedNotification, setExpandedNotification] = useState<string | null>(null);
+
+  // Load sent notifications on component mount
+  useEffect(() => {
+    const loadSentNotifications = async () => {
+      setLoadingSent(true);
+      try {
+        const response = await apiClient.getSentNotifications();
+        if (response.notifications) {
+          setSentNotifications(response.notifications);
+        }
+      } catch (err) {
+        console.error("Error loading sent notifications:", err);
+      } finally {
+        setLoadingSent(false);
+      }
+    };
+
+    loadSentNotifications();
+  }, []);
 
   // Load data based on recipient type
   useEffect(() => {
@@ -148,6 +191,16 @@ export default function NotificationManagement() {
       setSelectedRecipients([]);
       setLink("");
       setPriority("normal");
+      
+      // Reload sent notifications
+      try {
+        const sentResponse = await apiClient.getSentNotifications();
+        if (sentResponse.notifications) {
+          setSentNotifications(sentResponse.notifications);
+        }
+      } catch (err) {
+        console.error("Error reloading sent notifications:", err);
+      }
     } catch (err: unknown) {
       const errorMessage =
         err && typeof err === "object" && "message" in err
@@ -167,30 +220,171 @@ export default function NotificationManagement() {
 
   return (
     <div className="p-8">
-      {/* Header */}
+      {/* Header - Sent Notifications List */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Quản lý thông báo</h1>
-        <p className="text-gray-600 mt-1">Gửi thông báo đến người dùng trong hệ thống</p>
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">
+          Thông báo đã gửi (3 tháng gần đây)
+        </h2>
+        
+        {loadingSent ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Đang tải...</p>
+          </div>
+        ) : sentNotifications.length === 0 ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <p className="text-gray-500">Chưa có thông báo nào được gửi trong 3 tháng gần đây</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {sentNotifications.map((notif) => {
+              const isExpanded = expandedNotification === notif._id;
+              const readCount = notif.recipients.filter(r => r.isRead).length;
+              const totalCount = notif.recipients.length;
+              const readPercentage = totalCount > 0 ? Math.round((readCount / totalCount) * 100) : 0;
+              
+              return (
+                <div key={notif._id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="p-4">
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-4 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-gray-900 text-base mb-1">{notif.title}</h3>
+                        <p className="text-sm text-gray-600 line-clamp-2">{notif.message}</p>
+                      </div>
+                      <div className="flex-shrink-0">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          notif.priority === 'urgent' ? 'bg-red-100 text-red-800' :
+                          notif.priority === 'high' ? 'bg-orange-100 text-orange-800' :
+                          notif.priority === 'normal' ? 'bg-blue-100 text-blue-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {notif.priority === 'urgent' ? 'Khẩn cấp' :
+                           notif.priority === 'high' ? 'Cao' :
+                           notif.priority === 'normal' ? 'Trung bình' : 'Thấp'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Stats */}
+                    <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {new Date(notif.createdAt).toLocaleString('vi-VN', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Users className="w-4 h-4" />
+                        {totalCount} người nhận
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-4 h-4" />
+                        {readCount}/{totalCount} đã đọc ({readPercentage}%)
+                      </span>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                      <div 
+                        className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${readPercentage}%` }}
+                      />
+                    </div>
+
+                    {/* Toggle button */}
+                    <button
+                      onClick={() => setExpandedNotification(isExpanded ? null : notif._id)}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      {isExpanded ? 'Ẩn chi tiết' : 'Xem chi tiết'}
+                    </button>
+                  </div>
+
+                  {/* Expanded details */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-200 p-4 bg-gray-50">
+                      <h4 className="font-medium text-gray-900 mb-3">Danh sách người nhận:</h4>
+                      <div className="max-h-64 overflow-y-auto space-y-2">
+                        {notif.recipients.map((recipient) => (
+                          <div 
+                            key={recipient._id}
+                            className="flex items-center justify-between p-2 bg-white rounded border border-gray-200"
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className={`flex-shrink-0 w-2 h-2 rounded-full ${
+                                recipient.isRead ? 'bg-green-500' : 'bg-gray-300'
+                              }`} />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {recipient.name} ({recipient.id})
+                                </p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {getRoleLabel(recipient.role)} • {recipient.email}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex-shrink-0 text-right">
+                              {recipient.isRead ? (
+                                <div className="text-xs text-green-600">
+                                  <Eye className="w-4 h-4 inline mr-1" />
+                                  Đã đọc
+                                  {recipient.readAt && (
+                                    <div className="text-gray-500 mt-0.5">
+                                      {new Date(recipient.readAt).toLocaleString('vi-VN', {
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-gray-500">
+                                  <EyeOff className="w-4 h-4 inline mr-1" />
+                                  Chưa đọc
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Alerts */}
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-          <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-          <span className="text-red-800">{error}</span>
-        </div>
-      )}
+      {/* Send New Notification Section */}
+      <div className="mt-8">
+        <h2 className="text-xl font-bold text-gray-900 mb-4">Gửi thông báo mới</h2>
 
-      {success && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
-          <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-          <span className="text-green-800">{success}</span>
-        </div>
-      )}
+        {/* Alerts */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+            <span className="text-red-800">{error}</span>
+          </div>
+        )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="space-y-6">
-          {/* Title */}
+        {success && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start gap-2">
+            <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+            <span className="text-green-800">{success}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="space-y-6">
+            {/* Title */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Tiêu đề <span className="text-red-500">*</span>
@@ -411,6 +605,7 @@ export default function NotificationManagement() {
           </div>
         </div>
       </form>
+      </div>
     </div>
   );
 }

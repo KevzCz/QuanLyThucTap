@@ -1,5 +1,12 @@
 export type SubKind = "thuong" | "nop-file" | "van-ban" | "thong-bao" | "file";
 
+export interface Attachment {
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  uploadedAt: string;
+}
+
 export interface SubHeader {
   id: string;
   title: string;
@@ -11,6 +18,7 @@ export interface SubHeader {
   endAt?: string;
   fileUrl?: string;
   fileName?: string;
+  attachments?: Attachment[]; // files that can be added to any subheader
 }
 
 export interface HeaderBlock {

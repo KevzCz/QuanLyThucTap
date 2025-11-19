@@ -317,4 +317,73 @@ router.get("/recipients", authenticate, async (req, res) => {
   }
 });
 
+// GET /api/notification-management/sent - Get notifications sent by the current user in the last 3 months
+router.get("/sent", authenticate, async (req, res) => {
+  try {
+    const sender = req.account;
+    
+    // Calculate date 3 months ago
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+    // Find notifications sent by this user in the last 3 months
+    const { default: Notification } = await import("../models/Notification.js");
+    
+    const notifications = await Notification.find({
+      sender: sender._id,
+      createdAt: { $gte: threeMonthsAgo }
+    })
+      .populate('recipient', 'id name email role')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // Group notifications by unique combination of title, message, and created date
+    const groupedNotifications = notifications.reduce((acc, notif) => {
+      const dateKey = new Date(notif.createdAt).toISOString().split('T')[0];
+      const key = `${notif.title}|${dateKey}`;
+      
+      if (!acc[key]) {
+        acc[key] = {
+          _id: notif._id,
+          title: notif.title,
+          message: notif.message,
+          priority: notif.priority,
+          link: notif.link,
+          createdAt: notif.createdAt,
+          recipientType: notif.metadata?.recipientType || 'individual',
+          recipients: []
+        };
+      }
+      
+      if (notif.recipient) {
+        acc[key].recipients.push({
+          _id: notif.recipient._id,
+          id: notif.recipient.id,
+          name: notif.recipient.name,
+          email: notif.recipient.email,
+          role: notif.recipient.role,
+          isRead: notif.isRead,
+          readAt: notif.readAt
+        });
+      }
+      
+      return acc;
+    }, {});
+
+    // Convert to array and sort by date
+    const result = Object.values(groupedNotifications).sort(
+      (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+    );
+
+    res.json({
+      success: true,
+      notifications: result,
+      count: result.length
+    });
+  } catch (error) {
+    console.error("Error fetching sent notifications:", error);
+    res.status(500).json({ error: "Lỗi khi tải danh sách thông báo đã gửi" });
+  }
+});
+
 export default router;

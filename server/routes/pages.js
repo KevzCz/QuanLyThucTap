@@ -474,7 +474,7 @@ router.get('/teacher/subs/:subId', authGV, async (req, res) => {
 router.put('/teacher/subs/:subId', authGV, async (req, res) => {
   try {
     const { subId } = req.params;
-    const { title, content, order, audience, startAt, endAt, fileUrl, fileName } = req.body;
+    const { title, content, order, audience, startAt, endAt, fileUrl, fileName, attachments } = req.body;
 
     const subHeader = await SubHeader.findById(subId)
       .populate({
@@ -509,6 +509,7 @@ router.put('/teacher/subs/:subId', authGV, async (req, res) => {
     if (endAt !== undefined) subHeader.endAt = endAt ? new Date(endAt) : null;
     if (fileUrl !== undefined) subHeader.fileUrl = fileUrl;
     if (fileName !== undefined) subHeader.fileName = fileName;
+    if (attachments !== undefined) subHeader.attachments = attachments;
 
     await subHeader.save();
 

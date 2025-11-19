@@ -47,6 +47,24 @@ const SubHeaderSchema = new mongoose.Schema(
       type: String,
       default: null
     },
+    attachments: [{
+      fileUrl: {
+        type: String,
+        required: true
+      },
+      fileName: {
+        type: String,
+        required: true
+      },
+      fileSize: {
+        type: Number,
+        required: true
+      },
+      uploadedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
     isActive: {
       type: Boolean,
       default: true

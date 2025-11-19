@@ -5,6 +5,7 @@ import SinhVien from "../models/SinhVien.js";
 import GiangVien from "../models/GiangVien.js";
 import BanChuNhiem from "../models/BanChuNhiem.js";
 import Account from "../models/Account.js";
+import GradeAppeal from "../models/GradeAppeal.js";
 import notificationService from "../services/notificationService.js";
 
 const router = express.Router();
@@ -1241,7 +1242,7 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       return res.status(403).json({ error: "Chỉ Phòng Đào Tạo mới có quyền truy cập" });
     }
 
-    const { page = 1, limit = 20, status, workType, khoa, supervisorId, search } = req.query;
+    const { page = 1, limit = 20, status, workType, khoa, supervisorId, search, onlyFinished } = req.query;
     const pageNum = Math.max(1, Number(page));
     const limitNum = Math.min(100, Math.max(1, Number(limit)));
 
@@ -1250,6 +1251,41 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
     if (status && status !== "all") query.status = status;
     if (workType && workType !== "all") query.workType = workType;
     if (supervisorId) query.supervisor = supervisorId;
+    
+    // Filter only finished grades (approved and no active appeals)
+    if (onlyFinished === 'true') {
+      query.status = 'approved';
+    }
+
+    // Get khoa filter - need to get supervisors from that khoa
+    let khoaSupervisorIds = [];
+    if (khoa && khoa !== "all") {
+      const supervisorsInKhoa = await GiangVien.find({ khoa }).select('account').lean();
+      khoaSupervisorIds = supervisorsInKhoa.map(gv => gv.account);
+      if (khoaSupervisorIds.length > 0) {
+        query.supervisor = { $in: khoaSupervisorIds };
+      } else {
+        // No supervisors in this khoa, return empty
+        return res.json({
+          success: true,
+          grades: [],
+          pagination: { page: pageNum, pages: 1, total: 0 },
+          statistics: {
+            total: 0,
+            totalStudents: 0,
+            finishedGrades: 0,
+            byStatus: {},
+            byWorkType: {},
+            byLetterGrade: {},
+            averageGrade: 0,
+            passRate: 0,
+            submittedCount: 0,
+            approvedCount: 0,
+            totalFinalized: 0
+          }
+        });
+      }
+    }
 
     // Handle text search
     let grades;
@@ -1323,6 +1359,33 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
         ? ((passCount / validGrades.length) * 100).toFixed(1)
         : 0;
 
+      // Count total students and finished grades in selected khoa
+      let totalStudents = 0;
+      let finishedGrades = 0;
+      if (khoa && khoa !== "all") {
+        totalStudents = await SinhVien.countDocuments({ khoa });
+        finishedGrades = await InternshipGrade.countDocuments({ 
+          supervisor: { $in: khoaSupervisorIds },
+          status: 'approved'
+        });
+      } else {
+        totalStudents = await SinhVien.countDocuments({});
+        finishedGrades = await InternshipGrade.countDocuments({ status: 'approved' });
+      }
+
+      // Check for active appeals
+      const gradesWithAppeals = await InternshipGrade.find(query)
+        .populate({
+          path: 'student',
+          select: '_id'
+        });
+      
+      const gradeIds = gradesWithAppeals.map(g => g._id);
+      const activeAppeals = await GradeAppeal.countDocuments({
+        grade: { $in: gradeIds },
+        status: 'pending'
+      });
+
       // Get khoa for each grade's supervisor
       const gradesWithKhoa = await Promise.all(grades.map(async grade => {
         let khoaInfo = 'N/A';
@@ -1368,6 +1431,9 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
         },
         statistics: {
           total: stats.totalGrades,
+          totalStudents,
+          finishedGrades,
+          activeAppeals,
           byStatus: statusCounts,
           byWorkType: workTypeCounts,
           byLetterGrade: letterGradeCounts,
@@ -1449,6 +1515,33 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       ? ((passCount / validGrades.length) * 100).toFixed(1)
       : 0;
 
+    // Count total students and finished grades in selected khoa
+    let totalStudents = 0;
+    let finishedGrades = 0;
+    if (khoa && khoa !== "all") {
+      totalStudents = await SinhVien.countDocuments({ khoa });
+      finishedGrades = await InternshipGrade.countDocuments({ 
+        supervisor: { $in: khoaSupervisorIds },
+        status: 'approved'
+      });
+    } else {
+      totalStudents = await SinhVien.countDocuments({});
+      finishedGrades = await InternshipGrade.countDocuments({ status: 'approved' });
+    }
+
+    // Check for active appeals
+    const gradesWithAppeals = await InternshipGrade.find(query)
+      .populate({
+        path: 'student',
+        select: '_id'
+      });
+    
+    const gradeIds = gradesWithAppeals.map(g => g._id);
+    const activeAppeals = await GradeAppeal.countDocuments({
+      grade: { $in: gradeIds },
+      status: 'pending'
+    });
+
     // Get khoa for each grade's supervisor
     const gradesWithKhoa = await Promise.all(grades.map(async grade => {
       let khoaInfo = 'N/A';
@@ -1494,6 +1587,9 @@ router.get("/pdt/statistics", authenticate, async (req, res) => {
       },
       statistics: {
         total: stats.totalGrades,
+        totalStudents,
+        finishedGrades,
+        activeAppeals,
         byStatus: statusCounts,
         byWorkType: workTypeCounts,
         byLetterGrade: letterGradeCounts,
@@ -1588,6 +1684,255 @@ router.put("/students/:studentId/work-info", authenticate, authorize(["giang-vie
   } catch (error) {
     console.error("Update work info error:", error);
     res.status(500).json({ success: false, error: "Lỗi server" });
+  }
+});
+
+// POST /api/grades/lock-all - Lock all grades for a lecturer (GV only)
+router.post("/lock-all", authenticate, authorize(["giang-vien"]), async (req, res) => {
+  try {
+    // Get teacher's information
+    const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
+    
+    if (!giangVien) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin giảng viên" });
+    }
+    
+    // Find latest active học kỳ
+    const HocKy = (await import("../models/HocKy.js")).default;
+    const latestHocKy = await HocKy.findOne({ isActive: true })
+      .sort({ namHoc: -1, hocKyNumber: -1 })
+      .lean();
+
+    if (!latestHocKy) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy học kỳ đang hoạt động" });
+    }
+    
+    // Get supervisor's managed students
+    const students = await SinhVien.find({ 
+      supervisor: req.account._id,
+      _id: { $in: latestHocKy.sinhViens }
+    }).lean();
+
+    if (students.length === 0) {
+      return res.status(404).json({ success: false, error: "Bạn chưa có sinh viên nào được phân công" });
+    }
+
+    const studentAccountIds = students.map(s => s.account);
+
+    // Get all grades for these students
+    const grades = await InternshipGrade.find({
+      student: { $in: studentAccountIds },
+      hocKy: latestHocKy._id,
+      supervisor: req.account._id
+    });
+
+    if (grades.length === 0) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy điểm nào" });
+    }
+
+    // Check if all grades have finalGrade and are not already locked
+    const incompleteGrades = grades.filter(g => !g.finalGrade || g.finalGrade === 0);
+    if (incompleteGrades.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Còn ${incompleteGrades.length} sinh viên chưa được chấm điểm đầy đủ. Vui lòng hoàn thành chấm điểm trước khi khóa.`,
+        incompleteCount: incompleteGrades.length
+      });
+    }
+
+    // Lock all grades
+    const lockDate = new Date();
+    const updateResult = await InternshipGrade.updateMany(
+      {
+        student: { $in: studentAccountIds },
+        hocKy: latestHocKy._id,
+        supervisor: req.account._id,
+        isLocked: { $ne: true }
+      },
+      {
+        $set: {
+          isLocked: true,
+          lockedAt: lockDate,
+          lockedBy: req.account._id
+        }
+      }
+    );
+
+    res.json({
+      success: true,
+      message: `Đã khóa điểm thành công cho ${updateResult.modifiedCount} sinh viên`,
+      lockedCount: updateResult.modifiedCount
+    });
+  } catch (error) {
+    console.error("Lock grades error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server khi khóa điểm" });
+  }
+});
+
+// GET /api/grades/export - Export grades to Excel (GV only)
+router.get("/export", authenticate, authorize(["giang-vien"]), async (req, res) => {
+  try {
+    const xlsx = (await import("xlsx")).default;
+    
+    // Get teacher's information
+    const giangVien = await GiangVien.findOne({ account: req.account._id }).lean();
+    
+    if (!giangVien) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy thông tin giảng viên" });
+    }
+    
+    // Find latest active học kỳ
+    const HocKy = (await import("../models/HocKy.js")).default;
+    const latestHocKy = await HocKy.findOne({ isActive: true })
+      .sort({ namHoc: -1, hocKyNumber: -1 })
+      .lean();
+
+    if (!latestHocKy) {
+      return res.status(404).json({ success: false, error: "Không tìm thấy học kỳ đang hoạt động" });
+    }
+    
+    // Get supervisor's managed students
+    const students = await SinhVien.find({ 
+      supervisor: req.account._id,
+      _id: { $in: latestHocKy.sinhViens }
+    })
+      .populate('account', 'id name email')
+      .lean();
+
+    if (students.length === 0) {
+      return res.status(404).json({ success: false, error: "Bạn chưa có sinh viên nào được phân công" });
+    }
+
+    const studentAccountIds = students.map(s => s.account._id);
+    
+    // Get profiles for all students to get their birth dates
+    const Profile = (await import("../models/Profile.js")).default;
+    const profiles = await Profile.find({
+      account: { $in: studentAccountIds }
+    }).lean();
+    
+    // Create a map of account ID to profile
+    const profileMap = new Map();
+    profiles.forEach(p => {
+      profileMap.set(p.account.toString(), p);
+    });
+
+    // Get all grades for these students
+    const grades = await InternshipGrade.find({
+      student: { $in: studentAccountIds },
+      hocKy: latestHocKy._id,
+      supervisor: req.account._id
+    })
+      .populate('student', 'id name email')
+      .lean();
+
+    // Check if all grades are locked
+    const unlockedGrades = grades.filter(g => !g.isLocked);
+    if (unlockedGrades.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Bạn cần khóa điểm trước khi xuất file Excel. Vui lòng nhấn nút 'Khóa điểm' trước."
+      });
+    }
+
+    // Check if all grades are complete
+    const incompleteGrades = grades.filter(g => !g.finalGrade || g.finalGrade === 0);
+    if (incompleteGrades.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Còn ${incompleteGrades.length} sinh viên chưa được chấm điểm đầy đủ. Vui lòng hoàn thành trước khi xuất.`
+      });
+    }
+
+    // Create a map of student account ID to student info
+    const studentMap = new Map();
+    students.forEach(s => {
+      studentMap.set(s.account._id.toString(), s);
+    });
+
+    // Create a map of student account ID to grade
+    const gradeMap = new Map();
+    grades.forEach(g => {
+      gradeMap.set(g.student._id.toString(), g);
+    });
+
+    // Format học kỳ information
+    const hocKyName = `Học kỳ ${latestHocKy.hocKyNumber}`;
+    const namHoc = `Năm học ${latestHocKy.namHoc}`;
+    
+    // Format dates properly - handle both Date objects and strings
+    const formatDate = (date) => {
+      if (!date) return '';
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '';
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}/${month}/${year}`;
+    };
+    
+    const startDate = formatDate(latestHocKy.durationStart);
+    const endDate = formatDate(latestHocKy.durationEnd);
+    const dateRange = `${startDate} - ${endDate}`;
+
+    // Prepare data rows
+    const dataRows = [];
+    
+    students.forEach(student => {
+      const grade = gradeMap.get(student.account._id.toString());
+      const profile = profileMap.get(student.account._id.toString());
+      const supervisorScore = grade?.gradeComponents?.find(gc => gc.type === 'supervisor_score')?.score || '';
+      const companyScore = grade?.gradeComponents?.find(gc => gc.type === 'company_score')?.score || '';
+      const finalGrade = grade?.finalGrade || '';
+      
+      dataRows.push([
+        student.account.id,
+        student.account.name,
+        student.khoa,
+        formatDate(profile?.dateOfBirth),
+        supervisorScore,
+        companyScore,
+        finalGrade
+      ]);
+    });
+
+    // Create workbook
+    const wb = xlsx.utils.book_new();
+    
+    // Create worksheet data with header rows
+    const wsData = [
+      [hocKyName, namHoc, dateRange, '', '', '', ''],
+      ['ID', 'Tên sinh viên', 'Khoa', 'Ngày sinh', 'Điểm GV', 'Điểm DN', 'Điểm TB'],
+      ...dataRows
+    ];
+
+    const ws = xlsx.utils.aoa_to_sheet(wsData);
+
+    // Set column widths
+    ws['!cols'] = [
+      { wch: 10 },  // ID
+      { wch: 25 },  // Tên sinh viên
+      { wch: 15 },  // Khoa
+      { wch: 12 },  // Ngày sinh
+      { wch: 10 },  // Điểm GV
+      { wch: 10 },  // Điểm DN
+      { wch: 10 }   // Điểm TB
+    ];
+
+    xlsx.utils.book_append_sheet(wb, ws, 'Điểm thực tập');
+
+    // Generate buffer
+    const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+    // Set response headers
+    const filename = `Diem_ThucTap_${giangVien.khoa}_${latestHocKy.namHoc.replace(/\//g, '-')}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    
+    res.send(buffer);
+  } catch (error) {
+    console.error("Export grades error:", error);
+    res.status(500).json({ success: false, error: "Lỗi server khi xuất file Excel" });
   }
 });
 

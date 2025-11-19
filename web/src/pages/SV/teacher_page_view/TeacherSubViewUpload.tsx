@@ -261,6 +261,34 @@ const TeacherSubViewUpload: React.FC = () => {
 
         <div className="mt-4 prose max-w-none text-gray-800 leading-relaxed" dangerouslySetInnerHTML={{ __html: html }} />
 
+        {/* Attachments Section */}
+        {sub?.attachments && sub.attachments.length > 0 && (
+          <div className="mt-6 border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">📎 File đính kèm (tài liệu tham khảo)</h3>
+            <div className="space-y-2">
+              {sub.attachments.map((attachment, index) => (
+                <a
+                  key={index}
+                  href={attachment.fileUrl}
+                  download={attachment.fileName}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <span className="text-2xl flex-shrink-0">📄</span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900 truncate">{attachment.fileName}</p>
+                      <p className="text-xs text-gray-500">
+                        {(attachment.fileSize / 1024).toFixed(1)} KB • {new Date(attachment.uploadedAt).toLocaleDateString('vi-VN')}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-blue-600 flex-shrink-0">⬇️</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Upload area */}
         {isActive() && (
           <div className="mt-6">

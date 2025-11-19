@@ -12,7 +12,6 @@ import BCNInternshipSubjectManagement from "./pages/BCN/khoa_management/KhoaMana
 import KhoaPageManagement from "./pages/BCN/khoa_page/KhoaPageManagement";
 import KhoaPageRoutes from "./pages/BCN/khoa_page/KhoaPageRoutes";
 import RequestManagement from "./pages/BCN/request/RequestManagement";
-import GradeManagementBCN from "./pages/BCN/grade_management/GradeManagementBCN";
 import StudentManagement from "./pages/GV/student_management/StudentManagement";
 import GradeManagement from "./pages/GV/grade_management/GradeManagement";
 import StudentGradeDetail from "./pages/GV/grade_management/StudentGradeDetail";
@@ -105,7 +104,6 @@ const AppRoutes: React.FC = () => {
             <Route path="bcn-page/*" element={<KhoaPageRoutes />} />
             <Route path="request" element={<RequestManagement />} />
             <Route path="bcn-reports" element={<KhoaReportManagement />}/>
-            <Route path="grade-management" element={<GradeManagementBCN />} />
           </>
         )}
 

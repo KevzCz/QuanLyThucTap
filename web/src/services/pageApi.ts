@@ -156,6 +156,12 @@ export const updateSubHeader = async (subId: string, data: {
   endAt?: string;
   fileUrl?: string;
   fileName?: string;
+  attachments?: Array<{
+    fileUrl: string;
+    fileName: string;
+    fileSize: number;
+    uploadedAt: string;
+  }>;
 }): Promise<SubHeader> => {
   const response = await apiClient.request<{ success: boolean; subHeader: SubHeader }>(`/pages/subs/${subId}`, {
     method: 'PUT',

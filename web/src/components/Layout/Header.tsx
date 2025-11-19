@@ -37,6 +37,7 @@ function getPageInfo(pathname: string): { breadcrumb: string; title: string } {
   const pageMap: Record<string, { breadcrumb: string; title: string }> = {
     "/dashboard": { breadcrumb: "Trang chủ", title: "Trang chủ" },
     "/chat": { breadcrumb: "Chat hỗ trợ", title: "Chat hỗ trợ" },
+    "/notifications": { breadcrumb: "Thông báo đã gửi", title: "Thông báo đã gửi (3 tháng gần đây)" },
     
     // PDT pages
     "/accounts": { breadcrumb: "Quản lý tài khoản", title: "Quản lý tài khoản" },

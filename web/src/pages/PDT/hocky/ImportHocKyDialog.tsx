@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Upload, Download, CheckCircle, AlertCircle, X } from "lucide-react";
+import { Upload, CheckCircle, AlertCircle, X } from "lucide-react";
 import apiClient, { type ImportedStudent } from "../../../utils/api";
 
 interface Props {
@@ -67,25 +67,6 @@ const ImportHocKyDialog: React.FC<Props> = ({ open, onClose, onSuccess }) => {
     onClose();
   };
 
-  const downloadTemplate = () => {
-    // Create a sample Excel template
-    const templateContent = `Học kỳ 1\tNăm học 2024-2025\t01/09/2024 - 31/12/2024
-Tên sinh viên\tKhoa\tNgày sinh
-Nguyễn Văn A\tCông nghệ thông tin\t15/03/2004
-Trần Thị B\tKinh tế\t22/07/2005
-`;
-
-    const blob = new Blob([templateContent], { type: "text/tab-separated-values" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "hocky-template.xls";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
       <div 
@@ -113,20 +94,43 @@ Trần Thị B\tKinh tế\t22/07/2005
               Định dạng file Excel
             </h3>
             <p className="text-sm text-blue-700 mb-3">
-              File Excel cần có định dạng:
+              File Excel cần có định dạng với 4 cột (A, B, C, D):
             </p>
-            <ul className="text-sm text-blue-700 mb-3 list-disc list-inside space-y-1">
-              <li>Dòng 1: Học kỳ 1 | Năm học 2024-2025 | 01/09/2024 - 31/12/2024</li>
-              <li>Dòng 2: Tên sinh viên | Khoa | Ngày sinh</li>
-              <li>Từ dòng 3 trở đi: Danh sách sinh viên (Ngày sinh: DD/MM/YYYY)</li>
+            <div className="bg-white rounded border border-blue-200 p-3 mb-3 font-mono text-xs">
+              <div className="grid grid-cols-4 gap-2 mb-1 pb-1 border-b border-gray-300 font-semibold text-gray-700">
+                <div>Cột A</div>
+                <div>Cột B</div>
+                <div>Cột C</div>
+                <div>Cột D</div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-blue-800">
+                <div>Học kỳ 1</div>
+                <div>Năm học 2024-2025</div>
+                <div>01/09/2024</div>
+                <div>31/12/2024</div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 mt-2 font-semibold text-gray-700">
+                <div>Tên sinh viên</div>
+                <div>Khoa</div>
+                <div className="col-span-2">Ngày sinh</div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-gray-600">
+                <div>Nguyễn Văn A</div>
+                <div>Công nghệ thông tin</div>
+                <div className="col-span-2">15/03/2004</div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-gray-600">
+                <div>Trần Thị B</div>
+                <div>Kinh tế</div>
+                <div className="col-span-2">22/07/2005</div>
+              </div>
+            </div>
+            <ul className="text-xs text-blue-700 mb-3 space-y-1">
+              <li>• <strong>Dòng 1:</strong> Thông tin học kỳ (4 cột riêng biệt)</li>
+              <li>• <strong>Dòng 2:</strong> Header danh sách sinh viên</li>
+              <li>• <strong>Từ dòng 3:</strong> Thông tin từng sinh viên</li>
+              <li>• <strong>Định dạng ngày:</strong> DD/MM/YYYY</li>
             </ul>
-            <button
-              onClick={downloadTemplate}
-              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
-            >
-              <Download size={16} />
-              Tải file mẫu
-            </button>
           </div>
 
           {/* File Upload */}

@@ -712,6 +712,12 @@ class ApiClient {
     endAt?: string;
     fileUrl?: string;
     fileName?: string;
+    attachments?: Array<{
+      fileUrl: string;
+      fileName: string;
+      fileSize: number;
+      uploadedAt: string;
+    }>;
   }) {
     return this.request(`/pages/teacher/subs/${subId}`, {
       method: 'PUT',
@@ -1195,7 +1201,7 @@ class ApiClient {
   getHocKyList(namHoc?: string) {
     const qs = new URLSearchParams();
     if (namHoc) qs.append("namHoc", namHoc);
-    const endpoint = `/hocky${qs.toString() ? `?${qs.toString()}` : ""}`;
+    const endpoint = `/hocky/list${qs.toString() ? `?${qs.toString()}` : ""}`;
     return this.request<HocKy[]>(endpoint);
   }
 
@@ -1249,6 +1255,31 @@ class ApiClient {
       khoa?: string[];
       roles?: Array<{ value: string; label: string }>;
     }>(`/notification-management/recipients?type=${type}`);
+  }
+
+  getSentNotifications() {
+    return this.request<{
+      success: boolean;
+      notifications: Array<{
+        _id: string;
+        title: string;
+        message: string;
+        priority: string;
+        link?: string;
+        createdAt: string;
+        recipientType: string;
+        recipients: Array<{
+          _id: string;
+          id: string;
+          name: string;
+          email: string;
+          role: Role;
+          isRead: boolean;
+          readAt?: string;
+        }>;
+      }>;
+      count: number;
+    }>("/notification-management/sent");
   }
 
   /* Grade Appeals API methods */

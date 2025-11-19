@@ -1,6 +1,13 @@
 export type Audience = "tat-ca" | "sinh-vien" | "giang-vien";
 export type SubKind = "thuong" | "thong-bao" | "nop-file" | "van-ban" | "file";
 
+export interface Attachment {
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  uploadedAt: string;
+}
+
 export interface SubHeader {
   _id?: string;
   id: string;
@@ -13,6 +20,7 @@ export interface SubHeader {
   endAt?: string;
   fileUrl?: string;
   fileName?: string;
+  attachments?: Attachment[];
   isActive?: boolean;
 }
 

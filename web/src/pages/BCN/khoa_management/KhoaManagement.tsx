@@ -130,13 +130,6 @@ const InternshipSubjectManagement: React.FC = () => {
     }
   };
 
-  // remove participant - Disabled: BCN cannot remove students/lecturers from khoa
-  // This function is kept for UI compatibility but shows an error message
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const removeParticipant = async (participant: Participant) => {
-    showError("Chức năng xóa thành viên khỏi khoa không khả dụng. Vui lòng liên hệ Phòng Đào Tạo.");
-  };
-
   // Show loading state
   if (loading) {
     return (
@@ -259,14 +252,6 @@ const InternshipSubjectManagement: React.FC = () => {
                           <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M3 17.2V21h3.8l11-11L14 6.2l-11 11ZM20.7 7.04a1 1 0 0 0 0-1.41L18.37 3.3a1 1 0 0 0-1.41 0L15.1 5.16l3.33 3.33l2.27-1.45Z"/></svg>
                         </IconBtn>
                       )}
-
-                      <IconBtn
-                        className="bg-rose-500 hover:bg-rose-600"
-                        title="Xóa khỏi danh sách"
-                        onClick={() => removeParticipant(p)}
-                      >
-                        <svg viewBox="0 0 24 24" className="h-4 w-4"><path fill="currentColor" d="M6 7h12v2H6zm2 3h8l-1 10H9L8 10Zm3-7h2l1 2h4v2H6V5h4l1-2Z"/></svg>
-                      </IconBtn>
                     </div>
                   </td>
                 </tr>

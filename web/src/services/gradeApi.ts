@@ -517,6 +517,37 @@ export const getStudentProgress = async (): Promise<{ grade: InternshipGrade | n
   return response;
 };
 
+// Lock all grades (GV only)
+export const lockAllGrades = async (): Promise<{ success: boolean; message: string; lockedCount: number }> => {
+  const response = await apiClient.request<{
+    success: boolean;
+    message: string;
+    lockedCount: number;
+  }>(`/grades/lock-all`, {
+    method: 'POST'
+  });
+  return response;
+};
+
+// Export grades to Excel (GV only)
+export const exportGrades = async (): Promise<Blob> => {
+  const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api';
+  const response = await fetch(`${baseURL}/grades/export`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    },
+    credentials: 'include'
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Lỗi khi xuất file Excel');
+  }
+  
+  return response.blob();
+};
+
 // Helper functions
 export const getGradeComponentName = (type: string): string => {
   const names = {

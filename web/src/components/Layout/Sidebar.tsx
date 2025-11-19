@@ -26,7 +26,6 @@ const ROLE_MENUS: Record<Role, Item[]> = {
     { path: "/bcn-page", label: "Quản lý trang khoa", icon: <span>🏫</span> },
     { path: "/request", label: "Quản lý yêu cầu", icon: <span>📝</span> },
     { path: "/bcn-reports", label: "Quản lý báo cáo", icon: <span>📄</span> },
-    { path: "/grade-management", label: "Xem điểm thực tập", icon: <span>📊</span> },
     { path: "/notifications", label: "Quản lý thông báo", icon: <span>🔔</span> },
     { path: "/chat", label: "Chat hỗ trợ", icon: <span>💬</span> },
   ],

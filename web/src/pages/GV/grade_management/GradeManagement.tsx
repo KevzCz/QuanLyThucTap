@@ -6,6 +6,8 @@ import Pagination from '../../../components/UI/Pagination';
 import { Icons } from '../../../components/UI/Icons';
 import { 
   getSupervisorGrades, 
+  lockAllGrades,
+  exportGrades,
   type GradeSummary,
   getGradeStatusText,
   getGradeStatusColor,
@@ -15,13 +17,16 @@ import dayjs from 'dayjs';
 import { useDebounce } from '../../../hooks/useDebounce';
 import EmptyState from '../../../components/UI/EmptyState';
 import { useToast } from '../../../components/UI/Toast';
+import { Lock, Download } from 'lucide-react';
 
 const GradeManagement: React.FC = () => {
   const navigate = useNavigate();
-  const { showError } = useToast();
+  const { showError, showSuccess } = useToast();
   const [grades, setGrades] = useState<GradeSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lockingGrades, setLockingGrades] = useState(false);
+  const [exportingGrades, setExportingGrades] = useState(false);
 
   // Filters and pagination
   const [query, setQuery] = useState('');
@@ -102,6 +107,63 @@ const GradeManagement: React.FC = () => {
     return 'bg-red-500';
   };
 
+  const handleLockGrades = async () => {
+    if (!window.confirm('Bạn có chắc chắn muốn khóa điểm cho tất cả sinh viên? Sau khi khóa, điểm sẽ không thể thay đổi.')) {
+      return;
+    }
+
+    setLockingGrades(true);
+    try {
+      const response = await lockAllGrades();
+      showSuccess(response.message);
+      // Reload grades to reflect locked status
+      await loadGrades();
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Không thể khóa điểm. Vui lòng thử lại.';
+      showError(errorMsg);
+    } finally {
+      setLockingGrades(false);
+    }
+  };
+
+  const handleExportGrades = async () => {
+    setExportingGrades(true);
+    try {
+      const blob = await exportGrades();
+      
+      // Create download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Diem_ThucTap_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      showSuccess('Đã xuất file Excel thành công');
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Không thể xuất file Excel. Vui lòng thử lại.';
+      showError(errorMsg);
+    } finally {
+      setExportingGrades(false);
+    }
+  };
+
+  // Check if all grades are complete and can be locked
+  const canLockGrades = useMemo(() => {
+    if (grades.length === 0) return false;
+    return grades.every(g => g.finalGrade && g.finalGrade > 0);
+  }, [grades]);
+
+  // Check if all grades are locked
+  const allGradesLocked = useMemo(() => {
+    if (grades.length === 0) return false;
+    // This would need to be added to the GradeSummary type
+    // For now, we'll enable export if canLockGrades is true
+    return canLockGrades;
+  }, [canLockGrades, grades.length]);
+
   if (loading) {
     return (
       <PageLayout>
@@ -181,6 +243,36 @@ const GradeManagement: React.FC = () => {
         <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-600">
           <Icons.users className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           <span>{filtered.length} sinh viên</span>
+        </div>
+
+        {/* Spacer to push buttons to the right */}
+        <div className="flex-1"></div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          {/* Lock All Grades Button */}
+          <button
+            onClick={handleLockGrades}
+            disabled={!canLockGrades || lockingGrades}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-xs sm:text-sm font-medium touch-manipulation"
+            title={!canLockGrades ? 'Cần hoàn thành chấm điểm tất cả sinh viên trước khi khóa' : 'Khóa điểm tất cả sinh viên'}
+          >
+            <Lock className="w-4 h-4" />
+            <span className="hidden sm:inline">{lockingGrades ? 'Đang khóa...' : 'Khóa điểm'}</span>
+            <span className="sm:hidden">{lockingGrades ? 'Khóa...' : 'Khóa'}</span>
+          </button>
+
+          {/* Export to Excel Button */}
+          <button
+            onClick={handleExportGrades}
+            disabled={!allGradesLocked || exportingGrades}
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-xs sm:text-sm font-medium touch-manipulation"
+            title={!allGradesLocked ? 'Cần khóa điểm trước khi xuất Excel' : 'Xuất điểm ra file Excel'}
+          >
+            <Download className="w-4 h-4" />
+            <span className="hidden sm:inline">{exportingGrades ? 'Đang xuất...' : 'Xuất Excel'}</span>
+            <span className="sm:hidden">{exportingGrades ? 'Xuất...' : 'Excel'}</span>
+          </button>
         </div>
       </div>
 

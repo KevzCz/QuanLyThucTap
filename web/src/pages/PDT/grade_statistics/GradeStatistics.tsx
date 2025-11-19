@@ -20,6 +20,7 @@ interface Grade {
     id: string;
     title: string;
   } | null;
+  khoa?: string;
   workType: "thuc_tap" | "do_an";
   company?: {
     name: string;
@@ -45,6 +46,9 @@ interface Grade {
 
 interface Statistics {
   total: number;
+  totalStudents: number;
+  finishedGrades: number;
+  activeAppeals: number;
   byStatus: Record<string, number>;
   byWorkType: Record<string, number>;
   byLetterGrade: Record<string, number>;
@@ -74,6 +78,9 @@ const GradeStatistics: React.FC = () => {
   const [grades, setGrades] = useState<Grade[]>([]);
   const [statistics, setStatistics] = useState<Statistics>({
     total: 0,
+    totalStudents: 0,
+    finishedGrades: 0,
+    activeAppeals: 0,
     byStatus: {},
     byWorkType: {},
     byLetterGrade: {},
@@ -88,19 +95,41 @@ const GradeStatistics: React.FC = () => {
   const debouncedSearch = useDebounce(searchQuery, 500);
   const [statusFilter, setStatusFilter] = useState<"all" | Grade["status"]>("all");
   const [workTypeFilter, setWorkTypeFilter] = useState<"all" | Grade["workType"]>("all");
+  const [khoaFilter, setKhoaFilter] = useState<string>("all");
+  const [onlyFinished, setOnlyFinished] = useState(true); // Default to show only finished grades
+  const [khoaList, setKhoaList] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [viewingGrade, setViewingGrade] = useState<Grade | null>(null);
   const [showChart, setShowChart] = useState(false);
 
   useEffect(() => {
+    loadKhoaList();
+  }, []);
+
+  useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, khoaFilter, onlyFinished]);
 
   useEffect(() => {
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, statusFilter, workTypeFilter, debouncedSearch]);
+  }, [page, statusFilter, workTypeFilter, khoaFilter, onlyFinished, debouncedSearch]);
+
+  const loadKhoaList = async () => {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/accounts/khoa`,
+        { credentials: "include" }
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setKhoaList(data.khoa || []);
+      }
+    } catch (error) {
+      console.error("Load khoa list error:", error);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -112,6 +141,8 @@ const GradeStatistics: React.FC = () => {
       
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (workTypeFilter !== "all") params.append("workType", workTypeFilter);
+      if (khoaFilter !== "all") params.append("khoa", khoaFilter);
+      if (onlyFinished) params.append("onlyFinished", "true");
       if (debouncedSearch) params.append("search", debouncedSearch);
 
       const response = await fetch(
@@ -155,11 +186,12 @@ const GradeStatistics: React.FC = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ["Mã SV", "Sinh viên", "Giảng viên", "Môn TT", "Loại", "Trạng thái", "Điểm", "Xếp loại", "Tiến độ"];
+    const headers = ["Mã SV", "Sinh viên", "Giảng viên", "Khoa", "Môn TT", "Loại", "Trạng thái", "Điểm", "Xếp loại", "Tiến độ"];
     const rows = grades.map(g => [
       g.student?.id || "—",
       g.student?.name || "—",
       g.supervisor?.name || "—",
+      g.khoa || "—",
       g.subject?.title || "—",
       WorkTypeLabels[g.workType],
       StatusLabels[g.status],
@@ -176,7 +208,9 @@ const GradeStatistics: React.FC = () => {
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `thong-ke-diem-thuc-tap-${new Date().toISOString().split('T')[0]}.csv`;
+    const khoaSuffix = khoaFilter !== "all" ? `-khoa-${khoaFilter}` : "";
+    const finishedSuffix = onlyFinished ? "-hoan-thanh" : "";
+    link.download = `thong-ke-diem-thuc-tap${khoaSuffix}${finishedSuffix}-${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
   };
 
@@ -192,8 +226,16 @@ const GradeStatistics: React.FC = () => {
       {/* Statistics Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
         <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5 shadow-sm">
-          <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Tổng sinh viên</div>
-          <div className="text-2xl sm:text-3xl font-bold text-gray-900">{statistics.total}</div>
+          <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Tiến độ hoàn thành</div>
+          <div className="text-2xl sm:text-3xl font-bold text-blue-600">
+            {statistics.finishedGrades}/{statistics.totalStudents}
+          </div>
+          <div className="text-xs text-gray-500 mt-1">
+            {statistics.totalStudents > 0 ? 
+              `${((statistics.finishedGrades / statistics.totalStudents) * 100).toFixed(1)}%` : 
+              '0%'
+            }
+          </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5 shadow-sm">
           <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Điểm trung bình</div>
@@ -208,9 +250,9 @@ const GradeStatistics: React.FC = () => {
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5 shadow-sm">
-          <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Đã hoàn thành</div>
-          <div className="text-2xl sm:text-3xl font-bold text-blue-600">
-            {statistics.totalFinalized}
+          <div className="text-xs sm:text-sm font-medium text-gray-600 mb-1">Đang phúc khảo</div>
+          <div className="text-2xl sm:text-3xl font-bold text-orange-600">
+            {statistics.activeAppeals || 0}
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-5 shadow-sm">
@@ -288,17 +330,55 @@ const GradeStatistics: React.FC = () => {
             />
           </div>
 
+          <div className="relative">
+            <select
+              value={khoaFilter}
+              onChange={(e) => {
+                setKhoaFilter(e.target.value);
+                setPage(1);
+              }}
+              disabled={loading}
+              className="h-10 rounded-lg border border-gray-300 bg-white px-3 pr-8 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none min-w-[180px] touch-manipulation"
+            >
+              <option value="all">Tất cả khoa</option>
+              {khoaList.map((khoa) => (
+                <option key={khoa} value={khoa}>
+                  Khoa {khoa}
+                </option>
+              ))}
+            </select>
+            <span className="absolute inset-y-0 right-3 flex items-center text-gray-400 pointer-events-none">
+              <svg viewBox="0 0 24 24" className="h-4 w-4">
+                <path fill="currentColor" d="M7 10l5 5 5-5z" />
+              </svg>
+            </span>
+          </div>
+
+          <label className="inline-flex items-center gap-2 h-10 px-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 cursor-pointer touch-manipulation">
+            <input
+              type="checkbox"
+              checked={onlyFinished}
+              onChange={(e) => {
+                setOnlyFinished(e.target.checked);
+                setPage(1);
+              }}
+              disabled={loading}
+              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span className="text-sm text-gray-700 whitespace-nowrap">Chỉ xem điểm hoàn thành</span>
+          </label>
+
           <button
             onClick={exportToCSV}
             disabled={loading}
             className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-3 h-10 text-white text-sm hover:bg-emerald-700 disabled:opacity-50 touch-manipulation"
-            title="Xuất CSV"
+            title="Xuất Excel"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4">
               <path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6m4 18H6V4h7v5h5v11m-7-2v-2H9v2h2m4 0v-4h-2v4h2m-8-8v6h2v-6H7Z" />
             </svg>
-            <span className="hidden sm:inline">Xuất CSV</span>
-            <span className="sm:hidden">CSV</span>
+            <span className="hidden sm:inline">Xuất Excel</span>
+            <span className="sm:hidden">Excel</span>
           </button>
         </div>
 
