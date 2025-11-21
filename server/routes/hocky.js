@@ -618,15 +618,21 @@ router.get("/list", authenticate, async (req, res) => {
 
     const hocKyList = await queryBuilder;
 
-    // Format response to match expected structure
-    const formattedList = hocKyList.map(hk => ({
-      id: hk._id.toString(),
-      hocKyNumber: hk.hocKyNumber,
-      namHoc: hk.namHoc,
-      durationStart: hk.durationStart,
-      durationEnd: hk.durationEnd,
-      isActive: hk.isActive,
-      createdAt: hk.createdAt
+    // Format response to match expected structure and count valid students
+    const formattedList = await Promise.all(hocKyList.map(async (hk) => {
+      // Count only existing SinhVien records
+      const studentCount = await SinhVien.countDocuments({ _id: { $in: hk.sinhViens } });
+      
+      return {
+        id: hk._id.toString(),
+        hocKyNumber: hk.hocKyNumber,
+        namHoc: hk.namHoc,
+        durationStart: hk.durationStart,
+        durationEnd: hk.durationEnd,
+        isActive: hk.isActive,
+        studentCount: studentCount,
+        createdAt: hk.createdAt
+      };
     }));
 
     res.json(formattedList);
@@ -664,7 +670,25 @@ router.get("/:id", authPDT, async (req, res) => {
       return res.status(404).json({ error: "Học kỳ not found" });
     }
 
-    res.json(hocKy);
+    // Filter out deleted students (where sinhVien or account is null)
+    const validStudents = hocKy.sinhViens.filter(sv => sv && sv.account);
+    
+    // Create clean response with only valid students
+    const response = {
+      _id: hocKy._id,
+      hocKyNumber: hocKy.hocKyNumber,
+      namHoc: hocKy.namHoc,
+      durationStart: hocKy.durationStart,
+      durationEnd: hocKy.durationEnd,
+      isActive: hocKy.isActive,
+      sinhViens: validStudents,
+      importedBy: hocKy.importedBy,
+      importDate: hocKy.importDate,
+      createdAt: hocKy.createdAt,
+      updatedAt: hocKy.updatedAt
+    };
+
+    res.json(response);
   } catch (error) {
     console.error("Error fetching học kỳ:", error);
     res.status(500).json({ error: "Failed to fetch học kỳ details" });

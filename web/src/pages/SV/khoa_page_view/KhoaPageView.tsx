@@ -47,14 +47,25 @@ const KhoaPageView: React.FC = () => {
           if (response.student?.khoa) {
             setUserKhoa(response.student.khoa);
           }
+        } else {
+          // Invalid role for this page
+          setError('Bạn không có quyền truy cập trang này');
         }
       } catch (err) {
         console.error('Failed to load user khoa:', err);
-        setError('Không thể tải thông tin khoa');
+        const errorMessage = err instanceof Error ? err.message : 'Không thể tải thông tin khoa';
+        // Handle 404 specifically for missing profile
+        if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+          setError('Không tìm thấy thông tin hồ sơ. Vui lòng liên hệ quản trị viên.');
+        } else {
+          setError(errorMessage);
+        }
       }
     };
 
-    loadUserKhoa();
+    if (user?.role) {
+      loadUserKhoa();
+    }
   }, [user?.role]);
 
   // Load page data when khoa is available

@@ -17,7 +17,7 @@ interface Props {
 interface CreateReportData {
   title: string;
   content: string;
-  reportType: string;
+  hocKy: string;
   attachments?: Array<{
     fileName: string;
     fileUrl: string;
@@ -29,7 +29,7 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, hocKyLis
   const { showWarning, showError } = useToast();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [reportType, setReportType] = useState<string>("");
+  const [hocKy, setHocKy] = useState<string>("");
   const [attachments, setAttachments] = useState<Array<{ fileName: string; fileUrl: string; fileSize: number }>>([]);
   const [uploading, setUploading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,7 +44,7 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, hocKyLis
       required: 'Vui lòng nhập nội dung báo cáo',
       minLength: { value: 10, message: 'Nội dung phải có ít nhất 10 ký tự' }
     },
-    reportType: {
+    hocKy: {
       required: 'Vui lòng chọn học kỳ'
     }
   });
@@ -93,13 +93,13 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, hocKyLis
   };
 
   const handleSubmit = async () => {
-    const isValid = validateAll({ title, content, reportType });
+    const isValid = validateAll({ title, content, hocKy });
     if (!isValid) {
       showWarning("Vui lòng kiểm tra lại thông tin nhập vào");
       return;
     }
     
-    if (!reportType) {
+    if (!hocKy) {
       showWarning("Vui lòng chọn học kỳ");
       return;
     }
@@ -109,14 +109,14 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, hocKyLis
       await onSubmit({
         title: title.trim(),
         content,
-        reportType,
+        hocKy,
         attachments: attachments.length > 0 ? attachments : undefined
       });
 
       // Reset form
       setTitle("");
       setContent("");
-      setReportType("");
+      setHocKy("");
       setAttachments([]);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -130,7 +130,7 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, hocKyLis
   const handleClose = () => {
     setTitle("");
     setContent("");
-    setReportType("");
+    setHocKy("");
     setAttachments([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -194,28 +194,28 @@ const CreateReportDialog: React.FC<Props> = ({ open, onClose, onSubmit, hocKyLis
             </label>
             <select
               className={`w-full h-11 rounded-lg border px-3 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 ${
-                getFieldError('reportType') ? 'border-red-300' : 'border-gray-300'
+                getFieldError('hocKy') ? 'border-red-300' : 'border-gray-300'
               }`}
-              value={reportType}
+              value={hocKy}
               onChange={(e) => {
-                setReportType(e.target.value);
-                validate('reportType', e.target.value, { title, content, reportType: e.target.value });
+                setHocKy(e.target.value);
+                validate('hocKy', e.target.value, { title, content, hocKy: e.target.value });
               }}
-              onBlur={() => setFieldTouched('reportType')}
+              onBlur={() => setFieldTouched('hocKy')}
             >
               <option value="">-- Chọn học kỳ --</option>
               {hocKyList.map((hk) => (
-                <option key={hk.id} value={hk.id}>
+                <option key={hk.id} value={`hocky-${hk.hocKyNumber}-${hk.namHoc}`}>
                   Học kỳ {hk.hocKyNumber} - {hk.namHoc}
                 </option>
               ))}
             </select>
-            {getFieldError('reportType') && (
+            {getFieldError('hocKy') && (
               <div className="flex items-center gap-1.5 text-red-600 text-sm mt-1.5">
                 <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
-                <span>{getFieldError('reportType')}</span>
+                <span>{getFieldError('hocKy')}</span>
               </div>
             )}
             {hocKyList.length === 0 && (

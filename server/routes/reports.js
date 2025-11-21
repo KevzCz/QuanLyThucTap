@@ -94,11 +94,11 @@ router.get("/teacher", ...authGV, async (req, res) => {
 // Create teacher report (GV only)
 router.post("/teacher", ...authGV, async (req, res) => {
   try {
-    const { title, content, reportType, attachments } = req.body;
+    const { title, content, reportType, hocKy, attachments } = req.body;
 
     // Validate required fields
-    if (!title || !content || !reportType) {
-      return res.status(400).json({ error: "Tiêu đề, nội dung và loại báo cáo là bắt buộc" });
+    if (!title || !content || !hocKy) {
+      return res.status(400).json({ error: "Tiêu đề, nội dung và học kỳ là bắt buộc" });
     }
 
     // Validate title length
@@ -111,10 +111,12 @@ router.post("/teacher", ...authGV, async (req, res) => {
       return res.status(400).json({ error: "Nội dung phải từ 10 đến 10000 ký tự" });
     }
 
-    // Validate reportType
-    const validTypes = ["tuan", "thang", "quy", "nam", "khac"];
-    if (!validTypes.includes(reportType)) {
-      return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
+    // Validate reportType if provided
+    if (reportType) {
+      const validTypes = ["tuan", "thang", "quy", "nam", "khac"];
+      if (!validTypes.includes(reportType)) {
+        return res.status(400).json({ error: "Loại báo cáo không hợp lệ" });
+      }
     }
 
     // Validate attachments
@@ -136,7 +138,8 @@ router.post("/teacher", ...authGV, async (req, res) => {
     const report = new Report({
       title,
       content,
-      reportType,
+      reportType: reportType || "khac",
+      hocKy,
       instructor: req.account._id,
       khoa: lecturerProfile.khoa,
       attachments: attachments || []

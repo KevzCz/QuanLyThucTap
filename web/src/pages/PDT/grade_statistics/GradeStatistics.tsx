@@ -186,13 +186,12 @@ const GradeStatistics: React.FC = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ["Mã SV", "Sinh viên", "Giảng viên", "Khoa", "Môn TT", "Loại", "Trạng thái", "Điểm", "Xếp loại", "Tiến độ"];
+    const headers = ["Mã SV", "Sinh viên", "Giảng viên", "Khoa", "Loại", "Trạng thái", "Điểm", "Xếp loại", "Tiến độ"];
     const rows = grades.map(g => [
       g.student?.id || "—",
       g.student?.name || "—",
       g.supervisor?.name || "—",
       g.khoa || "—",
-      g.subject?.title || "—",
       WorkTypeLabels[g.workType],
       StatusLabels[g.status],
       g.finalGrade?.toFixed(1) || "Chưa có",
@@ -437,7 +436,6 @@ const GradeStatistics: React.FC = () => {
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[80px] sm:w-[100px]">Mã SV</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Sinh viên</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap min-w-[120px]">Giảng viên</th>
-                <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">Môn TT</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[90px]">Loại</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[140px]">Công việc</th>
                 <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[110px] sm:w-[120px]">Trạng thái</th>
@@ -450,13 +448,13 @@ const GradeStatistics: React.FC = () => {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500 text-xs sm:text-sm">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 text-xs sm:text-sm">
                     Đang tải...
                   </td>
                 </tr>
               ) : grades.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-gray-500 text-xs sm:text-sm">
+                  <td colSpan={10} className="px-6 py-12 text-center text-gray-500 text-xs sm:text-sm">
                     Không có dữ liệu điểm
                   </td>
                 </tr>
@@ -471,9 +469,6 @@ const GradeStatistics: React.FC = () => {
                     </td>
                     <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">
                       {grade.supervisor?.name || "—"}
-                    </td>
-                    <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 max-w-xs truncate">
-                      {grade.subject?.title || "—"}
                     </td>
                     <td className="px-3 sm:px-6 py-4 text-xs sm:text-sm text-gray-600 whitespace-nowrap">
                       {WorkTypeLabels[grade.workType]}

@@ -149,7 +149,7 @@ const HocKyManagement: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center text-sm text-gray-700">
                       <Users size={16} className="text-gray-400 mr-2" />
-                      {hocKy.studentCount || hocKy.sinhViens.length} sinh viên
+                      {hocKy.studentCount || hocKy.sinhViens?.length || 0} sinh viên
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

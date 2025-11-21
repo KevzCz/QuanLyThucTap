@@ -113,13 +113,6 @@ const ViewGradeDialog: React.FC<Props> = ({ open, grade, onClose }) => {
           </div>
         </div>
 
-        {/* Subject */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Môn thực tập</label>
-          <div className="text-sm text-gray-900">{grade.subject?.title || "—"}</div>
-          <div className="text-xs text-gray-500">{grade.subject?.id || "—"}</div>
-        </div>
-
         {/* Work Info */}
         {grade.workType === 'thuc_tap' && grade.company && (
           <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">

@@ -18,9 +18,14 @@ const ReportSchema = new mongoose.Schema(
     },
     reportType: {
       type: String,
-      required: true,
+      required: false,
       enum: ["tuan", "thang", "quy", "nam", "khac"],
-      default: "tuan"
+      default: "khac"
+    },
+    hocKy: {
+      type: String,
+      required: true,
+      trim: true
     },
     status: {
       type: String,

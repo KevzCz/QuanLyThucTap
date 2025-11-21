@@ -13,7 +13,7 @@ router.get("/test", (req, res) => {
 });
 
 // Get all students (BCN sees only their khoa, PDT sees all)
-router.get("/", authenticate, authorize(["ban-chu-nhiem", "phong-dao-tao"]), async (req, res) => {
+router.get("/", authenticate, authorize(["ban-chu-nhiem", "phong-dao-tao", "giang-vien"]), async (req, res) => {
   try {
     let students;
 
@@ -30,6 +30,22 @@ router.get("/", authenticate, authorize(["ban-chu-nhiem", "phong-dao-tao"]), asy
 
       // Get students from this khoa
       students = await SinhVien.find({ khoa: bcn.khoa })
+        .populate('account', 'id name email status')
+        .populate('supervisor', 'account')
+        .lean();
+    } else if (req.account.role === "giang-vien") {
+      // Find GV's khoa
+      const gv = await GiangVien.findOne({ account: req.account._id }).lean();
+      
+      if (!gv) {
+        return res.status(404).json({
+          success: false,
+          error: "Không tìm thấy thông tin giảng viên"
+        });
+      }
+
+      // Get students from this khoa
+      students = await SinhVien.find({ khoa: gv.khoa })
         .populate('account', 'id name email status')
         .populate('supervisor', 'account')
         .lean();

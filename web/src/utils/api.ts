@@ -908,7 +908,7 @@ class ApiClient {
   createTeacherReport(data: {
     title: string;
     content: string;
-    reportType: string;
+    hocKy: string;
     attachments?: Array<{
       fileName: string;
       fileUrl: string;
@@ -923,6 +923,7 @@ class ApiClient {
         title: string;
         content: string;
         reportType: string;
+        hocKy: string;
         status: string;
         createdAt: string;
         updatedAt: string;
